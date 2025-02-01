@@ -3,3 +3,5 @@ config.py
 .env
 .vscode/
 **/__pycache__/
+ta-lib/
+ta-lib-python/

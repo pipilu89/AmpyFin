@@ -14,5 +14,5 @@ stats
 PyWavelets
 ripser
 datetime
-ta-lib-python
+# ta-lib-python #pip install TA-Lib wroong name?
 pandas-ta
