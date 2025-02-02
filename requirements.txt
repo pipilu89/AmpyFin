@@ -15,5 +15,5 @@ PyWavelets
 ripser
 datetime
 pandas-ta
-TA-Lib
+ta-lib
 # ta-lib-python #pip install TA-Lib wrong name?
