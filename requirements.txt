@@ -16,5 +16,3 @@ ripser
 datetime
 TA-Lib
 pandas-ta
-ta-lib
-# ta-lib-python #pip install TA-Lib wrong name?
