@@ -1,0 +1,5 @@
+git pull changes from original repo
+
+server process mangement: persist process with pm2?
+
+mdb duplicates. reset db?
