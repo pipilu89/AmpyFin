@@ -1,5 +1,12 @@
 git pull changes from original repo
 
+mdb duplicates. reset db?
+
 server process mangement: persist process with pm2?
 
-mdb duplicates. reset db?
+pm2 start ./cronSchedule.py --interpreter ./venv/bin/python --name scheduler
+
+pm2 start ranking_client.py --interpreter ./venv/bin/python --name ampy_ranking_client
+
+activate venv
+pm2 start ranking_client.py --name ampy_ranking_client
