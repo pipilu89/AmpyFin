@@ -1,16 +1,16 @@
 ﻿
-# 🌟 AmpyFin Trading Bot
+# 🌟 AmpyFin Trading System
 
 ## 🚀 Introduction
 
-Welcome to **AmpyFin**, an advanced AI-powered trading bot designed for the NASDAQ-100. Imagine having expert traders working for you 24/7—AmpyFin makes this a reality.
+Welcome to **AmpyFin**, an advanced AI-powered trading system designed for the NASDAQ-100. Imagine having expert traders working for you 24/7—AmpyFin makes this a reality.
 
 ## 📊 AmpyFin’s Data Collection Power
 
 ### 🔍 Data Sources
 
 - **Financial Modeling Prep API**: Retrieves NASDAQ-100 tickers to gain crucial market insights.
-- **Polygon API**: Monitors real-time market conditions, ensuring that the bot acts based on the most current data.
+- **Polygon API**: Monitors real-time market conditions, ensuring that the system acts based on the most current data.
 
 ### 💾 Data Storage
 
@@ -57,6 +57,9 @@ This ensures that strategies with better recent performance have a greater influ
 
 ## 📂 File Structure and Objectives
 
+### 🕹️ control.py
+
+**Objective**: Designed to allow users to change parameters based on how they would like their version of Ampyfin to trade. Testing and training will also be supported options for both trading and ranking modes.
 
 ### 🤝 trading_client.py
 
@@ -89,7 +92,7 @@ This ensures that strategies with better recent performance have a greater influ
 - **talib_indicators.py**: Contains all the technical indicators used in the strategies. To visit the documentation for each technical indicator, please visit the following link: [Link to TA](https://ta-lib.org/). These indicators were not developed by me, but I have modified their use to fit the needs of AmpyFin. Each indicator is fine tuned with a specific period and historical data is either retrieved from MongoDB cache system or from yfinance.
 
 ### 🔧 helper_files/*
-Fa
+
 **Objective**: Helper Files to help with both trading client and ranking client. Houses functions for retrieving a Mongo Client, getting latest prices, current strategies implemented etc.
 
 **Features**:
@@ -166,7 +169,7 @@ pip install -r requirements.txt
 
 ## ⚡ Usage
 
-To run the bot, execute on two separate terminals:
+To run the systemt, execute on two separate terminals:
 
 ```bash
 python ranking_client.py
@@ -175,7 +178,7 @@ python trading_client.py
 
 ## ⚠️ IMPORTANT
 
-For people looking to do live trading, I suggest training via running ranking_client.py for at least two weeks before running the trading bot altogether. This way, you're running with a client that has been trained to a certain extent (with strategies ranked) and is ready to go. Otherwise, you will most likely be buying random stocks.
+For people looking to do live trading, I suggest training via running ranking_client.py for at least two weeks before running the trading system altogether. This way, you're running with a client that has been trained to a certain extent (with strategies ranked) and is ready to go. Otherwise, you will most likely be buying random stocks.
 
 ## 📑 Logging
 
