@@ -5,3 +5,4 @@ config.py
 **/__pycache__/
 ta-lib/
 ta-lib-python/
+ftp_downloads/

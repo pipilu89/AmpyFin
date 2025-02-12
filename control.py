@@ -95,9 +95,11 @@ also, please make sure the period_start date is at least 2 years after the IPO d
 please keep in mind training takes quite a long time. Our team trained it on a 1m tick, but even on a 1d tick, it takes a really long time
 so please understand the time it takes to train.
 """
-period_start = "2012-01-01"
+# period_start = "2012-01-01"
+period_start = "2021-01-01"
 period_end = "2021-12-31"
-train_tickers = ["MSFT", "TSLA", "AMZN", "AAPL", "GOOGL", "GOOG", "NFLX", "AVGO", "AMD", "NVDA"]
+# train_tickers = ["MSFT", "TSLA", "AMZN", "AAPL", "GOOGL", "GOOG", "NFLX", "AVGO", "AMD", "NVDA"]
+train_tickers = ["MSFT"]
 
 # trading_client.py parameters
 trade_mode = 'live'
