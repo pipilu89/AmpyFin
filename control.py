@@ -27,8 +27,8 @@ take_profit = 0.05
 
 # ranking_client.py parameters
 
-# rank_mode = 'live'
-rank_mode = 'train'
+rank_mode = 'live'
+# rank_mode = 'train'
 
 """
 time_delta_mode can be multiplicative, additive, or balanced. Additive results in less overfitting but could result in underfitting as time goes on
