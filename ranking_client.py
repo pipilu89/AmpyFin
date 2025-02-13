@@ -69,13 +69,13 @@ def process_ticker(ticker, mongo_client):
    try:
       
       current_price = None
-      
       while current_price is None:
          try:
             current_price = get_latest_price(ticker)
          except Exception as fetch_error:
             logging.warning(f"Error fetching price for {ticker}. Retrying... {fetch_error}")
-            time.sleep(10)
+            
+            return
       
       indicator_tb = mongo_client.IndicatorsDatabase
       indicator_collection = indicator_tb.Indicators
@@ -266,28 +266,32 @@ def update_portfolio_values(client):
       portfolio_value = strategy_doc["amount_cash"]
       
       for ticker, holding in strategy_doc["holdings"].items():
-          # The current price can be gotten through a cache system maybe
-          # if polygon api is getting clogged - but that hasn't happened yet
-          # Also implement in C++ or C instead of python
-          # Get the current price of the ticker from the Polygon API
-          # Use a cache system to store the latest prices
-          # If the cache is empty, fetch the latest price from the Polygon API
-          # Cache should be updated every 60 seconds 
-
-          current_price = None
-          while current_price is None:
+         # The current price can be gotten through a cache system maybe
+         # if polygon api is getting clogged - but that hasn't happened yet
+         # Also implement in C++ or C instead of python
+         # Get the current price of the ticker from the Polygon API
+         # Use a cache system to store the latest prices
+         # If the cache is empty, fetch the latest price from the Polygon API
+         # Cache should be updated every 60 seconds 
+         current_price = None
+         while current_price is None:
             try:
                # get latest price shouldn't cache - we should also do a delay
                current_price = get_latest_price(ticker)
             except:
                print(f"Error fetching price for {ticker}. Retrying...")
-               time.sleep(120)
+               break
+               
                # Will sleep 120 seconds before retrying to get latest price
-          print(f"Current price of {ticker}: {current_price}")
-          # Calculate the value of the holding
-          holding_value = holding["quantity"] * current_price
-          # Add the holding value to the portfolio value
-          portfolio_value += holding_value
+         print(f"Current price of {ticker}: {current_price}")
+         if current_price is None:
+            current_price = 0
+         # Calculate the value of the holding
+         holding_value = holding["quantity"] * current_price
+         if current_price == 0:
+            holding_value = 5000
+         # Add the holding value to the portfolio value
+         portfolio_value += holding_value
           
       # Update the portfolio value in the strategy document
       holdings_collection.update_one({"strategy": strategy_doc["strategy"]}, {"$set": {"portfolio_value": portfolio_value}}, upsert=True)
@@ -487,7 +491,7 @@ def main():
          
          return ticker_price_history[ticker].loc[start_date.strftime('%Y-%m-%d'):current_date.strftime('%Y-%m-%d')]
       
-      def update_portfolio_values(current_date):
+      def local_update_portfolio_values(current_date):
          active_count = 0
          for strategy in strategies:
                trading_simulator[strategy.__name__]["portfolio_value"] = trading_simulator[strategy.__name__]["amount_cash"]
@@ -564,7 +568,7 @@ def main():
                         elif trading_simulator[strategy.__name__]["holdings"][ticker]["quantity"] < 0:
                            Exception("Quantity cannot be negative")
                         trading_simulator[strategy.__name__]["total_trades"] += 1
-         active_count = update_portfolio_values(current_date) 
+         active_count = local_update_portfolio_values(current_date) 
          """
          log history of trading_simulator and points
          """
@@ -574,15 +578,7 @@ def main():
          logging.info(f"time_delta: {time_delta}")
          logging.info(f"Active count: {active_count}")
          logging.info("-------------------------------------------------")
-         results = {
-            "trading_simulator": trading_simulator,
-            "points": points,
-            "date": current_date.strftime('%Y-%m-%d'),
-            "time_delta": time_delta
-         }
          
-         with open('training_results.json', 'w') as json_file:
-            json.dump(results, json_file, indent=4)
          """
          Update time_delta based on the mode
          """
@@ -597,21 +593,27 @@ def main():
          current_date += timedelta(days=1)
          time.sleep(10)
             
-      """
-      we can update points tally and rank at the end - since training is only for each strategy
-      jsonify the result and put it in system for the user to either input into mongodb or delete it
-      """
-      """
       results = {
-        "trading_simulator": trading_simulator,
-        "points": points,
-        "date": current_date.strftime('%Y-%m-%d'),
-        "time_delta": time_delta
-      }
-    
+            "trading_simulator": trading_simulator,
+            "points": points,
+            "date": current_date.strftime('%Y-%m-%d'),
+            "time_delta": time_delta
+         }
+         
       with open('training_results.json', 'w') as json_file:
          json.dump(results, json_file, indent=4)
+
       """
+      output onto console top 10 strategies with highest portfolio values and top 10 strategies with highest points
+      """
+      top_portfolio_values = sorted(trading_simulator.items(), key=lambda x: x[1]["portfolio_value"], reverse=True)[:10]
+      top_points = sorted(trading_simulator.items(), key=lambda x: x[1]["points"], reverse=True)[:10]
+      print("Top 10 strategies with highest portfolio values")
+      for strategy, value in top_portfolio_values:
+         print(f"{strategy} - {value['portfolio_value']}")
+      print("Top 10 strategies with highest points")
+      for strategy, value in top_points:
+         print(f"{strategy} - {value['points']}")
    elif rank_mode == 'test':
       return None
    
