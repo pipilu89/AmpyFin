@@ -65,6 +65,7 @@ from control import rank_mode, time_delta_mode, time_delta_increment, time_delta
 from control import period_start, period_end, train_tickers
 import json
 
+from helper_files.client_helper import market_status as market_status_helper
 def process_ticker(ticker, mongo_client):
    try:
       
@@ -359,7 +360,12 @@ def main():
       while True: 
          mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
       
-         status = mongo_client.market_data.market_status.find_one({})["market_status"]
+         # Get the market status from the Polygon API
+         client = RESTClient(api_key=POLYGON_API_KEY)
+         status = market_status(client)  # Use the helper function for market status
+         print(f"Market status: {status}")
+
+         # status = mongo_client.market_data.market_status.find_one({})["market_status"]
       
          if status == "open":  
             # Connection pool is not thread safe. Create a new client for each thread.
