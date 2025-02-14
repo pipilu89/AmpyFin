@@ -91,7 +91,8 @@ def process_ticker(ticker, mongo_client):
                time.sleep(60)
          db = mongo_client.trading_simulator  
          holdings_collection = db.algorithm_holdings
-         print(f"Processing {strategy.__name__} for {ticker}")
+         # print(f"Processing {strategy.__name__} for {ticker}")
+         logging.debug(f"Processing {strategy.__name__} for {ticker}")
          strategy_doc = holdings_collection.find_one({"strategy": strategy.__name__})
          if not strategy_doc:
             logging.warning(f"Strategy {strategy.__name__} not found in database. Skipping.")
@@ -106,7 +107,7 @@ def process_ticker(ticker, mongo_client):
          simulate_trade(ticker, strategy, historical_data, current_price,
                         account_cash, portfolio_qty, total_portfolio_value, mongo_client)
          
-      print(f"{ticker} processing completed.")
+      logging.info(f"{ticker} processing completed.")
    except Exception as e:
       logging.error(f"Error in thread for {ticker}: {e}")
 

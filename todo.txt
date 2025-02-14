@@ -1,3 +1,6 @@
+timing: Fri Feb 14 02:19:02 PM UTC 2025 on Linode. 22:19 in China. New York 09:19.
+
+
 git pull changes from original repo
 
 mdb duplicates. reset db?
