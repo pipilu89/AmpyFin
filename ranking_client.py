@@ -116,7 +116,8 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
    """
     
    # Simulate trading action from strategy
-   print(f"Simulating trade for {ticker} with strategy {strategy.__name__} and quantity of {portfolio_qty}")
+   # print(f"Simulating trade for {ticker} with strategy {strategy.__name__} and quantity of {portfolio_qty}")
+   logging.debug(f"Simulating trade for {ticker} with strategy {strategy.__name__} and quantity of {portfolio_qty}")
    action, quantity = simulate_strategy(strategy, ticker, current_price, historical_data, account_cash, portfolio_qty, total_portfolio_value)
    
    # MongoDB setup
@@ -286,7 +287,8 @@ def update_portfolio_values(client):
                break
                
                # Will sleep 120 seconds before retrying to get latest price
-         print(f"Current price of {ticker}: {current_price}")
+         # print(f"Current price of {ticker}: {current_price}")
+         logging.debug(f"Current price of {ticker}: {current_price}")
          if current_price is None:
             current_price = 0
          # Calculate the value of the holding
