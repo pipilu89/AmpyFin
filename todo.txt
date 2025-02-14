@@ -20,3 +20,5 @@ nohup python ranking_client.py &
 issue: market status not updated if only running ranking_client.py
 
 issue: ranking_client.py is looging to system.log file, not logging to ranking_client.log file
+
+why sell half of position?
