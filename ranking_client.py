@@ -133,7 +133,8 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
    
    # Update holdings and cash based on trade action
    if action in ["buy"] and strategy_doc["amount_cash"] - quantity * current_price > rank_liquidity_limit and quantity > 0 and ((portfolio_qty + quantity) * current_price) / total_portfolio_value < rank_asset_limit:
-      logging.info(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
+      # logging.info(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
+      logging.info(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price} | Strategy: {strategy.__name__}")
       # Calculate average price if already holding some shares of the ticker
       if ticker in holdings_doc:
          current_qty = holdings_doc[ticker]["quantity"]
@@ -166,7 +167,8 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
 
    elif action in ["sell"] and str(ticker) in holdings_doc and holdings_doc[str(ticker)]["quantity"] > 0:
       
-      logging.info(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
+      logging.info(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price} | Strategy: {strategy.__name__}")
+      # logging.debug(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
       current_qty = holdings_doc[ticker]["quantity"]
         
       # Ensure we do not sell more than we have
@@ -249,8 +251,8 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
          del holdings_doc[ticker]
         
    else:
-      logging.info(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
-   print(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
+      logging.debug(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price} | Strategy: {strategy.__name__}")
+   # print(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
    # Close the MongoDB connection
 
 def update_portfolio_values(client):
