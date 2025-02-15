@@ -171,6 +171,7 @@ def get_latest_price(ticker):
    :param ticker: The stock ticker symbol  
    :return: The latest price of the stock  
    """  
+   logging.info(f"Fetching individual latest price for {ticker}")
    try:  
       ticker_yahoo = yf.Ticker(ticker)  
       data = ticker_yahoo.history() 

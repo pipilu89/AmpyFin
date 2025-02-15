@@ -67,10 +67,11 @@ import json
 import pandas as pd
 
 from helper_files.client_helper import market_status as market_status_helper
-def process_ticker(ticker, mongo_client, df_historical_single_ticker, current_date):
+def process_ticker(ticker, mongo_client, df_historical_single_ticker, current_date, latest_price):
    try:
       
       current_price = None
+      current_price = latest_price
       while current_price is None:
          try:
             current_price = get_latest_price(ticker)
@@ -370,17 +371,21 @@ def get_historical_data_from_yf(ndaq_tickers, period):
         return None
 
 def adjust_df_length_based_on_period(df, period, current_date):
+   adjustment = 1.1 #increase the length of the dataframe to avoid missing data from holidays etc.
    if period == '1mo':
-      start_date = current_date - timedelta(days=30)
+      x = 30
    elif period == '3mo':
-      start_date = current_date - timedelta(days=90)
+      x = 90
    elif period == '6mo':
-      start_date = current_date - timedelta(days=180)
+      x = 180
    elif period == '1y':
-      start_date = current_date - timedelta(days=365)
-   elif period == '2y':
-      start_date = current_date - timedelta(days=730)
-   df = df.loc[start_date:current_date]
+      x = 365
+   # elif period == '2y':
+   #    start_date = current_date - timedelta(days=730)
+   if period == '2y':
+      return df
+   else:
+      df = df.tail(x)
    return df
         
 def dl_historical_data_and_batch_insert_into_mdb(mongo_client, ndaq_tickers, period_list, current_date):
@@ -412,10 +417,39 @@ def dl_historical_data_and_batch_insert_into_mdb(mongo_client, ndaq_tickers, per
                documents.append({"ticker": ticker, "period": period, 'data': records})
          if documents:
                collection.insert_many(documents)
-               logging.info(f"Data for period {period} stored in MongoDB")
+               logging.info(f"Data for period {period} stored in MongoDB. {len(df_single_ticker) = }.")
+               logging.debug(f"{df_single_ticker.head(1) = }")
+               logging.debug(f"{df_single_ticker.tail(1) = }")
    return df
  
-
+def get_latest_prices_from_yf(tickers):
+    """
+    Batch download the latest prices for multiple tickers using yfinance.
+    
+    Parameters:
+    - tickers (list): List of ticker symbols.
+    
+    Returns:
+    - dict: A dictionary with ticker symbols as keys and their latest prices as values.
+    """
+    logging.info(f"Batch downloading latest prices from yfinance... {len(tickers) = }")
+    try:
+        # Download the latest prices for the tickers
+        df = yf.download(tickers, period='1d', interval='1m', group_by='Ticker', auto_adjust=True, repair=True, rounding=True)
+        
+        # Extract the latest prices
+        latest_prices = {}
+        for ticker in tickers:
+            if ticker in df.columns.levels[0]:
+                latest_prices[ticker] = df[ticker]['Close'].iloc[-1]
+            else:
+                latest_prices[ticker] = None
+        logging.info(f"{len(latest_prices) = }")
+        logging.debug(f"{latest_prices}")
+        return latest_prices
+    except Exception as e:
+        logging.error(f"Error downloading latest prices from yfinance: {e}")
+        return {}
 
 def main():  
    """  
@@ -429,6 +463,7 @@ def main():
       count = 0
       period_list = ["1mo", "3mo", "6mo", "1y", "2y"]
       df_historical_yf_prices = pd.DataFrame()
+      latest_prices_previous = None
 
       while True: 
          mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
@@ -459,13 +494,20 @@ def main():
                df_historical_yf_prices = dl_historical_data_and_batch_insert_into_mdb(mongo_client, ndaq_tickers, period_list, current_date)
 
             # batch download current prices from yf. This is to avoid multiple calls to yf in the threads.
-            
+            latest_prices = get_latest_prices_from_yf(ndaq_tickers)
+
             threads = []
 
             for ticker in ndaq_tickers:
                df_single_ticker = df_historical_yf_prices.loc[df_historical_yf_prices['Ticker'] == ticker]
                df_single_ticker = df_single_ticker.dropna()
-               thread = threading.Thread(target=process_ticker, args=(ticker, mongo_client, df_single_ticker, current_date))
+               latest_price = latest_prices[ticker]
+               # check if price has changed. if true process ticker. if false, skip.
+               if latest_prices_previous:
+                  if latest_price == latest_prices_previous[ticker]:
+                     logging.info(f"Price for {ticker} has not changed. Skipping...")
+                     continue
+               thread = threading.Thread(target=process_ticker, args=(ticker, mongo_client, df_single_ticker, current_date, latest_price))
                threads.append(thread)
                thread.start()
 
@@ -473,13 +515,13 @@ def main():
             for thread in threads:
                thread.join()
 
-         
+            latest_prices_previous = latest_prices
          
 
             logging.info(f"Finished processing all strategies. Waiting for 30 seconds. {count = }")
             count += 1
-            # time.sleep(30)  
-            return
+            time.sleep(30)  
+            # return
       
          elif status == "early_hours":  
                # During early hour, currently we only support prep
