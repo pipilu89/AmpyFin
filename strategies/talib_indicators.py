@@ -14,6 +14,9 @@ def get_data(ticker, mongo_client, period=None, start_date=None, end_date=None):
       while data is None:
          
          try:
+            # first get data from pandas df in memory
+            
+            # try to get historical data from MongoDB
             db = mongo_client.HistoricalDatabase
             collection = db.HistoricalDatabase  
             data = collection.find_one({"ticker": ticker, "period": period})

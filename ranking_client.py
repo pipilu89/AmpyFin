@@ -64,9 +64,10 @@ logging.basicConfig(
 from control import rank_mode, time_delta_mode, time_delta_increment, time_delta_multiplicative,time_delta_balanced, rank_liquidity_limit, rank_asset_limit, profit_price_change_ratio_d1, profit_profit_time_d1, profit_price_change_ratio_d2, profit_profit_time_d2, profit_profit_time_else, loss_price_change_ratio_d1, loss_price_change_ratio_d2, loss_profit_time_d1, loss_profit_time_d2, loss_profit_time_else
 from control import period_start, period_end, train_tickers
 import json
+import pandas as pd
 
 from helper_files.client_helper import market_status as market_status_helper
-def process_ticker(ticker, mongo_client):
+def process_ticker(ticker, mongo_client, df_historical_single_ticker, current_date):
    try:
       
       current_price = None
@@ -82,13 +83,20 @@ def process_ticker(ticker, mongo_client):
       indicator_collection = indicator_tb.Indicators
       for strategy in strategies:
          historical_data = None
+
          while historical_data is None:
             try:
                period = indicator_collection.find_one({'indicator': strategy.__name__})
-               historical_data = get_data(ticker, mongo_client, period['ideal_period'])
+               if not df_historical_single_ticker.empty:
+                  historical_data = df_historical_single_ticker
+                  historical_data = adjust_df_length_based_on_period(df_historical_single_ticker, period['ideal_period'], current_date)
+                  logging.debug(f"historical_data: {ticker}, {strategy.__name__}, {period['ideal_period']}, {len(historical_data) = }")
+               else:
+                  historical_data = get_data(ticker, mongo_client, period['ideal_period'])
             except Exception as fetch_error:
                logging.warning(f"Error fetching historical data for {ticker}. Retrying... {fetch_error}")
                time.sleep(60)
+
          db = mongo_client.trading_simulator  
          holdings_collection = db.algorithm_holdings
          # print(f"Processing {strategy.__name__} for {ticker}")
@@ -109,7 +117,7 @@ def process_ticker(ticker, mongo_client):
          
       logging.info(f"{ticker} processing completed.")
    except Exception as e:
-      logging.error(f"Error in thread for {ticker}: {e}")
+      logging.error(f"Error in thread for {ticker}, {current_price = }, {len(historical_data) = }: {e}")
 
 def simulate_trade(ticker, strategy, historical_data, current_price, account_cash, portfolio_qty, total_portfolio_value, mongo_client):
    """
@@ -352,6 +360,63 @@ def update_ranks(client):
    logging.info("Successfully updated ranks")
    logging.info("Successfully deleted historical database")
    
+def get_historical_data_from_yf(ndaq_tickers, period):
+    logging.info('download price data from yf...')
+    try:
+        df = yf.download(ndaq_tickers, group_by='Ticker', period=period, interval='1d', auto_adjust=True, repair=True, rounding=True)
+        return df
+    except Exception as e:
+        logging.error(f'yf error: {e}')
+        return None
+
+def adjust_df_length_based_on_period(df, period, current_date):
+   if period == '1mo':
+      start_date = current_date - timedelta(days=30)
+   elif period == '3mo':
+      start_date = current_date - timedelta(days=90)
+   elif period == '6mo':
+      start_date = current_date - timedelta(days=180)
+   elif period == '1y':
+      start_date = current_date - timedelta(days=365)
+   elif period == '2y':
+      start_date = current_date - timedelta(days=730)
+   df = df.loc[start_date:current_date]
+   return df
+        
+def dl_historical_data_and_batch_insert_into_mdb(mongo_client, ndaq_tickers, period_list, current_date):
+   db = mongo_client.HistoricalDatabase
+   collection = db.HistoricalDatabase
+
+   logging.info("Deleting historical database...")
+   collection.delete_many({})
+   logging.info("Successfully deleted historical database")
+
+   period_max ='2y'
+
+   # use yf dowloaded data, split period_max('2y') into shorter periods, rather than dl multiple periods. Possible problem if ticker does have 2 years of data (it may have 1mo or 6mo). Test with recent ipo.
+   df = get_historical_data_from_yf(ndaq_tickers, period_max)
+   if not df.empty:
+      # Stack multi-level column index
+      df = df.stack(level=0, future_stack=True).rename_axis(['Date', 'Ticker']).reset_index(level=1)
+      df = df[['Ticker','Open', 'High', 'Low', 'Close', 'Volume']]
+
+      for period in period_list:
+         documents = []
+         for ticker in ndaq_tickers:
+               df_single_ticker = df.loc[df['Ticker'] == ticker]
+               df_single_ticker = df_single_ticker.dropna()
+
+               df_single_ticker = adjust_df_length_based_on_period(df_single_ticker, period, current_date)
+
+               records = df_single_ticker.reset_index().to_dict('records')
+               documents.append({"ticker": ticker, "period": period, 'data': records})
+         if documents:
+               collection.insert_many(documents)
+               logging.info(f"Data for period {period} stored in MongoDB")
+   return df
+ 
+
+
 def main():  
    """  
    Main function to control the workflow based on the market's status.  
@@ -361,13 +426,17 @@ def main():
       early_hour_first_iteration = True
       post_market_hour_first_iteration = True
       status_previous = None
-      
+      count = 0
+      period_list = ["1mo", "3mo", "6mo", "1y", "2y"]
+      df_historical_yf_prices = pd.DataFrame()
+
       while True: 
          mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
       
          # Get the market status from the Polygon API
-         client = RESTClient(api_key=POLYGON_API_KEY)
-         status = market_status(client)  # Use the helper function for market status
+         # client = RESTClient(api_key=POLYGON_API_KEY)
+         # status = market_status(client)  # Use the helper function for market status
+         status = 'open'
          if status != status_previous:
             logging.info(f"Market status: {status}")
          status_previous = status
@@ -379,15 +448,24 @@ def main():
             # We can use ThreadPoolExecutor to manage threads - maybe use this but this risks clogging
             # resources if we have too many threads or if a thread is on stall mode
             # We can also use multiprocessing.Pool to manage threads
-         
+            current_date = datetime.now()
+            
             if not ndaq_tickers:
-               logging.info("Market is open. Processing strategies.")  
+               logging.info("\nMarket is open. Processing strategies.")  
                ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
 
+            # batch download ticker data from yfinance prior to threading
+            if df_historical_yf_prices.empty:            
+               df_historical_yf_prices = dl_historical_data_and_batch_insert_into_mdb(mongo_client, ndaq_tickers, period_list, current_date)
+
+            # batch download current prices from yf. This is to avoid multiple calls to yf in the threads.
+            
             threads = []
 
             for ticker in ndaq_tickers:
-               thread = threading.Thread(target=process_ticker, args=(ticker, mongo_client))
+               df_single_ticker = df_historical_yf_prices.loc[df_historical_yf_prices['Ticker'] == ticker]
+               df_single_ticker = df_single_ticker.dropna()
+               thread = threading.Thread(target=process_ticker, args=(ticker, mongo_client, df_single_ticker, current_date))
                threads.append(thread)
                thread.start()
 
@@ -398,8 +476,10 @@ def main():
          
          
 
-            logging.info("Finished processing all strategies. Waiting for 30 seconds.")
-            time.sleep(30)  
+            logging.info(f"Finished processing all strategies. Waiting for 30 seconds. {count = }")
+            count += 1
+            # time.sleep(30)  
+            return
       
          elif status == "early_hours":  
                # During early hour, currently we only support prep
