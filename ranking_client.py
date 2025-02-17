@@ -82,6 +82,8 @@ def process_ticker(ticker, mongo_client, df_historical_single_ticker, current_da
       
       indicator_tb = mongo_client.IndicatorsDatabase
       indicator_collection = indicator_tb.Indicators
+
+      actions_dict = {ticker:{'buy': 0, 'sell': 0, 'hold': 0}}
       for strategy in strategies:
          historical_data = None
 
@@ -113,10 +115,13 @@ def process_ticker(ticker, mongo_client, df_historical_single_ticker, current_da
          
          portfolio_qty = strategy_doc["holdings"].get(ticker, {}).get("quantity", 0)
 
-         simulate_trade(ticker, strategy, historical_data, current_price,
+         action = simulate_trade(ticker, strategy, historical_data, current_price,
                         account_cash, portfolio_qty, total_portfolio_value, mongo_client)
          
-      logging.info(f"{ticker} processing completed.")
+         actions_dict[ticker][action] += 1
+         
+      actions_dict[ticker]["total"] = sum(actions_dict[ticker].values())
+      logging.info(f"{ticker} processing completed. {actions_dict}")
    except Exception as e:
       logging.error(f"Error in thread for {ticker}, {current_price = }, {len(historical_data) = }: {e}")
 
@@ -265,6 +270,7 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
       logging.debug(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price} | Strategy: {strategy.__name__}")
    # print(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
    # Close the MongoDB connection
+   return action
 
 def update_portfolio_values(client):
    """
@@ -469,8 +475,10 @@ def main():
       mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
    
       # Get the market status from the Polygon API
-      client = RESTClient(api_key=POLYGON_API_KEY)
-      status = market_status(client)  # Use the helper function for market status
+      # client = RESTClient(api_key=POLYGON_API_KEY)
+      # status = market_status(client)  # Use the helper function for market status
+      status = "open"
+
       if status != status_previous:
          logging.info(f"Market status: {status}")
       status_previous = status
@@ -486,7 +494,8 @@ def main():
       
          if not ndaq_tickers:
             logging.info("Market is open. Processing strategies.")  
-            ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
+            # ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
+            ndaq_tickers = ["AAPL"]
 
          # batch download ticker data from yfinance prior to threading
          if df_historical_yf_prices.empty:            
@@ -514,10 +523,9 @@ def main():
          for thread in threads:
             thread.join()
 
-         latest_prices_previous = latest_prices
       
-
          logging.info(f"Finished processing all strategies. Waiting for 30 seconds. {count = }")
+         latest_prices_previous = latest_prices
          count += 1
          time.sleep(30)  
    
