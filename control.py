@@ -38,7 +38,7 @@ There will be an option to:
 'push' means pushing your trained bot to the database. This is only available for the ranking client.
 The default for mode is live to protect against accidental training
 """
-mode = 'train'
+mode = 'test'
 
 """
 training parameters - run purely on ranking_client.py
@@ -49,8 +49,8 @@ please keep in mind training takes quite a long time. Our team trained it on a 1
 so please understand the time it takes to train.
 
 """
-period_start = "2015-01-01"
-period_end = "2023-12-31"
+period_start = "2024-01-01"
+period_end = "2025-02-14"
 train_tickers = []
 
 """

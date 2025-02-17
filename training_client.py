@@ -263,7 +263,7 @@ def push():
     db.time_delta.update_one({}, {"$set": {"time_delta": time_delta}}, upsert=True)
     update_ranks(mongo_client)
 def test():
-    with open('training_results.json', 'r') as json_file:
+    with open('training_results20150101-20231231.json', 'r') as json_file:
          results = json.load(json_file)
          trading_simulator = results['trading_simulator']
          points = results['points']
