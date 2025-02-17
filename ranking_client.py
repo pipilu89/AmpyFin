@@ -146,6 +146,10 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
    holdings_doc = strategy_doc.get("holdings", {})
    time_delta = db.time_delta.find_one({})['time_delta']
    
+   # if action == "buy":
+   #    cash_remaining_if_buy = strategy_doc["amount_cash"] - quantity * current_price
+   #    pct_of_portfolio_if_buy = ((portfolio_qty + quantity) * current_price) / total_portfolio_value
+   #    logging.info(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price} | Strategy: {strategy.__name__}, {cash_remaining_if_buy = }, {pct_of_portfolio_if_buy = }")
    
    # Update holdings and cash based on trade action
    if action in ["buy"] and strategy_doc["amount_cash"] - quantity * current_price > rank_liquidity_limit and quantity > 0 and ((portfolio_qty + quantity) * current_price) / total_portfolio_value < rank_asset_limit:
@@ -368,7 +372,7 @@ def update_ranks(client):
    logging.info("Successfully deleted historical database")
    
 def get_historical_data_from_yf(ndaq_tickers, period):
-    logging.info('download price data from yf...')
+    logging.info('download historical price data from yf...')
     try:
         df = yf.download(ndaq_tickers, group_by='Ticker', period=period, interval='1d', auto_adjust=True, repair=True, rounding=True)
         return df
@@ -495,7 +499,7 @@ def main():
          if not ndaq_tickers:
             logging.info("Market is open. Processing strategies.")  
             # ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
-            ndaq_tickers = ["AAPL"]
+            ndaq_tickers = ["AAPL", "AMD"]
 
          # batch download ticker data from yfinance prior to threading
          if df_historical_yf_prices.empty:            
