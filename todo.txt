@@ -25,4 +25,6 @@ issue: ranking_client.py is logging to system.log file, not logging to ranking_c
 why sell half of position?
 
 
-issue: if historical data doesn't change ahy would def simulate_strategy() action change?
+issue: if historical data doesn't change why would def simulate_strategy() action change? if others tickers sell, maybe create liquidity to buy more?
+
+feature: fractional trading for small accounts.

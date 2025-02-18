@@ -121,6 +121,7 @@ def process_ticker(ticker, mongo_client, df_historical_single_ticker, current_da
          actions_dict[ticker][action] += 1
          
       actions_dict[ticker]["total"] = sum(actions_dict[ticker].values())
+      actions_dict[ticker]["current_price"] = current_price
       logging.info(f"{ticker} processing completed. {actions_dict}")
    except Exception as e:
       logging.error(f"Error in thread for {ticker}, {current_price = }, {len(historical_data) = }: {e}")
@@ -403,8 +404,12 @@ def dl_historical_data_and_batch_insert_into_mdb(mongo_client, ndaq_tickers, per
    collection = db.HistoricalDatabase
 
    logging.info("Deleting historical database...")
-   collection.delete_many({})
-   logging.info("Successfully deleted historical database")
+   try:
+      collection.delete_many({})
+      logging.info("Successfully deleted historical database")
+   except Exception as e:
+      logging.error(f"Error deleting historical database: {e}")
+      raise
 
    period_max ='2y'
 
@@ -415,21 +420,22 @@ def dl_historical_data_and_batch_insert_into_mdb(mongo_client, ndaq_tickers, per
       df = df.stack(level=0, future_stack=True).rename_axis(['Date', 'Ticker']).reset_index(level=1)
       df = df[['Ticker','Open', 'High', 'Low', 'Close', 'Volume']]
 
+      documents = []
       for period in period_list:
-         documents = []
          for ticker in ndaq_tickers:
-               df_single_ticker = df.loc[df['Ticker'] == ticker]
-               df_single_ticker = df_single_ticker.dropna()
+            df_single_ticker = df.loc[df['Ticker'] == ticker]
+            df_single_ticker = df_single_ticker.dropna()
 
-               df_single_ticker = adjust_df_length_based_on_period(df_single_ticker, period, current_date)
+            df_single_ticker = adjust_df_length_based_on_period(df_single_ticker, period, current_date)
 
-               records = df_single_ticker.reset_index().to_dict('records')
-               documents.append({"ticker": ticker, "period": period, 'data': records})
-         if documents:
-               collection.insert_many(documents)
-               logging.info(f"Data for period {period} stored in MongoDB. {len(df_single_ticker) = }.")
-               logging.debug(f"{df_single_ticker.head(1) = }")
-               logging.debug(f"{df_single_ticker.tail(1) = }")
+            records = df_single_ticker.reset_index().to_dict('records')
+            documents.append({"ticker": ticker, "period": period, 'data': records})
+      if documents:
+         collection.insert_many(documents)
+         # logging.info(f"Data for period {period} stored in MongoDB. {len(df_single_ticker) = }.")
+         logging.info(f"Data for period {period_list} stored in MongoDB.")
+         logging.debug(f"{df_single_ticker.head(1) = }")
+         logging.debug(f"{df_single_ticker.tail(1) = }")
    return df
  
 def get_latest_prices_from_yf(tickers):
@@ -495,9 +501,9 @@ def main():
          # resources if we have too many threads or if a thread is on stall mode
          # We can also use multiprocessing.Pool to manage threads
          current_date = datetime.now()
+         logging.info("Market is open. Processing strategies.")  
       
          if not ndaq_tickers:
-            logging.info("Market is open. Processing strategies.")  
             # ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
             ndaq_tickers = ["AAPL", "AMD"]
 
