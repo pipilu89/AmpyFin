@@ -370,9 +370,9 @@ def main():
       status = market_status(client)  # Use the helper function for market status
       # status = "open"
 
-      if status != status_previous:
-         logging.info(f"Market status: {status}")
-      status_previous = status
+      # if status != status_previous:
+      # logging.info(f"Market status: {status}")
+      # status_previous = status
    
       if status == "open":  
          # Connection pool is not thread safe. Create a new client for each thread.
