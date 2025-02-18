@@ -1,4 +1,5 @@
-from config import FINANCIAL_PREP_API_KEY, MONGO_DB_USER, MONGO_DB_PASS, API_KEY, API_SECRET, BASE_URL, mongo_url
+from polygon import RESTClient
+from config import FINANCIAL_PREP_API_KEY, MONGO_DB_USER, MONGO_DB_PASS, API_KEY, API_SECRET, BASE_URL, mongo_url, POLYGON_API_KEY
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from urllib.request import urlopen
@@ -363,7 +364,15 @@ def main():
    while True: 
       mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
    
-      status = mongo_client.market_data.market_status.find_one({})["market_status"]
+      # status = mongo_client.market_data.market_status.find_one({})["market_status"]
+      # Get the market status from the Polygon API
+      client = RESTClient(api_key=POLYGON_API_KEY)
+      status = market_status(client)  # Use the helper function for market status
+      # status = "open"
+
+      if status != status_previous:
+         logging.info(f"Market status: {status}")
+      status_previous = status
    
       if status == "open":  
          # Connection pool is not thread safe. Create a new client for each thread.
