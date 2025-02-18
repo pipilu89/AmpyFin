@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import time
 import sys
+import math
 sys.path.append('..')
 from control import trade_asset_limit
 def get_data(ticker, mongo_client, period=None, start_date=None, end_date=None): 
@@ -52,7 +53,8 @@ def simulate_strategy(strategy, ticker, current_price, historical_data, account_
    action = strategy(ticker, historical_data)
    
    if action == 'Buy':
-      return 'buy', min(int(max_investment // current_price), int(account_cash // current_price))
+      # return 'buy', min(int(max_investment // current_price), int(account_cash // current_price))
+      return 'buy', min(math.floor((max_investment / current_price)*100)/100, math.floor((account_cash / current_price)*100)/100)
    elif action == 'Sell' and portfolio_qty > 0:
       return 'sell', min(portfolio_qty, max(1, int(portfolio_qty * 0.5)))
    else:

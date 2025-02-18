@@ -38,7 +38,7 @@ There will be an option to:
 'push' means pushing your trained bot to the database. This is only available for the ranking client.
 The default for mode is live to protect against accidental training
 """
-mode = 'test'
+mode = 'live'
 
 """
 training parameters - run purely on ranking_client.py
@@ -193,7 +193,7 @@ trade_liquidity_limit is the amount of money you are telling the bot to reserve 
 All bots start with a default of 50000. This is for the trading client. Please try not to change this.
 If you do, the suggestion for bottom limit is 20% of the portfolio value. 
 """
-trade_liquidity_limit = 15000
+trade_liquidity_limit = 250
 
 """
 trade_asset_limit to portfolio is how much asset you are allowed to hold in comparison to portfolio value for the trading client

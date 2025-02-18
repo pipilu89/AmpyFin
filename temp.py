@@ -10,6 +10,23 @@
 # print(output)
 
 
-import talib
-print(len(talib.get_functions()))
-# Output : 158
+import math
+total_portfolio_value = 1000
+trade_asset_limit = 0.115151
+max_investment = total_portfolio_value * trade_asset_limit
+current_price = 244.5
+account_cash = 23
+
+# shares_based_on_limit = round(max_investment / current_price, 3)
+# shares_based_on_cash = round(account_cash / current_price, 3)
+# shares_based_on_limit2 = math.floor((max_investment / current_price)*100)/100
+# shares_based_on_cash2 = math.floor((account_cash / current_price)*100)/100
+
+# print(shares_based_on_limit, shares_based_on_cash)
+# print(shares_based_on_limit2, shares_based_on_cash2)
+# print(min(round(max_investment / current_price, 2), round(account_cash / current_price, 2)))
+
+portfolio_qty = 4.5
+# print(int(portfolio_qty * 0.5))
+print(min(portfolio_qty, max(1, int(portfolio_qty * 0.5))))
+# print(min(portfolio_qty, max(1, (portfolio_qty * 0.5))))

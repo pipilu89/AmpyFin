@@ -28,3 +28,5 @@ why sell half of position?
 issue: if historical data doesn't change why would def simulate_strategy() action change? if others tickers sell, maybe create liquidity to buy more?
 
 feature: fractional trading for small accounts.
+
+feature: stats. avg trade duration.
