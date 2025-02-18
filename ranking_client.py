@@ -485,15 +485,14 @@ def main():
       mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
    
       # Get the market status from the Polygon API
-      # client = RESTClient(api_key=POLYGON_API_KEY)
-      # status = market_status(client)  # Use the helper function for market status
-      status = "open"
+      client = RESTClient(api_key=POLYGON_API_KEY)
+      status = market_status(client)  # Use the helper function for market status
+      # status = "open"
 
+      # status = mongo_client.market_data.market_status.find_one({})["market_status"] # orig update status
       if status != status_previous:
          logging.info(f"Market status: {status}")
       status_previous = status
-
-      # status = mongo_client.market_data.market_status.find_one({})["market_status"]
    
       if status == "open":  
          # Connection pool is not thread safe. Create a new client for each thread.
@@ -504,8 +503,8 @@ def main():
          logging.info("Market is open. Processing strategies.")  
       
          if not ndaq_tickers:
-            # ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
-            ndaq_tickers = ["AAPL", "AMD"]
+            ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
+            # ndaq_tickers = ["AAPL", "AMD"]
 
          # batch download ticker data from yfinance prior to threading
          if df_historical_yf_prices.empty:            
