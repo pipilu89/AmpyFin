@@ -16,6 +16,7 @@ pm2 start ranking_client.py --name ampy_ranking_client
 
 run in background and can close terminal:
 nohup python ranking_client.py &
+end process:  kill 2794696
 nohup python training_client.py &
 
 issue: market status not updated if only running ranking_client.py
