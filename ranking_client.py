@@ -510,8 +510,8 @@ def main():
             # ndaq_tickers = ["AAPL", "AMD"]
 
          # batch download ticker data from yfinance prior to threading
-         if df_historical_yf_prices.empty:            
-            df_historical_yf_prices = dl_historical_data_and_batch_insert_into_mdb(mongo_client, ndaq_tickers, period_list, current_date)
+         # if df_historical_yf_prices.empty:            
+         #    df_historical_yf_prices = dl_historical_data_and_batch_insert_into_mdb(mongo_client, ndaq_tickers, period_list, current_date)
 
          # batch download current prices from yf. This is to avoid multiple calls to yf in the threads.
          latest_prices = get_latest_prices_from_yf(ndaq_tickers)
@@ -521,7 +521,8 @@ def main():
          for ticker in ndaq_tickers:
             df_single_ticker = df_historical_yf_prices.loc[df_historical_yf_prices['Ticker'] == ticker]
             df_single_ticker = df_single_ticker.dropna()
-            latest_price = latest_prices[ticker]
+            latest_price_np = latest_prices[ticker]
+            latest_price = latest_price_np.item() #convert np float to python float
             # check if price has changed. if true process ticker. if false, skip.
             if latest_prices_previous:
                if latest_price == latest_prices_previous[ticker]:
