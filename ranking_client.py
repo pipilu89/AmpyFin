@@ -464,7 +464,7 @@ def get_latest_prices_from_yf(tickers):
             else:
                 latest_prices[ticker] = None
         logging.info(f"{len(latest_prices) = }")
-        logging.debug(f"{latest_prices}")
+        logging.info(f"{latest_prices}")
         return latest_prices
     except Exception as e:
         logging.error(f"Error downloading latest prices from yfinance: {e}")
