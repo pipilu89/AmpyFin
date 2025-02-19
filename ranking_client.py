@@ -51,6 +51,7 @@ import time
 from datetime import datetime 
 import heapq 
 import certifi
+
 ca = certifi.where()
 logging.basicConfig(
     level=logging.INFO,
@@ -359,20 +360,20 @@ def main():
    ndaq_tickers = []  
    early_hour_first_iteration = True
    post_market_hour_first_iteration = True
-
+   status_previous = None
 
    while True: 
       mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
    
       # status = mongo_client.market_data.market_status.find_one({})["market_status"]
       # Get the market status from the Polygon API
-      client = RESTClient(api_key=POLYGON_API_KEY)
-      status = market_status(client)  # Use the helper function for market status
-      # status = "open"
+      # client = RESTClient(api_key=POLYGON_API_KEY)
+      # status = market_status(client)  # Use the helper function for market status
+      status = "open"
 
-      # if status != status_previous:
-      # logging.info(f"Market status: {status}")
-      # status_previous = status
+      if status != status_previous:
+         logging.info(f"Market status: {status}")
+      status_previous = status
    
       if status == "open":  
          # Connection pool is not thread safe. Create a new client for each thread.
