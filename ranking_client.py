@@ -113,7 +113,7 @@ def process_ticker(ticker, mongo_client, df_historical_single_ticker, current_da
 
          account_cash = strategy_doc["amount_cash"]
          total_portfolio_value = strategy_doc["portfolio_value"]
-
+         logging.info(f"debug {account_cash = }, {total_portfolio_value = }")
          
          portfolio_qty = strategy_doc["holdings"].get(ticker, {}).get("quantity", 0)
 
