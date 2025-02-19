@@ -127,7 +127,7 @@ def process_ticker(ticker, mongo_client, df_historical_single_ticker, current_da
       logging.info(f"{ticker} processing completed. {actions_dict}")
    except Exception as e:
       logging.error(f"Error in thread for {ticker}, {current_price = }, {len(historical_data) = }: {e}")
-      logging.error(traceback.format_exc())
+      logging.error(f"{traceback.format_exc()}, {strategy.__name__}. {ticker}")
 
 def simulate_trade(ticker, strategy, historical_data, current_price, account_cash, portfolio_qty, total_portfolio_value, mongo_client):
    """
