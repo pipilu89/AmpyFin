@@ -53,8 +53,8 @@ def simulate_strategy(strategy, ticker, current_price, historical_data, account_
    action = strategy(ticker, historical_data)
    
    if action == 'Buy':
-      # return 'buy', min(int(max_investment // current_price), int(account_cash // current_price))
-      return 'buy', min(math.floor((max_investment / current_price)*100)/100, math.floor((account_cash / current_price)*100)/100)
+      return 'buy', min(int(max_investment // current_price), int(account_cash // current_price))
+      # return 'buy', min(math.floor((max_investment / current_price)*100)/100, math.floor((account_cash / current_price)*100)/100)
    elif action == 'Sell' and portfolio_qty > 0:
       return 'sell', min(portfolio_qty, max(1, int(portfolio_qty * 0.5)))
    else:
