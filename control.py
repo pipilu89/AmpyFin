@@ -217,7 +217,7 @@ when we backtest, it will be running training_client.pt and ranking_client.py si
 
 """
 fractional shares
-for small accounts we can enable fractional shares. Aplaca supports fractional shares, but other brokers may not.
+For small accounts we can enable fractional shares. Aplaca supports fractional shares, but other brokers may not.
 Adjusts the buy/sell quantity calculations to allow for fractional shares, at 2 decimal places.
 options: True or False
 """

@@ -1,5 +1,11 @@
 timing: Fri Feb 14 02:19:02 PM UTC 2025 on Linode. 22:19 in China. New York 09:19.
 
+git pull
+python setup.py to reset db or:
+load training data:
+mode = 'push'
+python training_client.py
+
 
 git pull changes from original repo
 
@@ -7,12 +13,9 @@ mdb duplicates. reset db?
 
 server process mangement: persist process with pm2?
 
-pm2 start ./cronSchedule.py --interpreter ./venv/bin/python --name scheduler
-
-pm2 start ranking_client.py --interpreter ./venv/bin/python --name ampy_ranking_client
-
 activate venv
 pm2 start ranking_client.py --name ampy_ranking_client
+pm2 start trading_client.py --name ampy_trading_client
 
 run in background and can close terminal:
 nohup python ranking_client.py &
@@ -44,3 +47,16 @@ PROBLEM with trading simulator holdings being out of sync.
     ~~~~~~~~~~~~^^^^^^^^
 KeyError: 'NFLX'
 , MACDEXT_indicator. NFLX
+
+
+=====
+
+2025-02-20 14:54:07 - INFO - Action: sell | Ticker: GOOGL | Quantity: 1 | Price: 185.26 | Strategy: VAR_indicator
+2025-02-20 14:54:08 - ERROR - Error in thread for GOOGL, current_price = np.float64(185.26), len(historical_data) = 501: 'GOOGL'
+2025-02-20 14:54:08 - ERROR - Traceback (most recent call last):
+  File "C:\Users\pi\code\AmpyFin\ranking_client.py", line 122, in process_ticker
+    action = simulate_trade(ticker, strategy, historical_data, current_price,
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pi\code\AmpyFin\ranking_client.py", line 276, in simulate_trade
+KeyError: 'GOOGL'
+, VAR_indicator. GOOGL
