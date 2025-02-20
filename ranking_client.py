@@ -498,9 +498,11 @@ def get_latest_prices_from_yf2(tickers):
          return {}
       
 def clean_old_files(directory, pattern, max_files):
-    files = sorted(glob.glob(os.path.join(directory, pattern)), key=os.path.getmtime)
-    while len(files) > max_files:
-        os.remove(files.pop(0))
+   files = sorted(glob.glob(os.path.join(directory, pattern)), key=os.path.getmtime)
+   while len(files) > max_files:
+      file_to_delete = files.pop(0)
+      os.remove(file_to_delete)
+      logging.info(f"Deleted old file: {file_to_delete}")
 
 def main():  
    """  

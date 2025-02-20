@@ -31,3 +31,16 @@ issue: if historical data doesn't change why would def simulate_strategy() actio
 feature: fractional trading for small accounts.
 
 feature: stats. avg trade duration.
+
+
+2025-02-20 12:27:49 - INFO - Action: sell | Ticker: NFLX | Quantity: 1 | Price: 1042.86 | Strategy: MACDEXT_indicator
+2025-02-20 12:27:52 - ERROR - Error in thread for NFLX, current_price = np.float64(1042.86), len(historical_data) = 90: 'NFLX'
+2025-02-20 12:27:52 - ERROR - Traceback (most recent call last):
+  File "C:\Users\pi\code\AmpyFin\ranking_client.py", line 122, in process_ticker
+    action = simulate_trade(ticker, strategy, historical_data, current_price,
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pi\code\AmpyFin\ranking_client.py", line 276, in simulate_trade
+    if holdings_doc[ticker]["quantity"] == 0:
+    ~~~~~~~~~~~~^^^^^^^^
+KeyError: 'NFLX'
+, MACDEXT_indicator. NFLX
