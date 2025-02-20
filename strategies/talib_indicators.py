@@ -7,7 +7,7 @@ import sys
 import math
 import logging
 sys.path.append('..')
-from control import trade_asset_limit
+from control import trade_asset_limit, fractional_shares
 def get_data(ticker, mongo_client, period=None, start_date=None, end_date=None): 
 
    """Retrieve historical data for a given ticker."""  
@@ -55,9 +55,12 @@ def simulate_strategy(strategy, ticker, current_price, historical_data, account_
    # logging.info(f"{historical_data[historical_data['Close'].isnull()] = }")
    # logging.info(f"{ticker = }, {total_portfolio_value = }, {trade_asset_limit = }, {max_investment = }, {current_price = }, {account_cash = }, {portfolio_qty = }, {action = }")
    if action == 'Buy':
-      # return 'buy', min(int(max_investment // current_price), int(account_cash // current_price))
       # fractional shares
-      return 'buy', min(math.floor((max_investment / current_price)*100)/100, math.floor((account_cash / current_price)*100)/100)
+      if fractional_shares == True:
+         return 'buy', min(math.floor((max_investment / current_price)*100)/100, math.floor((account_cash / current_price)*100)/100)
+      else:
+         return 'buy', min(int(max_investment // current_price), int(account_cash // current_price))
+      
    elif action == 'Sell' and portfolio_qty > 0:
       return 'sell', min(portfolio_qty, max(1, int(portfolio_qty * 0.5)))
    else:

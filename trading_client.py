@@ -26,7 +26,7 @@ import threading
 import sys
 
 
-from control import trade_liquidity_limit, trade_asset_limit, suggestion_heap_limit
+from control import trade_liquidity_limit, trade_asset_limit, suggestion_heap_limit, fractional_shares
 
 buy_heap = []
 suggestion_heap = []
@@ -151,15 +151,32 @@ def process_ticker(ticker, client, trading_client, data_client, mongo_client, st
                 print(f"Executing SELL order for {ticker}")
                 print(f"Executing quantity of {quantity} for {ticker}")
                 sold = True
-                quantity = max(quantity, 1)
+                
+                # fractional shares
+                if fractional_shares == True:
+                    ...
+                else:
+                    quantity = max(quantity, 1) 
+
                 order = place_order(trading_client, symbol=ticker, side=OrderSide.SELL, quantity=quantity, mongo_client=mongo_client)
                 logging.info(f"Executed SELL order for {ticker}: {order}")
             elif portfolio_qty == 0.0 and buy_weight > sell_weight and (((quantity + portfolio_qty) * current_price) / portfolio_value) < trade_asset_limit and float(account.cash) > trade_liquidity_limit:
                 max_investment = portfolio_value * trade_asset_limit
-                buy_quantity = min(int(max_investment // current_price), int(buying_power // current_price))
+                
+                if fractional_shares == True:
+                    ...
+                    buy_quantity = min(math.floor((max_investment / current_price)*100)/100, math.floor((buying_power / current_price)*100)/100)
+                else:
+                    buy_quantity = min(int(max_investment // current_price), int(buying_power // current_price))
+                
                 if buy_weight > suggestion_heap_limit:
-                    buy_quantity = max(buy_quantity, 2)
-                    buy_quantity = buy_quantity // 2
+
+                    if fractional_shares == True:
+                        buy_quantity = buy_quantity / 2
+                    else:
+                        buy_quantity = max(buy_quantity, 2)
+                        buy_quantity = buy_quantity // 2
+                    
                     print(f"Suggestions for buying for {ticker} with a weight of {buy_weight} and quantity of {buy_quantity}")
                     heapq.heappush(suggestion_heap, (-(buy_weight - sell_weight), buy_quantity, ticker))
                 else:

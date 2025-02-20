@@ -38,7 +38,7 @@ There will be an option to:
 'push' means pushing your trained bot to the database. This is only available for the ranking client.
 The default for mode is live to protect against accidental training
 """
-mode = 'live'
+mode = 'push'
 
 """
 training parameters - run purely on ranking_client.py
@@ -214,3 +214,11 @@ when we train, it will be running ranking_client.py
 
 when we backtest, it will be running training_client.pt and ranking_client.py simultaenously
 """
+
+"""
+fractional shares
+for small accounts we can enable fractional shares. Aplaca supports fractional shares, but other brokers may not.
+Adjusts the buy/sell quantity calculations to allow for fractional shares, at 2 decimal places.
+options: True or False
+"""
+fractional_shares = True
