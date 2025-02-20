@@ -68,6 +68,8 @@ import pandas as pd
 
 from helper_files.client_helper import market_status as market_status_helper
 import traceback
+import os
+import glob
 
 def process_ticker(ticker, mongo_client, df_historical_single_ticker, current_date, latest_price):
    try:
@@ -456,9 +458,6 @@ def get_latest_prices_from_yf(tickers):
         # Download the latest prices for the tickers
         df = yf.download(tickers, period='1d', interval='1m', group_by='Ticker', auto_adjust=True, repair=True, rounding=True)
         
-        # save df to local file
-        df.to_csv('latest_prices_yf.csv', index=True)
-
         # Extract the latest prices
         latest_prices = {}
         for ticker in tickers:
@@ -497,6 +496,11 @@ def get_latest_prices_from_yf2(tickers):
       except Exception as e:
          logging.error(f"Error downloading latest prices from yfinance: {e}")
          return {}
+      
+def clean_old_files(directory, pattern, max_files):
+    files = sorted(glob.glob(os.path.join(directory, pattern)), key=os.path.getmtime)
+    while len(files) > max_files:
+        os.remove(files.pop(0))
 
 def main():  
    """  
@@ -511,6 +515,10 @@ def main():
    period_list = ["1mo", "3mo", "6mo", "1y", "2y"]
    df_historical_yf_prices = pd.DataFrame()
    df_latest_prices_previous = pd.DataFrame()
+
+   today_date_str = datetime.now().strftime('%Y-%m-%d')
+   historical_data_filename = f'df_historical_yf_prices_{today_date_str}.csv'
+   historical_data_directory = '.'  # Directory where the historical data files are stored
 
    while True: 
       mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
@@ -538,17 +546,21 @@ def main():
             ndaq_tickers = ["AAPL", "AMD", "PPP"]
 
          # batch download ticker data from yfinance prior to threading
-         # if df_historical_yf_prices.empty:            
-         #    df_historical_yf_prices = dl_historical_data_and_batch_insert_into_mdb(mongo_client, ndaq_tickers, period_list, current_date)
-         #    #store df_historical_yf_prices in local file
-         #    df_historical_yf_prices.to_csv('df_historical_yf_prices.csv', index=True)
-
-         # load df_historical_yf_prices from local file
-         try:
-            df_historical_yf_prices = pd.read_csv('df_historical_yf_prices.csv')
-            logging.info(f"Loaded df_historical_yf_prices.csv. {len(df_historical_yf_prices) = }")
-         except Exception as e:
-            logging.error(f"Error loading df_historical_yf_prices.csv: {e}")
+         if df_historical_yf_prices.empty:            
+            if not os.path.exists(historical_data_filename):
+               df_historical_yf_prices = dl_historical_data_and_batch_insert_into_mdb(mongo_client, ndaq_tickers, period_list, current_date)
+               # store df_historical_yf_prices in local file
+               df_historical_yf_prices.to_csv(historical_data_filename, index=True)
+               logging.info(f"Downloaded and saved df_historical_yf_prices to {historical_data_filename}")
+               # Clean old files to maintain a maximum of 5 files
+               clean_old_files(historical_data_directory, 'df_historical_yf_prices_*.csv', 5)
+            else:
+               # load df_historical_yf_prices from local file
+               try:
+                  df_historical_yf_prices = pd.read_csv(historical_data_filename)
+                  logging.info(f"Loaded df_historical_yf_prices from {historical_data_filename}. {len(df_historical_yf_prices) = }")
+               except Exception as e:
+                  logging.error(f"Error loading {historical_data_filename}: {e}")
 
          # batch download current prices from yf. This is to avoid multiple calls to yf in the threads.
          df_latest_prices = get_latest_prices_from_yf2(ndaq_tickers)
