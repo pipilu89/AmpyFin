@@ -113,7 +113,7 @@ def process_ticker(ticker, mongo_client, df_historical_single_ticker, current_da
 
          account_cash = strategy_doc["amount_cash"]
          total_portfolio_value = strategy_doc["portfolio_value"]
-         logging.info(f"debug {account_cash = }, {total_portfolio_value = }")
+         # logging.info(f"debug {account_cash = }, {total_portfolio_value = }")
          
          portfolio_qty = strategy_doc["holdings"].get(ticker, {}).get("quantity", 0)
 
@@ -456,6 +456,9 @@ def get_latest_prices_from_yf(tickers):
         # Download the latest prices for the tickers
         df = yf.download(tickers, period='1d', interval='1m', group_by='Ticker', auto_adjust=True, repair=True, rounding=True)
         
+        # save df to local file
+        df.to_csv('latest_prices_yf.csv', index=True)
+
         # Extract the latest prices
         latest_prices = {}
         for ticker in tickers:
@@ -470,6 +473,31 @@ def get_latest_prices_from_yf(tickers):
         logging.error(f"Error downloading latest prices from yfinance: {e}")
         return {}
 
+def get_latest_prices_from_yf2(tickers):
+      """
+      Batch download the latest prices for multiple tickers using yfinance.
+      
+      Parameters:
+      - tickers (list): List of ticker symbols.
+      
+      Returns:
+      - dict: A dictionary with ticker symbols as keys and their latest prices as values.
+      """
+      logging.info(f"Batch downloading latest prices from yfinance... {len(tickers) = }")
+      try:
+         # Download the latest prices for the tickers
+         df = yf.download(tickers, period='1d', interval='1m', group_by='Ticker', auto_adjust=True, repair=True, rounding=True)
+         if not df.empty:
+            # truncate df to most recent date only
+            df = df[df.index == df.index.max()]
+            # Stack multi-level column index
+            df = df.stack(level=0, future_stack=True).rename_axis(['Date', 'Ticker']).reset_index(level=1)
+            df = df[['Ticker','Open', 'High', 'Low', 'Close', 'Volume']]
+            return df
+      except Exception as e:
+         logging.error(f"Error downloading latest prices from yfinance: {e}")
+         return {}
+
 def main():  
    """  
    Main function to control the workflow based on the market's status.  
@@ -482,7 +510,7 @@ def main():
    count = 0
    period_list = ["1mo", "3mo", "6mo", "1y", "2y"]
    df_historical_yf_prices = pd.DataFrame()
-   latest_prices_previous = None
+   df_latest_prices_previous = pd.DataFrame()
 
    while True: 
       mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
@@ -506,28 +534,44 @@ def main():
          logging.info("Market is open. Processing strategies.")  
       
          if not ndaq_tickers:
-            ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
-            # ndaq_tickers = ["AAPL", "AMD"]
+            # ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
+            ndaq_tickers = ["AAPL", "AMD", "PPP"]
 
          # batch download ticker data from yfinance prior to threading
-         if df_historical_yf_prices.empty:            
-            df_historical_yf_prices = dl_historical_data_and_batch_insert_into_mdb(mongo_client, ndaq_tickers, period_list, current_date)
+         # if df_historical_yf_prices.empty:            
+         #    df_historical_yf_prices = dl_historical_data_and_batch_insert_into_mdb(mongo_client, ndaq_tickers, period_list, current_date)
+         #    #store df_historical_yf_prices in local file
+         #    df_historical_yf_prices.to_csv('df_historical_yf_prices.csv', index=True)
+
+         # load df_historical_yf_prices from local file
+         try:
+            df_historical_yf_prices = pd.read_csv('df_historical_yf_prices.csv')
+            logging.info(f"Loaded df_historical_yf_prices.csv. {len(df_historical_yf_prices) = }")
+         except Exception as e:
+            logging.error(f"Error loading df_historical_yf_prices.csv: {e}")
 
          # batch download current prices from yf. This is to avoid multiple calls to yf in the threads.
-         latest_prices = get_latest_prices_from_yf(ndaq_tickers)
-
+         df_latest_prices = get_latest_prices_from_yf2(ndaq_tickers)
+         # save df to local file
+         df_latest_prices.to_csv('latest_prices_yf.csv', index=True)
+       
          threads = []
 
          for ticker in ndaq_tickers:
             df_single_ticker = df_historical_yf_prices.loc[df_historical_yf_prices['Ticker'] == ticker]
             df_single_ticker = df_single_ticker.dropna()
-            latest_price_np = latest_prices[ticker]
-            latest_price = latest_price_np.item() #convert np float to python float
+            latest_price = df_latest_prices.loc[df_latest_prices['Ticker'] == ticker, 'Close'].values[0]
+            # logging.info(f"{latest_price = }")
+            # check if latest price is None or NaN
+            if latest_price is None or math.isnan(latest_price):
+               logging.warning(f"Latest price for {ticker}: {latest_price} is invalid (None or NaN). Skipping...")
+               continue
             # check if price has changed. if true process ticker. if false, skip.
-            if latest_prices_previous:
-               if latest_price == latest_prices_previous[ticker]:
+            if not df_latest_prices_previous.empty:
+               if latest_price == df_latest_prices_previous.loc[df_latest_prices_previous['Ticker'] == ticker, 'Close'].values[0]:
                   logging.info(f"Price for {ticker} has not changed. Skipping...")
                   continue
+
             thread = threading.Thread(target=process_ticker, args=(ticker, mongo_client, df_single_ticker, current_date, latest_price))
             threads.append(thread)
             thread.start()
@@ -538,7 +582,7 @@ def main():
 
       
          logging.info(f"Finished processing all strategies. Waiting for 30 seconds. {count = }")
-         latest_prices_previous = latest_prices
+         df_latest_prices_previous = df_latest_prices
          count += 1
          time.sleep(30)  
    
