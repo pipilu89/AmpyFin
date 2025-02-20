@@ -6,3 +6,4 @@ config.py
 *.json
 ftp_downloads/
 *.csv
+latest_prices_yf.csv
