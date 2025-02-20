@@ -53,10 +53,11 @@ def simulate_strategy(strategy, ticker, current_price, historical_data, account_
    max_investment = total_portfolio_value * trade_asset_limit
    action = strategy(ticker, historical_data)
    # logging.info(f"{historical_data[historical_data['Close'].isnull()] = }")
-   logging.info(f"{ticker = }, {total_portfolio_value = }, {trade_asset_limit = }, {max_investment = }, {current_price = }, {account_cash = }, {portfolio_qty = }, {action = }")
+   # logging.info(f"{ticker = }, {total_portfolio_value = }, {trade_asset_limit = }, {max_investment = }, {current_price = }, {account_cash = }, {portfolio_qty = }, {action = }")
    if action == 'Buy':
-      return 'buy', min(int(max_investment // current_price), int(account_cash // current_price))
-      # return 'buy', min(math.floor((max_investment / current_price)*100)/100, math.floor((account_cash / current_price)*100)/100)
+      # return 'buy', min(int(max_investment // current_price), int(account_cash // current_price))
+      # fractional shares
+      return 'buy', min(math.floor((max_investment / current_price)*100)/100, math.floor((account_cash / current_price)*100)/100)
    elif action == 'Sell' and portfolio_qty > 0:
       return 'sell', min(portfolio_qty, max(1, int(portfolio_qty * 0.5)))
    else:

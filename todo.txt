@@ -32,7 +32,7 @@ feature: fractional trading for small accounts.
 
 feature: stats. avg trade duration.
 
-
+PROBLEM with trading simulator holdings being out of sync.
 2025-02-20 12:27:49 - INFO - Action: sell | Ticker: NFLX | Quantity: 1 | Price: 1042.86 | Strategy: MACDEXT_indicator
 2025-02-20 12:27:52 - ERROR - Error in thread for NFLX, current_price = np.float64(1042.86), len(historical_data) = 90: 'NFLX'
 2025-02-20 12:27:52 - ERROR - Traceback (most recent call last):
