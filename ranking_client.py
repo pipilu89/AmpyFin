@@ -225,8 +225,7 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
          },
          upsert=True
       )
-      if holdings_doc[ticker]["quantity"] == 0:      
-         del holdings_doc[ticker]
+
       # Update cash after selling
       holdings_collection.update_one(
          {"strategy": strategy.__name__},
