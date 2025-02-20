@@ -119,7 +119,7 @@ def process_ticker(ticker, mongo_client, df_historical_single_ticker, current_da
          
          portfolio_qty = strategy_doc["holdings"].get(ticker, {}).get("quantity", 0)
 
-         action = simulate_trade(ticker, strategy, historical_data, current_price,
+         action, quantity = simulate_trade(ticker, strategy, historical_data, current_price,
                         account_cash, portfolio_qty, total_portfolio_value, mongo_client)
          
          actions_dict[ticker][action] += 1
@@ -128,7 +128,7 @@ def process_ticker(ticker, mongo_client, df_historical_single_ticker, current_da
       actions_dict[ticker]["current_price"] = current_price
       logging.info(f"{ticker} processing completed. {actions_dict}")
    except Exception as e:
-      logging.error(f"Error in thread for {ticker}, {current_price = }, {len(historical_data) = }: {e}")
+      logging.error(f"Error in thread for {ticker}, {action}, {quantity = }, {current_price = }: {e}")
       logging.error(f"{traceback.format_exc()}, {strategy.__name__}. {ticker}")
 
 def simulate_trade(ticker, strategy, historical_data, current_price, account_cash, portfolio_qty, total_portfolio_value, mongo_client):
@@ -278,7 +278,7 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
       logging.debug(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price} | Strategy: {strategy.__name__}")
    # print(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
    # Close the MongoDB connection
-   return action
+   return action, quantity
 
 def update_portfolio_values(client):
    """
