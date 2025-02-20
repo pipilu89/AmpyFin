@@ -529,9 +529,9 @@ def main():
       # Get the market status from the Polygon API
       # client = RESTClient(api_key=POLYGON_API_KEY)
       # status = market_status(client)  # Use the helper function for market status
-      status = "open"
+      # status = "open"
 
-      # status = mongo_client.market_data.market_status.find_one({})["market_status"] # orig update status
+      status = mongo_client.market_data.market_status.find_one({})["market_status"] # orig update status
       if status != status_previous:
          logging.info(f"Market status: {status}")
       status_previous = status
