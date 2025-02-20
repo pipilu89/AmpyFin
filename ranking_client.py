@@ -542,8 +542,8 @@ def main():
          logging.info("Market is open. Processing strategies.")  
       
          if not ndaq_tickers:
-            # ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
-            ndaq_tickers = ["AAPL", "AMD", "PPP"]
+            ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
+            # ndaq_tickers = ["AAPL", "AMD", "PPP"]
 
          # batch download ticker data from yfinance prior to threading
          if df_historical_yf_prices.empty:            
