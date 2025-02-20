@@ -38,7 +38,7 @@ There will be an option to:
 'push' means pushing your trained bot to the database. This is only available for the ranking client.
 The default for mode is live to protect against accidental training
 """
-mode = 'push'
+mode = 'live'
 
 """
 training parameters - run purely on ranking_client.py
