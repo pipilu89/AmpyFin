@@ -62,3 +62,25 @@ KeyError: 'NFLX'
   File "C:\Users\pi\code\AmpyFin\ranking_client.py", line 276, in simulate_trade
 KeyError: 'GOOGL'
 , VAR_indicator. GOOGL
+
+
+===
+post market also change to batch? def update_portfolio_values(client)
+Market status: closed
+2025-02-20 08:59:26 - INFO - Market is closed. Performing post-market analysis.
+2025-02-20 09:02:21 - INFO - Fetching individual latest price for MU
+2025-02-20 09:02:22 - ERROR - Error fetching latest price for MU: Too Many Requests. Rate limited. Try after a while.
+2025-02-20 09:02:22 - INFO - Fetching individual latest price for MU
+2025-02-20 09:02:23 - ERROR - Error fetching latest price for MU: Too Many Requests. Rate limited. Try after a while.
+
+
+===
+2025-02-20 14:54:02 - ERROR - Error processing WBD: {"code":42210000,"message":"qty must be \u003e 1e-9"}
+
+{
+  "_id": {
+    "$oid": "67b73e431e12bfa617aab588"
+  },
+  "symbol": "WBD",
+  "quantity": 4.440892098500626e-16
+}

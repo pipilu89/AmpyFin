@@ -196,6 +196,7 @@ def main():
     global buy_heap
     global suggestion_heap
     global sold
+    starting_cash = 1000
     ndaq_tickers = []
     early_hour_first_iteration = True
     post_hour_first_iteration = True
@@ -250,7 +251,7 @@ def main():
             trades_db = mongo_client.trades
             portfolio_collection = trades_db.portfolio_values
 
-            portfolio_collection.update_one({"name" : "portfolio_percentage"}, {"$set": {"portfolio_value": (portfolio_value-50491.13)/50491.13}})
+            portfolio_collection.update_one({"name" : "portfolio_percentage"}, {"$set": {"portfolio_value": (portfolio_value-starting_cash)/starting_cash}})
             portfolio_collection.update_one({"name" : "ndaq_percentage"}, {"$set": {"portfolio_value": (qqq_latest-518.58)/518.58}})
             portfolio_collection.update_one({"name" : "spy_percentage"}, {"$set": {"portfolio_value": (spy_latest-591.95)/591.95}})
 
