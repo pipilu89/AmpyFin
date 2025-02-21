@@ -600,7 +600,7 @@ def main():
          logging.info(f"Finished processing all strategies. Waiting for 30 seconds. {count = }")
          df_latest_prices_previous = df_latest_prices
          count += 1
-         time.sleep(30)  
+         time.sleep(300)  
    
       elif status == "early_hours":  
             # During early hour, currently we only support prep
