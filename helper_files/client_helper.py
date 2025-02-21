@@ -1,4 +1,5 @@
 from pymongo import MongoClient
+from bson.decimal128 import Decimal128
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import MarketOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce
@@ -77,7 +78,8 @@ def place_order(trading_client, symbol, side, quantity, mongo_client):
     limits = db.assets_limit
 
     if side == OrderSide.BUY:
-        assets.update_one({'symbol': symbol}, {'$inc': {'quantity': qty}}, upsert=True)
+        # assets.update_one({'symbol': symbol}, {'$inc': {'quantity': qty}}, upsert=True)
+        assets.update_one({'symbol': symbol}, {'$inc': {'quantity': Decimal128(str(qty))}}, upsert=True)
         limits.update_one(
             {'symbol': symbol},
             {'$set': {'stop_loss_price': stop_loss_price, 'take_profit_price': take_profit_price}},
