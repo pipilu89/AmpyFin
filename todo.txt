@@ -84,3 +84,10 @@ Market status: closed
   "symbol": "WBD",
   "quantity": 4.440892098500626e-16
 }
+
+2025-02-21 14:32:46 - ERROR - Error processing CDNS: '>' not supported between instances of 'Decimal128' and 'int'
+
+2025-02-21 20:56:21 - ERROR - Error processing CDNS: 1 validation error for MarketOrderRequest
+qty
+  Input should be a valid number [type=float_type, input_value=Decimal128('0.185'), input_type=Decimal128]
+    For further information visit https://errors.pydantic.dev/2.10/v/float_type

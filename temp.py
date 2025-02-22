@@ -44,7 +44,18 @@ assets = db.assets_quantities
 limits = db.assets_limit
 
 symbol ='test'
-qty = 13.25   
-qty2 = 13
+qty = 13.251   
+qty2 = 10.69
 assets.update_one({'symbol': symbol}, {'$inc': {'quantity': Decimal128(str(qty))}}, upsert=True)
 assets.update_one({'symbol': symbol}, {'$inc': {'quantity': -qty2}}, upsert=True)
+
+ticker = symbol
+asset_collection = mongo_client.trades.assets_quantities
+asset_info = asset_collection.find_one({'symbol': ticker})
+portfolio_qty = asset_info['quantity'] if asset_info else 0.0
+# Convert Decimal128 to decimal.Decimal
+portfolio_qty = portfolio_qty.to_decimal()
+# Convert decimal.Decimal to float
+portfolio_qty = float(portfolio_qty)
+
+print(portfolio_qty)

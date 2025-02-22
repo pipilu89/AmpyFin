@@ -109,7 +109,16 @@ def process_ticker(ticker, client, trading_client, data_client, mongo_client, st
             cash_to_portfolio_ratio = buying_power / portfolio_value
 
             asset_info = asset_collection.find_one({'symbol': ticker})
+            
             portfolio_qty = asset_info['quantity'] if asset_info else 0.0
+           
+            # fractional shares
+            if fractional_shares == True:
+                # Convert Decimal128 to decimal.Decimal
+                portfolio_qty = portfolio_qty.to_decimal()
+                # Convert decimal.Decimal to float
+                portfolio_qty = float(portfolio_qty)
+
             print(f"Portfolio quantity for {ticker}: {portfolio_qty}")
 
             limit_info = limits_collection.find_one({'symbol': ticker})

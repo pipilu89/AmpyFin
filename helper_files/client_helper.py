@@ -9,7 +9,7 @@ import yfinance as yf
 import sys
 from pathlib import Path
 sys.path.append("..")
-from control import stop_loss, take_profit
+from control import stop_loss, take_profit, fractional_shares
 
 parent_dir = Path(__file__).resolve().parent.parent
 sys.path.append(str(parent_dir))
@@ -78,8 +78,10 @@ def place_order(trading_client, symbol, side, quantity, mongo_client):
     limits = db.assets_limit
 
     if side == OrderSide.BUY:
-        # assets.update_one({'symbol': symbol}, {'$inc': {'quantity': qty}}, upsert=True)
-        assets.update_one({'symbol': symbol}, {'$inc': {'quantity': Decimal128(str(qty))}}, upsert=True)
+        if fractional_shares == True:
+            assets.update_one({'symbol': symbol}, {'$inc': {'quantity': Decimal128(str(qty))}}, upsert=True)
+        else:
+            assets.update_one({'symbol': symbol}, {'$inc': {'quantity': qty}}, upsert=True)
         limits.update_one(
             {'symbol': symbol},
             {'$set': {'stop_loss_price': stop_loss_price, 'take_profit_price': take_profit_price}},
