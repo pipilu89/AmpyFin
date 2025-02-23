@@ -52,6 +52,8 @@ from datetime import datetime
 import heapq 
 import certifi
 ca = certifi.where()
+from price_data import get_alpaca_historical_price, get_alpaca_latest_price
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -414,7 +416,53 @@ def adjust_df_length_based_on_period(df, period, current_date):
    else:
       df = df.tail(x)
    return df
-        
+
+def get_yf_historical_data_and_format(ndaq_tickers, period_max ='2y'):
+   """
+   Batch download the historical data for multiple tickers using yfinance.
+
+   Parameters:
+   - tickers (list): List of ticker symbols.
+   """
+   # use yf dowloaded data, split period_max('2y') into shorter periods, rather than dl multiple periods. Possible problem if ticker does have 2 years of data (it may have 1mo or 6mo). Test with recent ipo.
+   df = get_historical_data_from_yf(ndaq_tickers, period_max)
+   if not df.empty:
+      # Stack multi-level column index
+      df = df.stack(level=0, future_stack=True).rename_axis(['Date', 'Ticker']).reset_index(level=1)
+      df = df[['Ticker','Open', 'High', 'Low', 'Close', 'Volume']]
+      return df
+
+def batch_insert_historical_price_df_into_mdb(mongo_client, ndaq_tickers, period_list, current_date, df):
+   db = mongo_client.HistoricalDatabase
+   collection = db.HistoricalDatabase
+
+   logging.info("Deleting historical database...")
+   try:
+      collection.delete_many({})
+      logging.info("Successfully deleted historical database")
+   except Exception as e:
+      logging.error(f"Error deleting historical database: {e}")
+      raise
+ 
+
+   documents = []
+   for period in period_list:
+      for ticker in ndaq_tickers:
+         df_single_ticker = df.loc[df['Ticker'] == ticker]
+         df_single_ticker = df_single_ticker.dropna()
+
+         df_single_ticker = adjust_df_length_based_on_period(df_single_ticker, period, current_date)
+
+         records = df_single_ticker.reset_index().to_dict('records')
+         documents.append({"ticker": ticker, "period": period, 'data': records})
+   if documents:
+      collection.insert_many(documents)
+      # logging.info(f"Data for period {period} stored in MongoDB. {len(df_single_ticker) = }.")
+      logging.info(f"Data for period {period_list} stored in MongoDB.")
+      logging.debug(f"{df_single_ticker.head(1) = }")
+      logging.debug(f"{df_single_ticker.tail(1) = }")
+  
+
 def dl_historical_data_and_batch_insert_into_mdb(mongo_client, ndaq_tickers, period_list, current_date):
    db = mongo_client.HistoricalDatabase
    collection = db.HistoricalDatabase
@@ -526,13 +574,14 @@ def main():
    status_previous = None
    count = 0
    period_list = ["1mo", "3mo", "6mo", "1y", "2y"]
-   df_historical_yf_prices = pd.DataFrame()
+   df_historical_prices = pd.DataFrame()
    df_latest_prices_previous = pd.DataFrame()
 
    today_date_str = datetime.now().strftime('%Y-%m-%d')
-   historical_data_filename = f'df_historical_yf_prices_{today_date_str}.csv'
+   historical_data_filename = f'df_historical_prices_{today_date_str}.csv'
    historical_data_directory = '.'  # Directory where the historical data files are stored
-
+   # price_data_source = 'yf'  # Source of price data (yf or alpaca)
+   price_data_source = 'alpaca'  # Source of price data (yf or alpaca)
    while True: 
       mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
    
@@ -558,27 +607,36 @@ def main():
             # ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
             ndaq_tickers = ["AAPL", "AMD", "GOOG"]
 
-         # batch download ticker data from yfinance prior to threading
-         if df_historical_yf_prices.empty:            
+         # batch download ticker data from yfinance or alpaca prior to threading
+         if df_historical_prices.empty:            
             if not os.path.exists(historical_data_filename):
-               df_historical_yf_prices = dl_historical_data_and_batch_insert_into_mdb(mongo_client, ndaq_tickers, period_list, current_date)
+               if price_data_source == 'yf':
+                  df_historical_prices = get_yf_historical_data_and_format(ndaq_tickers, period_max ='2y')
+               elif price_data_source == 'alpaca':
+                  df_historical_prices = get_alpaca_historical_price(ndaq_tickers, 730)
+               #store in mdb
+               batch_insert_historical_price_df_into_mdb(mongo_client, ndaq_tickers, period_list, current_date, df_historical_prices)
                # store df_historical_yf_prices in local file
-               df_historical_yf_prices.to_csv(historical_data_filename, index=True)
-               logging.info(f"Downloaded and saved df_historical_yf_prices to {historical_data_filename}")
+               df_historical_prices.to_csv(historical_data_filename, index=True)
+               logging.info(f"Downloaded and saved df_historical_prices to {historical_data_filename}")
                # Clean old files to maintain a maximum of 5 files
-               clean_old_files(historical_data_directory, 'df_historical_yf_prices_*.csv', 5)
+               clean_old_files(historical_data_directory, 'df_historical_prices_*.csv', 5)
             else:
-               # load df_historical_yf_prices from local file
+               # load df_historical_prices from local file
                try:
-                  df_historical_yf_prices = pd.read_csv(historical_data_filename)
-                  logging.info(f"Loaded df_historical_yf_prices from {historical_data_filename}. {len(df_historical_yf_prices) = }")
+                  df_historical_prices = pd.read_csv(historical_data_filename)
+                  logging.info(f"Loaded df_historical_yf_prices from {historical_data_filename}. {len(df_historical_prices) = }")
                except Exception as e:
                   logging.error(f"Error loading {historical_data_filename}: {e}")
 
          # batch download current prices from yf. This is to avoid multiple calls to yf in the threads.
-         df_latest_prices = get_latest_prices_from_yf2(ndaq_tickers)
+         if price_data_source == 'yf':
+            df_latest_prices = get_latest_prices_from_yf2(ndaq_tickers)
+         elif price_data_source == 'alpaca':
+            df_latest_prices = get_alpaca_latest_price(ndaq_tickers)
+            # df_latest_prices = get_alpaca_latest_price(ndaq_tickers)
          # save df to local file
-         df_latest_prices.to_csv('latest_prices_yf.csv', index=True)
+         df_latest_prices.to_csv('latest_prices.csv', index=True)
        
          logging.info(f"starting threads...")
          threads = []
@@ -586,7 +644,7 @@ def main():
          for ticker in ndaq_tickers:
             if ticker not in action_talib_dict:
                action_talib_dict[ticker] = {} #talib indicator results
-            df_single_ticker = df_historical_yf_prices.loc[df_historical_yf_prices['Ticker'] == ticker]
+            df_single_ticker = df_historical_prices.loc[df_historical_prices['Ticker'] == ticker]
             df_single_ticker = df_single_ticker.dropna()
             latest_price = df_latest_prices.loc[df_latest_prices['Ticker'] == ticker, 'Close'].values[0]
             # logging.info(f"{latest_price = }")
@@ -595,10 +653,10 @@ def main():
                logging.warning(f"Latest price for {ticker}: {latest_price} is invalid (None or NaN). Skipping...")
                continue
             # check if price has changed. if true process ticker. if false, skip.
-            # if not df_latest_prices_previous.empty:
-            #    if latest_price == df_latest_prices_previous.loc[df_latest_prices_previous['Ticker'] == ticker, 'Close'].values[0]:
-            #       logging.info(f"Price for {ticker} has not changed. Skipping...")
-            #       continue
+            if not df_latest_prices_previous.empty:
+               if latest_price == df_latest_prices_previous.loc[df_latest_prices_previous['Ticker'] == ticker, 'Close'].values[0]:
+                  logging.info(f"Price for {ticker} has not changed. Skipping...")
+                  continue
 
             thread = threading.Thread(target=process_ticker, args=(ticker, mongo_client, df_single_ticker, current_date, latest_price))
             threads.append(thread)

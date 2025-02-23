@@ -5,6 +5,7 @@ from alpaca.data.requests import StockQuotesRequest, StockBarsRequest, StockSnap
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from zoneinfo import ZoneInfo
 from config import API_KEY, API_SECRET
+import logging
 
 # setup stock historical data client
 stock_historical_data_client = StockHistoricalDataClient(API_KEY, API_SECRET)
@@ -18,16 +19,33 @@ def get_alpaca_latest_price(ticker_list):
   ticker_list (list): List of ticker symbols to fetch the latest data for.
 
   Returns:
-  dict: A dictionary containing the latest price data for each ticker.
+  df containing the latest price data for each ticker.
   """
-  latest_prices = {}
+  logging.info('download latest price data from alpaca...')
   request_params = StockSnapshotRequest(
       symbol_or_symbols = ticker_list,
   )
   data = stock_historical_data_client.get_stock_snapshot(request_params)
-  for ticker in ticker_list:
-    latest_prices[ticker] = data[ticker].minute_bar.close
-  return latest_prices
+
+  snapshot_dict_all = []
+  for stock, snapshot in data.items():
+      snapshot_dict = {
+          'Date': snapshot.minute_bar.timestamp,
+          'Ticker': stock,
+          'Open': snapshot.minute_bar.open,
+          'High': snapshot.minute_bar.high,
+          'Low': snapshot.minute_bar.low,
+          'Close': snapshot.minute_bar.close,
+      }
+      snapshot_dict_all.append(snapshot_dict)
+
+  # Create DataFrame from list of dictionaries
+  snapshot_df = pd.DataFrame(snapshot_dict_all)
+  # Set 'Timestamp' as the index
+  snapshot_df.set_index('Date', inplace=True)
+  
+  return snapshot_df
+  
 
 def get_alpaca_historical_price(ticker_list, days):
   """
@@ -44,17 +62,30 @@ def get_alpaca_historical_price(ticker_list, days):
   The DataFrame has a MultiIndex with the first level being the ticker symbol and the second level being the timestamp.
 
   """
+  logging.info('download historical price data from alpaca...')
   # now = datetime.now(ZoneInfo("America/New_York"))
   now = datetime.now()
   req = StockBarsRequest(
       symbol_or_symbols = ticker_list,
-      timeframe=TimeFrame(amount = 1, unit = TimeFrameUnit.Hour), # specify timeframe
-      # timeframe=TimeFrame(amount = 1, unit = TimeFrameUnit.Day), # specify timeframe
+      # timeframe=TimeFrame(amount = 1, unit = TimeFrameUnit.Hour), # specify timeframe
+      timeframe=TimeFrame(amount = 1, unit = TimeFrameUnit.Day), # specify timeframe
       start = now - timedelta(days = days),    # specify start datetime, default=the beginning of the current day.
       # end_date=None,                        # specify end datetime, default=now
       # limit = 5,                            # specify limit
   )
   df = stock_historical_data_client.get_stock_bars(req).df
+
+  # common df format Date(index), Ticker, Open, High, Low, Close, Volume
+
+  # Drop the 'trade_count' and 'vwap' columns
+  df.drop(columns=['trade_count', 'vwap'], inplace=True)
+  
+  # Reset the index to convert the MultiIndex into columns
+  df.reset_index(inplace=True)
+
+  # Set the index to the timestamp and rename it to 'Date'
+  df.set_index('timestamp', inplace=True)
+  df.index.rename('Date', inplace=True)
 
   # rename the columns of the dataframe
   df.rename(columns={
@@ -62,8 +93,10 @@ def get_alpaca_historical_price(ticker_list, days):
       'high': 'High',
       'low': 'Low',
       'close': 'Close',
-      'volume': 'Volume'
+      'volume': 'Volume',
+      'symbol': 'Ticker'
   }, inplace=True)
+
   return df
 
 
@@ -91,43 +124,4 @@ def filter_df_by_days(df, days, current_date):
 
 
 if __name__ == "__main__": 
-   
-  ticker_list = ['AAPL']
-  # ticker_list = ['SPY','AAPL']
-
-  data = get_alpaca_latest_price(ticker_list)
-  print(data)
-  # for ticker in ticker_list:
-  #   print(f"{ticker}: {data[ticker]}")
-
-
-  df_historical_data = get_alpaca_historical_price(ticker_list, days=120)
-  # print(df_historical_data)
-  for ticker in ticker_list:
-    df_single_ticker_historical_data = df_historical_data.loc[(ticker,)]
-    print(df_single_ticker_historical_data)
-    print(f"df_single_ticker_historical_data length: {len(df_single_ticker_historical_data)}")
-
-
-    # Example usage of filter_df_by_days
-    # current_date = datetime.now().replace(tzinfo=ZoneInfo("UTC"))
-    # days = 3
-    # df_filtered = filter_df_by_days(df_single_ticker_historical_data, days, current_date)
-    # print(f"Filtered DataFrame length: {len(df_filtered)}")
-
-
-    # import talib as ta
-
-    # def HT_TRENDLINE_indicator(ticker, data):  
-    #   """Hilbert Transform - Instantaneous Trendline (HT_TRENDLINE) indicator."""  
-          
-    #   ht_trendline = ta.HT_TRENDLINE(data['Close'])  
-    #   print(ht_trendline)
-    #   if data['Close'].iloc[-1] > ht_trendline.iloc[-1]:  
-    #       return 'Buy'  
-    #   elif data['Close'].iloc[-1] < ht_trendline.iloc[-1]:  
-    #       return 'Sell'  
-    #   else:  
-    #       return 'Hold'
-    
-    # HT_TRENDLINE_indicator(ticker, df_single_ticker_historical_data)
+   ...
