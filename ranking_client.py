@@ -573,6 +573,7 @@ def main():
    post_market_hour_first_iteration = True
    status_previous = None
    count = 0
+   sleep_time = 120
    period_list = ["1mo", "3mo", "6mo", "1y", "2y"]
    df_historical_prices = pd.DataFrame()
    df_latest_prices_previous = pd.DataFrame()
@@ -688,7 +689,7 @@ def main():
          logging.info(f"Finished processing all strategies. Waiting for 30 seconds. {count = }")
          df_latest_prices_previous = df_latest_prices
          count += 1
-         time.sleep(30)  
+         time.sleep(sleep_time)  
    
       elif status == "early_hours":  
             # During early hour, currently we only support prep
@@ -700,7 +701,7 @@ def main():
                early_hour_first_iteration = False  
                post_market_hour_first_iteration = True
                logging.info("Market is in early hours. Waiting for 30 seconds.")  
-            time.sleep(30)  
+            time.sleep(sleep_time)  
 
       elif status == "closed":  
          # Performs post-market analysis for next trading day
@@ -729,10 +730,10 @@ def main():
             # We keep reusing the same mongo client and never close to reduce the number within the connection pool
 
             update_ranks(mongo_client)
-         time.sleep(60)  
+         time.sleep(sleep_time)  
       else:  
          logging.error("An error occurred while checking market status.")  
-         time.sleep(60)
+         time.sleep(sleep_time)
       mongo_client.close()
    
    
