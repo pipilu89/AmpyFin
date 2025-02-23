@@ -320,7 +320,14 @@ def update_portfolio_values(client):
          while current_price is None:
             try:
                # get latest price shouldn't cache - we should also do a delay
-               current_price = get_latest_price(ticker)
+               try:
+                  df_current_prices = pd.read_csv('latest_prices.csv')
+                  logging.info(f"Loaded df_historical_yf_prices from 'latest_prices.csv'. {len(df_current_prices) = }")
+               except Exception as e:
+                  logging.error(f"Error loading 'latest_prices.csv': {e}")
+
+               current_price = df_current_prices.loc[df_current_prices['Ticker'] == ticker, 'Close'].values[0]
+               # current_price = get_latest_price(ticker)
             except:
                print(f"Error fetching price for {ticker}. Retrying...")
                break
@@ -605,8 +612,8 @@ def main():
          logging.info("Market is open. Processing strategies.")  
       
          if not ndaq_tickers:
-            # ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
-            ndaq_tickers = ["AAPL", "AMD", "GOOG"]
+            ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
+            # ndaq_tickers = ["AAPL", "AMD", "GOOG"]
 
          # batch download ticker data from yfinance or alpaca prior to threading
          if df_historical_prices.empty:            
