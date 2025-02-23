@@ -37,25 +37,38 @@ from bson.decimal128 import Decimal128
 import certifi
 ca = certifi.where()
 
-mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
-# Track assets as well
-db = mongo_client.trades
-assets = db.assets_quantities
-limits = db.assets_limit
+# mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
+# # Track assets as well
+# db = mongo_client.trades
+# assets = db.assets_quantities
+# limits = db.assets_limit
 
-symbol ='test'
-qty = 13.251   
-qty2 = 10.69
-assets.update_one({'symbol': symbol}, {'$inc': {'quantity': Decimal128(str(qty))}}, upsert=True)
-assets.update_one({'symbol': symbol}, {'$inc': {'quantity': -qty2}}, upsert=True)
+# symbol ='test'
+# qty = 13.251   
+# qty2 = 10.69
+# assets.update_one({'symbol': symbol}, {'$inc': {'quantity': Decimal128(str(qty))}}, upsert=True)
+# assets.update_one({'symbol': symbol}, {'$inc': {'quantity': -qty2}}, upsert=True)
 
-ticker = symbol
-asset_collection = mongo_client.trades.assets_quantities
-asset_info = asset_collection.find_one({'symbol': ticker})
-portfolio_qty = asset_info['quantity'] if asset_info else 0.0
-# Convert Decimal128 to decimal.Decimal
-portfolio_qty = portfolio_qty.to_decimal()
-# Convert decimal.Decimal to float
-portfolio_qty = float(portfolio_qty)
+# ticker = symbol
+# asset_collection = mongo_client.trades.assets_quantities
+# asset_info = asset_collection.find_one({'symbol': ticker})
+# portfolio_qty = asset_info['quantity'] if asset_info else 0.0
+# # Convert Decimal128 to decimal.Decimal
+# portfolio_qty = portfolio_qty.to_decimal()
+# # Convert decimal.Decimal to float
+# portfolio_qty = float(portfolio_qty)
 
-print(portfolio_qty)
+# print(portfolio_qty)
+
+import talib as ta
+
+def BBANDS_indicator(ticker, data):  
+   """Bollinger Bands (BBANDS) indicator."""  
+      
+   upper, middle, lower = ta.BBANDS(data['Close'], timeperiod=20)  
+   if data['Close'].iloc[-1] > upper.iloc[-1]:  
+      return 'Sell'  
+   elif data['Close'].iloc[-1] < lower.iloc[-1]:  
+      return 'Buy'  
+   else:  
+      return 'Hold' 

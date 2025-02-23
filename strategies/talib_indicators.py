@@ -51,20 +51,22 @@ def get_data(ticker, mongo_client, period=None, start_date=None, end_date=None):
   
 def simulate_strategy(strategy, ticker, current_price, historical_data, account_cash, portfolio_qty, total_portfolio_value):
    max_investment = total_portfolio_value * trade_asset_limit
-   action = strategy(ticker, historical_data)
-   # logging.info(f"{historical_data[historical_data['Close'].isnull()] = }")
-   # logging.info(f"{ticker = }, {total_portfolio_value = }, {trade_asset_limit = }, {max_investment = }, {current_price = }, {account_cash = }, {portfolio_qty = }, {action = }")
-   if action == 'Buy':
+   action_ta = strategy(ticker, historical_data)
+
+   #persist indicator action result. only needs to be calculated once per day, because historical data is also only updated once per day. Save alot of resources. This function return result may change if action is sell and portfolio_qty is 0. ie when all shares are sold, result will change to hold.
+   # Could save action[ticker][strategy] in mdb or local file, or global variable.
+
+   if action_ta == 'Buy':
       # fractional shares
       if fractional_shares == True:
-         return 'buy', min(math.floor((max_investment / current_price)*100)/100, math.floor((account_cash / current_price)*100)/100)
+         return 'buy', min(math.floor((max_investment / current_price)*100)/100, math.floor((account_cash / current_price)*100)/100), action_ta
       else:
-         return 'buy', min(int(max_investment // current_price), int(account_cash // current_price))
+         return 'buy', min(int(max_investment // current_price), int(account_cash // current_price)), action_ta
       
-   elif action == 'Sell' and portfolio_qty > 0:
-      return 'sell', min(portfolio_qty, max(1, int(portfolio_qty * 0.5)))
+   elif action_ta == 'Sell' and portfolio_qty > 0:
+      return 'sell', min(portfolio_qty, max(1, int(portfolio_qty * 0.5))), action_ta
    else:
-      return 'hold', 0
+      return 'hold', 0, action_ta
 
 # Overlap Studies  
   

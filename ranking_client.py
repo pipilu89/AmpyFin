@@ -88,6 +88,8 @@ def process_ticker(ticker, mongo_client, df_historical_single_ticker, current_da
       indicator_collection = indicator_tb.Indicators
 
       actions_dict = {ticker:{'buy': 0, 'sell': 0, 'hold': 0}}
+      action_talib_dict = {ticker:{}} #talib indicator results
+
       for strategy in strategies:
          historical_data = None
 
@@ -119,11 +121,15 @@ def process_ticker(ticker, mongo_client, df_historical_single_ticker, current_da
          
          portfolio_qty = strategy_doc["holdings"].get(ticker, {}).get("quantity", 0)
 
-         action, quantity = simulate_trade(ticker, strategy, historical_data, current_price,
+         action, quantity, action_ta = simulate_trade(ticker, strategy, historical_data, current_price,
                         account_cash, portfolio_qty, total_portfolio_value, mongo_client)
          
          actions_dict[ticker][action] += 1
          
+         action_talib_dict[ticker][strategy.__name__] = action_ta
+
+      logging.debug(f"debug {action_talib_dict = }")
+      # store in mdb? Or horly data?
       actions_dict[ticker]["total"] = sum(actions_dict[ticker].values())
       actions_dict[ticker]["current_price"] = current_price
       logging.info(f"{ticker} processing completed. {actions_dict}")
@@ -139,7 +145,7 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
    # Simulate trading action from strategy
    # print(f"Simulating trade for {ticker} with strategy {strategy.__name__} and quantity of {portfolio_qty}")
    logging.debug(f"Simulating trade for {ticker} with strategy {strategy.__name__} and quantity of {portfolio_qty}")
-   action, quantity = simulate_strategy(strategy, ticker, current_price, historical_data, account_cash, portfolio_qty, total_portfolio_value)
+   action, quantity, actionA = simulate_strategy(strategy, ticker, current_price, historical_data, account_cash, portfolio_qty, total_portfolio_value)
    
    # MongoDB setup
    
@@ -281,7 +287,7 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
       logging.debug(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price} | Strategy: {strategy.__name__}")
    # print(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
    # Close the MongoDB connection
-   return action, quantity
+   return action, quantity, actionA
 
 def update_portfolio_values(client):
    """
@@ -529,9 +535,9 @@ def main():
       # Get the market status from the Polygon API
       # client = RESTClient(api_key=POLYGON_API_KEY)
       # status = market_status(client)  # Use the helper function for market status
-      # status = "open"
+      status = "open"
 
-      status = mongo_client.market_data.market_status.find_one({})["market_status"] # orig update status
+      # status = mongo_client.market_data.market_status.find_one({})["market_status"] # orig update status
       if status != status_previous:
          logging.info(f"Market status: {status}")
       status_previous = status
@@ -545,8 +551,8 @@ def main():
          logging.info("Market is open. Processing strategies.")  
       
          if not ndaq_tickers:
-            ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
-            # ndaq_tickers = ["AAPL", "AMD", "PPP"]
+            # ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
+            ndaq_tickers = ["AAPL", "AMD", "GOOG"]
 
          # batch download ticker data from yfinance prior to threading
          if df_historical_yf_prices.empty:            
@@ -583,10 +589,10 @@ def main():
                logging.warning(f"Latest price for {ticker}: {latest_price} is invalid (None or NaN). Skipping...")
                continue
             # check if price has changed. if true process ticker. if false, skip.
-            if not df_latest_prices_previous.empty:
-               if latest_price == df_latest_prices_previous.loc[df_latest_prices_previous['Ticker'] == ticker, 'Close'].values[0]:
-                  logging.info(f"Price for {ticker} has not changed. Skipping...")
-                  continue
+            # if not df_latest_prices_previous.empty:
+            #    if latest_price == df_latest_prices_previous.loc[df_latest_prices_previous['Ticker'] == ticker, 'Close'].values[0]:
+            #       logging.info(f"Price for {ticker} has not changed. Skipping...")
+            #       continue
 
             thread = threading.Thread(target=process_ticker, args=(ticker, mongo_client, df_single_ticker, current_date, latest_price))
             threads.append(thread)
