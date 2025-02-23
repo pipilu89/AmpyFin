@@ -48,8 +48,8 @@ def get_alpaca_historical_price(ticker_list, days):
   now = datetime.now()
   req = StockBarsRequest(
       symbol_or_symbols = ticker_list,
-      # timeframe=TimeFrame(amount = 1, unit = TimeFrameUnit.Hour), # specify timeframe
-      timeframe=TimeFrame(amount = 1, unit = TimeFrameUnit.Day), # specify timeframe
+      timeframe=TimeFrame(amount = 1, unit = TimeFrameUnit.Hour), # specify timeframe
+      # timeframe=TimeFrame(amount = 1, unit = TimeFrameUnit.Day), # specify timeframe
       start = now - timedelta(days = days),    # specify start datetime, default=the beginning of the current day.
       # end_date=None,                        # specify end datetime, default=now
       # limit = 5,                            # specify limit
@@ -116,18 +116,18 @@ if __name__ == "__main__":
     # print(f"Filtered DataFrame length: {len(df_filtered)}")
 
 
-    import talib as ta
+    # import talib as ta
 
-    def HT_TRENDLINE_indicator(ticker, data):  
-      """Hilbert Transform - Instantaneous Trendline (HT_TRENDLINE) indicator."""  
+    # def HT_TRENDLINE_indicator(ticker, data):  
+    #   """Hilbert Transform - Instantaneous Trendline (HT_TRENDLINE) indicator."""  
           
-      ht_trendline = ta.HT_TRENDLINE(data['Close'])  
-      print(ht_trendline)
-      if data['Close'].iloc[-1] > ht_trendline.iloc[-1]:  
-          return 'Buy'  
-      elif data['Close'].iloc[-1] < ht_trendline.iloc[-1]:  
-          return 'Sell'  
-      else:  
-          return 'Hold'
+    #   ht_trendline = ta.HT_TRENDLINE(data['Close'])  
+    #   print(ht_trendline)
+    #   if data['Close'].iloc[-1] > ht_trendline.iloc[-1]:  
+    #       return 'Buy'  
+    #   elif data['Close'].iloc[-1] < ht_trendline.iloc[-1]:  
+    #       return 'Sell'  
+    #   else:  
+    #       return 'Hold'
     
-    HT_TRENDLINE_indicator(ticker, df_single_ticker_historical_data)
+    # HT_TRENDLINE_indicator(ticker, df_single_ticker_historical_data)

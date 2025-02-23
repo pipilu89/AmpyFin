@@ -71,7 +71,10 @@ import traceback
 import os
 import glob
 
+action_talib_dict = {}
+
 def process_ticker(ticker, mongo_client, df_historical_single_ticker, current_date, latest_price):
+   global action_talib_dict
    try:
       
       current_price = None
@@ -88,7 +91,7 @@ def process_ticker(ticker, mongo_client, df_historical_single_ticker, current_da
       indicator_collection = indicator_tb.Indicators
 
       actions_dict = {ticker:{'buy': 0, 'sell': 0, 'hold': 0}}
-      action_talib_dict = {ticker:{}} #talib indicator results
+      
 
       for strategy in strategies:
          historical_data = None
@@ -126,9 +129,9 @@ def process_ticker(ticker, mongo_client, df_historical_single_ticker, current_da
          
          actions_dict[ticker][action] += 1
          
-         action_talib_dict[ticker][strategy.__name__] = action_ta
+         # action_talib_dict[ticker][strategy.__name__] = action_ta
 
-      logging.debug(f"debug {action_talib_dict = }")
+      # logging.debug(f"debug {action_talib_dict = }")
       # store in mdb? Or horly data?
       actions_dict[ticker]["total"] = sum(actions_dict[ticker].values())
       actions_dict[ticker]["current_price"] = current_price
@@ -141,12 +144,13 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
    """
    Simulates a trade based on the given strategy and updates MongoDB.
    """
-    
+   global action_talib_dict 
    # Simulate trading action from strategy
    # print(f"Simulating trade for {ticker} with strategy {strategy.__name__} and quantity of {portfolio_qty}")
    logging.debug(f"Simulating trade for {ticker} with strategy {strategy.__name__} and quantity of {portfolio_qty}")
-   action, quantity, actionA = simulate_strategy(strategy, ticker, current_price, historical_data, account_cash, portfolio_qty, total_portfolio_value)
+   action, quantity, actionA = simulate_strategy(strategy, ticker, current_price, historical_data, account_cash, portfolio_qty, total_portfolio_value, action_talib_dict)
    
+   action_talib_dict[ticker][strategy.__name__] = actionA
    # MongoDB setup
    
    db = mongo_client.trading_simulator
@@ -515,7 +519,7 @@ def main():
    """  
    Main function to control the workflow based on the market's status.  
    """  
-   
+   global action_talib_dict
    ndaq_tickers = []  
    early_hour_first_iteration = True
    post_market_hour_first_iteration = True
@@ -580,6 +584,8 @@ def main():
          threads = []
 
          for ticker in ndaq_tickers:
+            if ticker not in action_talib_dict:
+               action_talib_dict[ticker] = {} #talib indicator results
             df_single_ticker = df_historical_yf_prices.loc[df_historical_yf_prices['Ticker'] == ticker]
             df_single_ticker = df_single_ticker.dropna()
             latest_price = df_latest_prices.loc[df_latest_prices['Ticker'] == ticker, 'Close'].values[0]
@@ -602,11 +608,29 @@ def main():
          for thread in threads:
             thread.join()
 
-      
+
+         # Dictionary to store the summed actions
+         def summarize_action_talib_dict(action_talib_dict):
+            summary = {}
+            for ticker, indicators in action_talib_dict.items():
+               summary[ticker] = {'Buy': 0, 'Sell': 0, 'Hold': 0}
+               for action in indicators.values():
+                     if action in summary[ticker]:
+                        summary[ticker][action] += 1
+
+               summary[ticker]["total"] = sum(summary[ticker].values())
+               logging.info(f"{ticker}: {summary[ticker]}")
+            return summary
+
+         # Example usage
+         summary = summarize_action_talib_dict(action_talib_dict)
+         logging.info(f"{len(action_talib_dict) = } ")
+
+
          logging.info(f"Finished processing all strategies. Waiting for 30 seconds. {count = }")
          df_latest_prices_previous = df_latest_prices
          count += 1
-         time.sleep(300)  
+         time.sleep(30)  
    
       elif status == "early_hours":  
             # During early hour, currently we only support prep
