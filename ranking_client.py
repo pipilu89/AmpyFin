@@ -300,6 +300,11 @@ def update_portfolio_values(client):
    still need to implement.
    we go through each strategy and update portfolio value buy cash + summation(holding * current price)
    """
+   try:
+      df_current_prices = pd.read_csv('latest_prices.csv')
+      logging.info(f"Loaded latest prices from 'latest_prices.csv'. {len(df_current_prices) = }")
+   except Exception as e:
+      logging.error(f"Error loading 'latest_prices.csv': {e}")
    
    db = client.trading_simulator  
    holdings_collection = db.algorithm_holdings
@@ -307,6 +312,7 @@ def update_portfolio_values(client):
    for strategy_doc in holdings_collection.find({}):
       # Calculate the portfolio value for the strategy
       portfolio_value = strategy_doc["amount_cash"]
+      
       
       for ticker, holding in strategy_doc["holdings"].items():
          # The current price can be gotten through a cache system maybe
@@ -320,13 +326,9 @@ def update_portfolio_values(client):
          while current_price is None:
             try:
                # get latest price shouldn't cache - we should also do a delay
-               try:
-                  df_current_prices = pd.read_csv('latest_prices.csv')
-                  logging.info(f"Loaded df_historical_yf_prices from 'latest_prices.csv'. {len(df_current_prices) = }")
-               except Exception as e:
-                  logging.error(f"Error loading 'latest_prices.csv': {e}")
 
                current_price = df_current_prices.loc[df_current_prices['Ticker'] == ticker, 'Close'].values[0]
+               # print(f"Current price of {ticker}: {current_price}")
                # current_price = get_latest_price(ticker)
             except:
                print(f"Error fetching price for {ticker}. Retrying...")
@@ -596,9 +598,9 @@ def main():
       # Get the market status from the Polygon API
       # client = RESTClient(api_key=POLYGON_API_KEY)
       # status = market_status(client)  # Use the helper function for market status
-      # status = "open"
+      status = "closed"  # Use this for testing
 
-      status = mongo_client.market_data.market_status.find_one({})["market_status"] # orig update status
+      # status = mongo_client.market_data.market_status.find_one({})["market_status"] # orig update status
       if status != status_previous:
          logging.info(f"Market status: {status}")
       status_previous = status
