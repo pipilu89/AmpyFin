@@ -43,7 +43,7 @@ def get_alpaca_latest_price(ticker_list):
   snapshot_df = pd.DataFrame(snapshot_dict_all)
   # Set 'Timestamp' as the index
   snapshot_df.set_index('Date', inplace=True)
-  
+  logging.info(f"length alpaca latest prices df = {len(snapshot_df)}")
   return snapshot_df
   
 
