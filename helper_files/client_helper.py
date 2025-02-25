@@ -120,6 +120,8 @@ def get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY):
             response = urlopen(url)
             data = response.read().decode("utf-8")
             return json.loads(data)
+        
+
         try:
             # API URL for fetching NASDAQ 100 tickers
             ndaq_url = f"https://financialmodelingprep.com/api/v3/nasdaq_constituent?apikey={FINANCIAL_PREP_API_KEY}"
@@ -140,10 +142,12 @@ def get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY):
         except Exception as e:
             logging.error(f"Error inserting tickers into MongoDB: {e}")
         
+        return ndaq_stocks
 
-    call_ndaq_100()
+    ndaq_stocks = call_ndaq_100()
     
-    tickers = [stock['symbol'] for stock in mongo_client.stock_list.ndaq100_tickers.find()]
+    # tickers = [stock['symbol'] for stock in mongo_client.stock_list.ndaq100_tickers.find()]
+    tickers = [ticker['symbol'] for ticker in ndaq_stocks]
     
     return tickers
 
