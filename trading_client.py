@@ -145,6 +145,7 @@ def process_ticker(ticker, client, trading_client, data_client, mongo_client, st
 
             if decision == "buy" and float(account.cash) > trade_liquidity_limit and (((quantity + portfolio_qty) * current_price) / portfolio_value) < trade_asset_limit:
                 heapq.heappush(buy_heap, (-(buy_weight-(sell_weight + (hold_weight * 0.5))), quantity, ticker))
+                logging.info(f"Added to buy_heap {ticker}, {decision = }, {buy_weight = }, {quantity = }")
             elif decision == "sell" and portfolio_qty > 0:
                 logging.info(f"Executing SELL order for {ticker} {quantity = }")
                 sold = True
@@ -161,7 +162,6 @@ def process_ticker(ticker, client, trading_client, data_client, mongo_client, st
                 max_investment = portfolio_value * trade_asset_limit
                 
                 if fractional_shares == True:
-                    ...
                     buy_quantity = min(math.floor((max_investment / current_price)*100)/100, math.floor((buying_power / current_price)*100)/100)
                 else:
                     buy_quantity = min(int(max_investment // current_price), int(buying_power // current_price))
@@ -174,7 +174,7 @@ def process_ticker(ticker, client, trading_client, data_client, mongo_client, st
                         buy_quantity = max(buy_quantity, 2)
                         buy_quantity = buy_quantity // 2
                     
-                    logging.info(f"Suggestions for buying for {ticker} with a weight of {buy_weight} and quantity of {buy_quantity}")
+                    logging.info(f"Added to suggestion_heap {ticker}, {decision = }, {buy_weight = }, {quantity = }, {buy_quantity}")
                     heapq.heappush(suggestion_heap, (-(buy_weight - sell_weight), buy_quantity, ticker))
                 else:
                     logging.info(f"Holding for {ticker}, no action taken.")
@@ -220,10 +220,7 @@ def main():
         
         # status = market_status(client)  # Use the helper function for market status
         status = market_status(client) if environment != "dev" else "open"
-
         # status = "open" if dev else market_status(client)
-
-        # status = "open"
         # market_collection.update_one({}, {"$set": {"market_status": status}})
         
         if status == "open":
@@ -268,9 +265,13 @@ def main():
             for thread in threads:
                 thread.join()
 
+            logging.info(f"threads finished. {len(buy_heap) = }\n{buy_heap = }")
+            logging.info(f"{len(suggestion_heap) = }\n{suggestion_heap = }")
+
             trading_client = TradingClient(API_KEY, API_SECRET)
             account = trading_client.get_account()
             while (buy_heap or suggestion_heap) and float(account.cash) > trade_liquidity_limit and sold is False:
+                logging.info(f"placing orders...")
                 try:
                     trading_client = TradingClient(API_KEY, API_SECRET)
                     account = trading_client.get_account()
@@ -278,7 +279,7 @@ def main():
                     if buy_heap and float(account.cash) > trade_liquidity_limit:
                         
                         _, quantity, ticker = heapq.heappop(buy_heap)
-                        logging.info(f"Executing BUY order (from buy_heap) for {ticker} of quantity {quantity} {buy_heap = }")
+                        logging.info(f"Executing BUY order (from buy_heap) for {ticker} of quantity {quantity}\n{len(buy_heap) = }\n{buy_heap = }")
                         
                         order = place_order(trading_client, symbol=ticker, side=OrderSide.BUY, quantity=quantity, mongo_client=mongo_client)
                         logging.info(f"Executed BUY order (from buy_heap) for {ticker}: {order}")
