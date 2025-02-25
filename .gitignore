@@ -7,3 +7,5 @@ config.py
 ftp_downloads/
 *.csv
 latest_prices_yf.csv
+temp.py
+todo.txt
