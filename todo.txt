@@ -91,3 +91,18 @@ Market status: closed
 qty
   Input should be a valid number [type=float_type, input_value=Decimal128('0.185'), input_type=Decimal128]
     For further information visit https://errors.pydantic.dev/2.10/v/float_type
+
+
+
+===== update prices from internet first?
+def update_portfolio_values(client):
+   """
+   still need to implement.
+   we go through each strategy and update portfolio value buy cash + summation(holding * current price)
+   """
+   try:
+      df_current_prices = pd.read_csv('latest_prices.csv')
+      logging.info(f"Loaded latest prices from 'latest_prices.csv'. {len(df_current_prices) = }")
+   except Exception as e:
+      logging.error(f"Error loading 'latest_prices.csv': {e}")
+   
