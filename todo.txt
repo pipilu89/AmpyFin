@@ -106,3 +106,11 @@ def update_portfolio_values(client):
    except Exception as e:
       logging.error(f"Error loading 'latest_prices.csv': {e}")
    
+
+
+cash v buying power problem? cash doesnt consider orders waiting to be filled, buying power does. Should check buying power rather than cash.
+Executing BUY order for EXC of quantity 1.14
+Error occurred while executing buy order. Continuing...
+
+
+Error fetching data for CDNS, period = '2y': ampy-dev-shard-00-01.y9fru.mongodb.net:27017: timed out (configured timeouts: connectTimeoutMS: 20000.0ms)

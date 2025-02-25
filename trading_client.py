@@ -223,7 +223,6 @@ def main():
         client = RESTClient(api_key=POLYGON_API_KEY)
         trading_client = TradingClient(API_KEY, API_SECRET)
         data_client = StockHistoricalDataClient(API_KEY, API_SECRET)
-        status = market_status(client)  # Use the helper function for market status
         db = mongo_client.trades
         asset_collection = db.assets_quantities
         limits_collection = db.assets_limit
@@ -232,7 +231,10 @@ def main():
         indicator_tb = mongo_client.IndicatorsDatabase
         indicator_collection = indicator_tb.Indicators
         
-        market_collection.update_one({}, {"$set": {"market_status": status}})
+        # status = market_status(client)  # Use the helper function for market status
+        # market_collection.update_one({}, {"$set": {"market_status": status}})
+
+        status = "open"
         
         if status == "open":
             if not ndaq_tickers:
@@ -303,8 +305,9 @@ def main():
                     """
                     This is here so order will propage through and we will have an accurate cash balance recorded
                     """
-                except:
-                    print("Error occurred while executing buy order. Continuing...")
+                # except:
+                except Exception as e:
+                    logging.error(f"Error occurred while executing buy order. Continuing... {e}")
                     break
             buy_heap = []
             suggestion_heap = []

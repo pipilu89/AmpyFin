@@ -36,10 +36,10 @@ def get_data(ticker, mongo_client, period=None, start_date=None, end_date=None):
                
                collection.insert_one({"ticker": ticker, "period": period, 'data': records})
                
-               print("Data fetched from Yahoo Finance")
+               print("Historical Data fetched from Yahoo Finance")
                return data
          except Exception as e:
-            print(f"Error fetching data for {ticker}, {period = }: {e}")
+            print(f"Error fetching historical data for {ticker}, {period = }: {e}")
       
       return data  
    else:
@@ -52,16 +52,13 @@ def get_data(ticker, mongo_client, period=None, start_date=None, end_date=None):
 def simulate_strategy(strategy, ticker, current_price, historical_data, account_cash, portfolio_qty, total_portfolio_value, action_talib_dict=None):
    max_investment = total_portfolio_value * trade_asset_limit
    
-   if action_talib_dict is not None:
-      if strategy.__name__ not in action_talib_dict[ticker]:
-         # print(f"no talib result found, calculating...")
-         action_ta = strategy(ticker, historical_data)
-      else:
-         # print(f"talib result found, skip talib calc")
-         action_ta = action_talib_dict[ticker][strategy.__name__]
+   if action_talib_dict is None or strategy.__name__ not in action_talib_dict[ticker]:
+      action_ta = strategy(ticker, historical_data)
+   else:
+      # print(f"talib result found, skip talib calc")
+      action_ta = action_talib_dict[ticker][strategy.__name__]
 
-   #persist indicator action result. only needs to be calculated once per day, because historical data is also only updated once per day. Save alot of resources. This function return result may change if action is sell and portfolio_qty is 0. ie when all shares are sold, result will change to hold.
-   # Could save action[ticker][strategy] in mdb or local file, or global variable.
+   #persist indicator action result in global variable action_talib_dict. only needs to be calculated once per day, because historical data is also only updated once per day. Save alot of resources. This function return result may change if action is sell and portfolio_qty is 0. ie when all shares are sold, result will change to hold.
 
    if action_ta == 'Buy':
       # fractional shares
