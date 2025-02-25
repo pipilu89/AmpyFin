@@ -227,3 +227,16 @@ def dynamic_period_selector(ticker):
     return optimal_period
 
 
+
+# Dictionary to store the summed actions
+def summarize_action_talib_dict(action_talib_dict):
+    summary = {}
+    for ticker, indicators in action_talib_dict.items():
+        summary[ticker] = {'Buy': 0, 'Sell': 0, 'Hold': 0}
+        for action in indicators.values():
+                if action in summary[ticker]:
+                    summary[ticker][action] += 1
+
+        summary[ticker]["total"] = sum(summary[ticker].values())
+        logging.info(f"{ticker}: {summary[ticker]}")
+    return summary

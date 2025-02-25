@@ -72,6 +72,8 @@ def process_ticker(ticker, client, trading_client, data_client, mongo_client, st
     global buy_heap
     global suggestion_heap
     global sold
+    global action_talib_dict
+
     if sold is True:
         logging.info("Sold boolean is True. Exiting process_ticker function.")
     else:
@@ -135,7 +137,9 @@ def process_ticker(ticker, client, trading_client, data_client, mongo_client, st
                         logging.warning(f"Error fetching historical data for {ticker}. Retrying... {fetch_error}")
                         time.sleep(60)
 
-                decision, quantity, _ = simulate_strategy(strategy, ticker, current_price, historical_data, buying_power, portfolio_qty, portfolio_value)
+                decision, quantity, action_ta = simulate_strategy(strategy, ticker, current_price, historical_data, buying_power, portfolio_qty, portfolio_value, action_talib_dict)
+                action_talib_dict[ticker][strategy.__name__] = action_ta
+
                 logging.debug(f"Strategy: {strategy.__name__}, Decision: {decision}, Quantity: {quantity} for {ticker}")
                 weight = strategy_to_coefficient[strategy.__name__]
                 decisions_and_quantities.append((decision, quantity, weight))
@@ -193,6 +197,9 @@ def main():
     global buy_heap
     global suggestion_heap
     global sold
+    global action_talib_dict
+    action_talib_dict = {}
+    
     starting_cash = 1000
     ndaq_tickers = []
     early_hour_first_iteration = True
@@ -259,6 +266,9 @@ def main():
             threads = []
 
             for ticker in ndaq_tickers:
+                if ticker not in action_talib_dict:
+                    action_talib_dict[ticker] = {} #talib indicator results
+            
                 thread = threading.Thread(target=process_ticker, args=(ticker, client, trading_client, data_client, mongo_client, strategy_to_coefficient))
                 threads.append(thread)
                 thread.start()
@@ -305,6 +315,8 @@ def main():
             buy_heap = []
             suggestion_heap = []
             sold = False
+            
+            logging.info(f"{len(action_talib_dict) = } ")
             logging.info("Sleeping for 60 seconds...")
             time.sleep(60)
 

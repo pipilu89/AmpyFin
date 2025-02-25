@@ -13,32 +13,7 @@ from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from alpaca.data.historical.stock import StockHistoricalDataClient
 from alpaca.trading.stream import TradingStream
 from alpaca.data.live.stock import StockDataStream
-from alpaca.data.requests import (
-    StockBarsRequest,
-    StockTradesRequest,
-    StockQuotesRequest
-)
-from alpaca.trading.requests import (
-    GetAssetsRequest, 
-    MarketOrderRequest, 
-    LimitOrderRequest, 
-    StopOrderRequest, 
-    StopLimitOrderRequest, 
-    TakeProfitRequest, 
-    StopLossRequest, 
-    TrailingStopOrderRequest, 
-    GetOrdersRequest, 
-    ClosePositionRequest
-)
-from alpaca.trading.enums import ( 
-    AssetStatus, 
-    AssetExchange, 
-    OrderSide, 
-    OrderType, 
-    TimeInForce, 
-    OrderClass, 
-    QueryOrderStatus
-)
+from alpaca.data.requests import (StockBarsRequest, StockTradesRequest, StockQuotesRequest)
 from alpaca.common.exceptions import APIError
 from strategies.talib_indicators import *
 import math
@@ -46,7 +21,7 @@ import yfinance as yf
 import logging
 from collections import Counter
 from trading_client import market_status
-from helper_files.client_helper import strategies, get_latest_price, get_ndaq_tickers, dynamic_period_selector
+from helper_files.client_helper import strategies, get_latest_price, get_ndaq_tickers, dynamic_period_selector, summarize_action_talib_dict
 import time
 from datetime import datetime 
 import heapq 
@@ -64,7 +39,7 @@ import traceback
 import os
 import glob
 
-action_talib_dict = {}
+# action_talib_dict = {}
 
 def process_ticker(ticker, mongo_client, df_historical_single_ticker, current_date, latest_price):
    global action_talib_dict
@@ -141,9 +116,9 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
    # Simulate trading action from strategy
    # print(f"Simulating trade for {ticker} with strategy {strategy.__name__} and quantity of {portfolio_qty}")
    logging.debug(f"Simulating trade for {ticker} with strategy {strategy.__name__} and quantity of {portfolio_qty}")
-   action, quantity, actionA = simulate_strategy(strategy, ticker, current_price, historical_data, account_cash, portfolio_qty, total_portfolio_value, action_talib_dict)
+   action, quantity, action_ta = simulate_strategy(strategy, ticker, current_price, historical_data, account_cash, portfolio_qty, total_portfolio_value, action_talib_dict)
    
-   action_talib_dict[ticker][strategy.__name__] = actionA
+   action_talib_dict[ticker][strategy.__name__] = action_ta
    # MongoDB setup
    
    db = mongo_client.trading_simulator
@@ -284,7 +259,7 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
       logging.debug(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price} | Strategy: {strategy.__name__}")
    # print(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
    # Close the MongoDB connection
-   return action, quantity, actionA
+   return action, quantity, action_ta
 
 def update_portfolio_values(client):
    """
@@ -568,6 +543,7 @@ def main():
    Main function to control the workflow based on the market's status.  
    """  
    global action_talib_dict
+   action_talib_dict = {}
    ndaq_tickers = []  
    early_hour_first_iteration = True
    post_market_hour_first_iteration = True
@@ -665,19 +641,6 @@ def main():
          for thread in threads:
             thread.join()
 
-
-         # Dictionary to store the summed actions
-         def summarize_action_talib_dict(action_talib_dict):
-            summary = {}
-            for ticker, indicators in action_talib_dict.items():
-               summary[ticker] = {'Buy': 0, 'Sell': 0, 'Hold': 0}
-               for action in indicators.values():
-                     if action in summary[ticker]:
-                        summary[ticker][action] += 1
-
-               summary[ticker]["total"] = sum(summary[ticker].values())
-               logging.info(f"{ticker}: {summary[ticker]}")
-            return summary
 
          # Example usage
          summary = summarize_action_talib_dict(action_talib_dict)
