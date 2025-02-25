@@ -100,7 +100,7 @@ def process_ticker(ticker, client, trading_client, data_client, mongo_client, st
             
             portfolio_qty = asset_info['quantity'] if asset_info else 0.0
            
-            # fractional shares
+            # fractional shares: decimal128 needed to avoid rounding errors. float and decimal128 not directly compatible, so need to convert.
             if fractional_shares == True:
                 if isinstance(portfolio_qty, Decimal128):
                     # Convert Decimal128 to decimal.Decimal
@@ -230,29 +230,31 @@ def main():
                 sim_db = mongo_client.trading_simulator
                 rank_collection = sim_db.rank
                 r_t_c_collection = sim_db.rank_to_coefficient
+                
                 for strategy in strategies:
-                    
                     rank = rank_collection.find_one({'strategy': strategy.__name__})['rank']
                     coefficient = r_t_c_collection.find_one({'rank': rank})['coefficient']
                     strategy_to_coefficient[strategy.__name__] = coefficient
                     early_hour_first_iteration = False
                     post_hour_first_iteration = True
+
             trading_client = TradingClient(API_KEY, API_SECRET)
             account = trading_client.get_account()
             buying_power = float(account.cash)
             portfolio_value = float(account.portfolio_value)
             cash_to_portfolio_ratio = buying_power / portfolio_value
-            qqq_latest = get_latest_price('QQQ')
-            spy_latest = get_latest_price('SPY')
             buy_heap = []
             suggestion_heap = []
 
             trades_db = mongo_client.trades
             portfolio_collection = trades_db.portfolio_values
 
-            portfolio_collection.update_one({"name" : "portfolio_percentage"}, {"$set": {"portfolio_value": (portfolio_value-starting_cash)/starting_cash}})
-            portfolio_collection.update_one({"name" : "ndaq_percentage"}, {"$set": {"portfolio_value": (qqq_latest-518.58)/518.58}})
-            portfolio_collection.update_one({"name" : "spy_percentage"}, {"$set": {"portfolio_value": (spy_latest-591.95)/591.95}})
+            if environment != "dev":
+                qqq_latest = get_latest_price('QQQ')
+                spy_latest = get_latest_price('SPY')
+                portfolio_collection.update_one({"name" : "portfolio_percentage"}, {"$set": {"portfolio_value": (portfolio_value-starting_cash)/starting_cash}})
+                portfolio_collection.update_one({"name" : "ndaq_percentage"}, {"$set": {"portfolio_value": (qqq_latest-518.58)/518.58}})
+                portfolio_collection.update_one({"name" : "spy_percentage"}, {"$set": {"portfolio_value": (spy_latest-591.95)/591.95}})
 
             threads = []
 
