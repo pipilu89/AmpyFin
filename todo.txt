@@ -114,3 +114,6 @@ Error occurred while executing buy order. Continuing...
 
 
 Error fetching data for CDNS, period = '2y': ampy-dev-shard-00-01.y9fru.mongodb.net:27017: timed out (configured timeouts: connectTimeoutMS: 20000.0ms)
+
+
+trading_client logging.

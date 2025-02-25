@@ -54,15 +54,6 @@ import certifi
 ca = certifi.where()
 from price_data import get_alpaca_historical_price, get_alpaca_latest_price
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    handlers=[
-        logging.FileHandler('rank_system.log'),  # Log messages to a file
-        logging.StreamHandler()             # Log messages to the console
-    ]
-)
 from control import time_delta_mode, time_delta_increment, time_delta_multiplicative,time_delta_balanced, rank_liquidity_limit, rank_asset_limit, profit_price_change_ratio_d1, profit_profit_time_d1, profit_price_change_ratio_d2, profit_profit_time_d2, profit_profit_time_else, loss_price_change_ratio_d1, loss_price_change_ratio_d2, loss_profit_time_d1, loss_profit_time_d2, loss_profit_time_else
 
 import json
@@ -749,4 +740,12 @@ def main():
   
 if __name__ == "__main__": 
    
+   logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    handlers=[
+        logging.FileHandler('rank_system.log'),  # Log messages to a file
+        logging.StreamHandler()             # Log messages to the console
+    ])
    main()
