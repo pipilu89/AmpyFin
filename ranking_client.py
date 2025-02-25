@@ -1,5 +1,5 @@
 from polygon import RESTClient
-from config import FINANCIAL_PREP_API_KEY, MONGO_DB_USER, MONGO_DB_PASS, API_KEY, API_SECRET, BASE_URL, mongo_url, POLYGON_API_KEY
+from config import FINANCIAL_PREP_API_KEY, MONGO_DB_USER, MONGO_DB_PASS, API_KEY, API_SECRET, BASE_URL, mongo_url, POLYGON_API_KEY, environment
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from urllib.request import urlopen
@@ -583,15 +583,13 @@ def main():
    historical_data_directory = '.'  # Directory where the historical data files are stored
    # price_data_source = 'yf'  # Source of price data (yf or alpaca)
    price_data_source = 'alpaca'  # Source of price data (yf or alpaca)
+   mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
+   client = RESTClient(api_key=POLYGON_API_KEY)# Get the market status from the Polygon API
    while True: 
-      mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
-   
-      # Get the market status from the Polygon API
-      # client = RESTClient(api_key=POLYGON_API_KEY)
-      # status = market_status(client)  # Use the helper function for market status
-      # status = "closed"  # Use this for testing
+         
+      status = market_status(client) if environment != "dev" else "open"
+      # status = mongo_client.market_data.market_status.find_one({})["market_status"] # orig update status
 
-      status = mongo_client.market_data.market_status.find_one({})["market_status"] # orig update status
       if status != status_previous:
          logging.info(f"Market status: {status}")
       status_previous = status
@@ -730,6 +728,7 @@ def main():
             # We keep reusing the same mongo client and never close to reduce the number within the connection pool
 
             update_ranks(mongo_client)
+            logging.info(f"Post-market analysis completed. {sleep_time = }")
          time.sleep(sleep_time)  
       else:  
          logging.error("An error occurred while checking market status.")  

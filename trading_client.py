@@ -1,5 +1,5 @@
 from polygon import RESTClient
-from config import POLYGON_API_KEY, FINANCIAL_PREP_API_KEY, MONGO_DB_USER, MONGO_DB_PASS, API_KEY, API_SECRET, BASE_URL, mongo_url
+from config import POLYGON_API_KEY, FINANCIAL_PREP_API_KEY, MONGO_DB_USER, MONGO_DB_PASS, API_KEY, API_SECRET, BASE_URL, mongo_url, environment
 import json
 import certifi
 from urllib.request import urlopen
@@ -219,9 +219,12 @@ def main():
         indicator_collection = indicator_tb.Indicators
         
         # status = market_status(client)  # Use the helper function for market status
-        # market_collection.update_one({}, {"$set": {"market_status": status}})
+        status = market_status(client) if environment != "dev" else "open"
 
-        status = "open"
+        # status = "open" if dev else market_status(client)
+
+        # status = "open"
+        # market_collection.update_one({}, {"$set": {"market_status": status}})
         
         if status == "open":
             if not ndaq_tickers:
@@ -283,10 +286,10 @@ def main():
                     elif suggestion_heap and float(account.cash) > trade_liquidity_limit:
                         
                         _, quantity, ticker = heapq.heappop(suggestion_heap)
-                        logging.info(f"Executing BUY order (from suggestion_heap) for {ticker} of quantity {quantity} {suggestion_heap = }")
+                        logging.info(f"Executing BUY order (from suggestion_heap) for {ticker} of quantity {quantity}\n{len(suggestion_heap) = }\n{suggestion_heap = }")
                         
                         order = place_order(trading_client, symbol=ticker, side=OrderSide.BUY, quantity=quantity, mongo_client=mongo_client)
-                        logging.info(f"Executed BUY order (from suggestion_heap) for {ticker}: {order}")
+                        logging.info(f"Executed BUY order (from suggestion_heap) for {ticker}: \n{order}")
                         
                     time.sleep(5)
                     """
