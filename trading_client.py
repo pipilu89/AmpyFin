@@ -24,7 +24,7 @@ import requests
 from strategies.talib_indicators import *
 import threading
 import sys
-
+from bson.decimal128 import Decimal128
 
 from control import trade_liquidity_limit, trade_asset_limit, suggestion_heap_limit, fractional_shares
 
@@ -114,8 +114,9 @@ def process_ticker(ticker, client, trading_client, data_client, mongo_client, st
            
             # fractional shares
             if fractional_shares == True:
-                # Convert Decimal128 to decimal.Decimal
-                portfolio_qty = portfolio_qty.to_decimal()
+                if isinstance(portfolio_qty, Decimal128):
+                    # Convert Decimal128 to decimal.Decimal
+                    portfolio_qty = portfolio_qty.to_decimal()
                 # Convert decimal.Decimal to float
                 portfolio_qty = float(portfolio_qty)
 
@@ -146,7 +147,7 @@ def process_ticker(ticker, client, trading_client, data_client, mongo_client, st
                         logging.warning(f"Error fetching historical data for {ticker}. Retrying... {fetch_error}")
                         time.sleep(60)
 
-                decision, quantity = simulate_strategy(strategy, ticker, current_price, historical_data, buying_power, portfolio_qty, portfolio_value)
+                decision, quantity, _ = simulate_strategy(strategy, ticker, current_price, historical_data, buying_power, portfolio_qty, portfolio_value)
                 print(f"Strategy: {strategy.__name__}, Decision: {decision}, Quantity: {quantity} for {ticker}")
                 weight = strategy_to_coefficient[strategy.__name__]
                 decisions_and_quantities.append((decision, quantity, weight))
