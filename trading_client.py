@@ -149,7 +149,7 @@ def process_ticker(ticker, client, trading_client, data_client, mongo_client, st
 
             if decision == "buy" and float(account.cash) > trade_liquidity_limit and (((quantity + portfolio_qty) * current_price) / portfolio_value) < trade_asset_limit:
                 heapq.heappush(buy_heap, (-(buy_weight-(sell_weight + (hold_weight * 0.5))), quantity, ticker))
-                logging.info(f"Added to buy_heap {ticker}, {decision = }, {round(buy_weight,0) = }, {quantity = }")
+                logging.info(f"Added to buy_heap {ticker}, {decision = }, buy_weight = {round(buy_weight, 0)}, {quantity = }")
             elif decision == "sell" and portfolio_qty > 0:
                 logging.info(f"Executing SELL order for {ticker} {quantity = }")
                 sold = True
@@ -178,7 +178,7 @@ def process_ticker(ticker, client, trading_client, data_client, mongo_client, st
                         buy_quantity = max(buy_quantity, 2)
                         buy_quantity = buy_quantity // 2
                     
-                    logging.info(f"Added to suggestion_heap {ticker}, {decision = }, {round(buy_weight, 3) = }, {quantity = }, {buy_quantity}")
+                    logging.info(f"Added to suggestion_heap {ticker}, {decision = }, buy_weight = {round(buy_weight, 0)}, {quantity = }, {buy_quantity}")
                     heapq.heappush(suggestion_heap, (-(buy_weight - sell_weight), buy_quantity, ticker))
                 else:
                     logging.info(f"Holding for {ticker}, no action taken.")
