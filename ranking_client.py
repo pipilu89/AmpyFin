@@ -118,8 +118,8 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
    action, quantity, action_ta = simulate_strategy(strategy, ticker, current_price, historical_data, account_cash, portfolio_qty, total_portfolio_value, action_talib_dict)
    
    action_talib_dict[ticker][strategy.__name__] = action_ta
-   # MongoDB setup
    
+   # MongoDB setup
    db = mongo_client.trading_simulator
    holdings_collection = db.algorithm_holdings
    points_collection = db.points_tally

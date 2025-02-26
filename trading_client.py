@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from pymongo import MongoClient
 import time
 from datetime import datetime, timedelta
-from helper_files.client_helper import place_order, get_ndaq_tickers, market_status, strategies, get_latest_price, dynamic_period_selector
+from helper_files.client_helper import place_order, get_ndaq_tickers, market_status, strategies, get_latest_price, summarize_action_talib_dict, dynamic_period_selector
 from alpaca.trading.client import TradingClient
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from alpaca.data.historical.stock import StockHistoricalDataClient
@@ -357,6 +357,7 @@ def main():
             suggestion_heap = []
             sold = False
             
+            summary = summarize_action_talib_dict(action_talib_dict)
             logging.info(f"{len(action_talib_dict) = } ")
             logging.info(f"Sleeping for 60 seconds... {count = }")
             df_latest_prices_previous = df_latest_prices

@@ -239,5 +239,5 @@ def summarize_action_talib_dict(action_talib_dict):
                     summary[ticker][action] += 1
 
         summary[ticker]["total"] = sum(summary[ticker].values())
-        logging.info(f"{ticker}: {summary[ticker]}")
+        logging.info(f"action_talib_dict {ticker}: {summary[ticker]}")
     return summary
