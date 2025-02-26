@@ -40,11 +40,11 @@ import glob
 
 # action_talib_dict = {}
 
-def process_ticker(ticker, mongo_client, df_historical_single_ticker, current_date, latest_price):
+def process_ticker(ticker, mongo_client, df_historical_single_ticker, latest_price):
    global action_talib_dict
    try:
       
-      current_price = None
+      # current_price = None
       current_price = latest_price
       while current_price is None:
          try:
@@ -68,7 +68,7 @@ def process_ticker(ticker, mongo_client, df_historical_single_ticker, current_da
                period = indicator_collection.find_one({'indicator': strategy.__name__})
                if not df_historical_single_ticker.empty:
                   historical_data = df_historical_single_ticker
-                  historical_data = adjust_df_length_based_on_period(df_historical_single_ticker, period['ideal_period'], current_date)
+                  historical_data = adjust_df_length_based_on_period(df_historical_single_ticker, period['ideal_period'])
                   logging.debug(f"historical_data: {ticker}, {strategy.__name__}, {period['ideal_period']}, {len(historical_data) = }")
                else:
                   historical_data = get_data(ticker, mongo_client, period['ideal_period'])
@@ -415,8 +415,9 @@ def main():
          
          df_latest_prices = get_latest_prices(ndaq_tickers)
          if df_latest_prices.empty:
-            logging.warning(f"Fatal. Failed getting latest price. break.")
-            break
+            logging.warning(f"Fatal. Failed getting latest price. sleep.")
+            time.sleep(3600)
+            continue
        
          logging.info(f"starting threads...")
          threads = []
@@ -424,8 +425,8 @@ def main():
          for ticker in ndaq_tickers:
             if ticker not in action_talib_dict:
                action_talib_dict[ticker] = {} #talib indicator results
-            df_single_ticker = df_historical_prices.loc[df_historical_prices['Ticker'] == ticker]
-            df_single_ticker = df_single_ticker.dropna()
+            df_single_ticker_hist_price = df_historical_prices.loc[df_historical_prices['Ticker'] == ticker]
+            df_single_ticker_hist_price = df_single_ticker_hist_price.dropna()
             latest_price = df_latest_prices.loc[df_latest_prices['Ticker'] == ticker, 'Close'].values[0]
             # logging.info(f"{latest_price = }")
             # check if latest price is None or NaN
@@ -438,7 +439,7 @@ def main():
                   logging.info(f"Price for {ticker} has not changed. Skipping...")
                   continue
 
-            thread = threading.Thread(target=process_ticker, args=(ticker, mongo_client, df_single_ticker, current_date, latest_price))
+            thread = threading.Thread(target=process_ticker, args=(ticker, mongo_client, df_single_ticker_hist_price, latest_price))
             threads.append(thread)
             thread.start()
 

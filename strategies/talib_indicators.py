@@ -53,6 +53,7 @@ def simulate_strategy(strategy, ticker, current_price, historical_data, account_
    max_investment = total_portfolio_value * trade_asset_limit
    
    if action_talib_dict is None or strategy.__name__ not in action_talib_dict[ticker]:
+      # print(f"no sim strat talib result found")
       action_ta = strategy(ticker, historical_data)
    else:
       # print(f"talib result found, skip talib calc")

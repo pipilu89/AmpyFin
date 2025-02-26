@@ -25,8 +25,8 @@ from strategies.talib_indicators import *
 import threading
 import sys
 from bson.decimal128 import Decimal128
-
 from control import trade_liquidity_limit, trade_asset_limit, suggestion_heap_limit, fractional_shares
+from price_data import get_historical_prices, get_latest_prices, adjust_df_length_based_on_period
 
 buy_heap = []
 suggestion_heap = []
@@ -68,7 +68,7 @@ def weighted_majority_decision_and_median_quantity(decisions_and_quantities):
     else:
         return 'hold', 0, buy_weight, sell_weight, hold_weight
 
-def process_ticker(ticker, client, trading_client, data_client, mongo_client, strategy_to_coefficient):
+def process_ticker(ticker, client, trading_client, data_client, mongo_client, strategy_to_coefficient, df_historical_single_ticker, latest_price, account):
     global buy_heap
     global suggestion_heap
     global sold
@@ -79,8 +79,8 @@ def process_ticker(ticker, client, trading_client, data_client, mongo_client, st
     else:
         try:
             decisions_and_quantities = []
-            current_price = None
-            
+            # current_price = None
+            current_price = latest_price
             while current_price is None:
                 try:
                     current_price = get_latest_price(ticker)
@@ -93,8 +93,9 @@ def process_ticker(ticker, client, trading_client, data_client, mongo_client, st
 
             asset_collection = mongo_client.trades.assets_quantities
             limits_collection = mongo_client.trades.assets_limit
-            account = trading_client.get_account()
-            buying_power = float(account.cash)
+            # account = trading_client.get_account() #needed? thread safe?
+            # buying_power = float(account.cash)
+            buying_power = float(account.buying_power)
             portfolio_value = float(account.portfolio_value)
             cash_to_portfolio_ratio = buying_power / portfolio_value
 
@@ -132,7 +133,9 @@ def process_ticker(ticker, client, trading_client, data_client, mongo_client, st
                 while historical_data is None:
                     try:
                         period = indicator_collection.find_one({'indicator': strategy.__name__})
-                        historical_data = get_data(ticker, mongo_client, period['ideal_period'])
+                        # historical_data = get_data(ticker, mongo_client, period['ideal_period'])
+                        historical_data = df_historical_single_ticker
+                        historical_data = adjust_df_length_based_on_period(df_historical_single_ticker, period['ideal_period'])
                     except Exception as fetch_error:
                         logging.warning(f"Error fetching historical data for {ticker}. Retrying... {fetch_error}")
                         time.sleep(60)
@@ -199,7 +202,11 @@ def main():
     global sold
     global action_talib_dict
     action_talib_dict = {}
-    
+
+    period_list = ["1mo", "3mo", "6mo", "1y", "2y"]
+    df_historical_prices = pd.DataFrame()
+    df_latest_prices_previous = pd.DataFrame()
+
     starting_cash = 1000
     ndaq_tickers = []
     early_hour_first_iteration = True
@@ -238,6 +245,7 @@ def main():
                 rank_collection = sim_db.rank
                 r_t_c_collection = sim_db.rank_to_coefficient
                 
+                logging.info(f"getting ranks and coefficients...")
                 for strategy in strategies:
                     rank = rank_collection.find_one({'strategy': strategy.__name__})['rank']
                     coefficient = r_t_c_collection.find_one({'rank': rank})['coefficient']
@@ -263,13 +271,39 @@ def main():
                 portfolio_collection.update_one({"name" : "ndaq_percentage"}, {"$set": {"portfolio_value": (qqq_latest-518.58)/518.58}})
                 portfolio_collection.update_one({"name" : "spy_percentage"}, {"$set": {"portfolio_value": (spy_latest-591.95)/591.95}})
 
+            # batch download ticker data from yfinance or alpaca prior to threading
+            current_date = datetime.now()
+            if df_historical_prices.empty:
+                df_historical_prices = get_historical_prices(mongo_client, ndaq_tickers, period_list, current_date)
+            
+            df_latest_prices = get_latest_prices(ndaq_tickers)
+            if df_latest_prices.empty:
+                logging.warning(f"Fatal. Failed getting latest price. break.")
+                break
+            
+            # account = trading_client.get_account()
+            logging.info(f"starting threads...")
             threads = []
 
             for ticker in ndaq_tickers:
                 if ticker not in action_talib_dict:
                     action_talib_dict[ticker] = {} #talib indicator results
-            
-                thread = threading.Thread(target=process_ticker, args=(ticker, client, trading_client, data_client, mongo_client, strategy_to_coefficient))
+                df_single_ticker_hist_price = df_historical_prices.loc[df_historical_prices['Ticker'] == ticker]
+                df_single_ticker_hist_price = df_single_ticker_hist_price.dropna()
+                latest_price = df_latest_prices.loc[df_latest_prices['Ticker'] == ticker, 'Close'].values[0]
+                # logging.info(f"{latest_price = }")
+                # check if latest price is None or NaN
+                if latest_price is None or math.isnan(latest_price):
+                    logging.warning(f"Latest price for {ticker}: {latest_price} is invalid (None or NaN). Skipping...")
+                    continue
+                # check if price has changed. if true process ticker. if false, skip.
+                if not df_latest_prices_previous.empty:
+                    if latest_price == df_latest_prices_previous.loc[df_latest_prices_previous['Ticker'] == ticker, 'Close'].values[0]:
+                        logging.info(f"Price for {ticker} has not changed. Skipping...")
+                        continue
+
+
+                thread = threading.Thread(target=process_ticker, args=(ticker, client, trading_client, data_client, mongo_client, strategy_to_coefficient, df_single_ticker_hist_price, latest_price, account))
                 threads.append(thread)
                 thread.start()
 
@@ -287,8 +321,9 @@ def main():
                 try:
                     trading_client = TradingClient(API_KEY, API_SECRET)
                     account = trading_client.get_account()
-                    logging.info(f"Cash: {account.cash}")
-                    if buy_heap and float(account.cash) > trade_liquidity_limit:
+                    logging.info(f"{account.cash = }, {account.buying_power = }")
+                    # if buy_heap and float(account.cash) > trade_liquidity_limit:
+                    if buy_heap and float(account.buying_power) > trade_liquidity_limit:
                         
                         _, quantity, ticker = heapq.heappop(buy_heap)
                         logging.info(f"Executing BUY order (from buy_heap) for {ticker} of quantity {quantity}\n{len(buy_heap) = }\n{buy_heap = }")
@@ -296,7 +331,8 @@ def main():
                         order = place_order(trading_client, symbol=ticker, side=OrderSide.BUY, quantity=quantity, mongo_client=mongo_client)
                         logging.info(f"Executed BUY order (from buy_heap) for {ticker}: {order}")
                         
-                    elif suggestion_heap and float(account.cash) > trade_liquidity_limit:
+                    # elif suggestion_heap and float(account.cash) > trade_liquidity_limit:
+                    elif suggestion_heap and float(account.buying_power) > trade_liquidity_limit:
                         
                         _, quantity, ticker = heapq.heappop(suggestion_heap)
                         logging.info(f"Executing BUY order (from suggestion_heap) for {ticker} of quantity {quantity}\n{len(suggestion_heap) = }\n{suggestion_heap = }")

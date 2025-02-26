@@ -151,7 +151,7 @@ def get_latest_prices_from_yf2(tickers):
 #         logging.error(f'yf error: {e}')
 #         return None
 
-def adjust_df_length_based_on_period(df, period, current_date):
+def adjust_df_length_based_on_period(df, period):
    adjustment = 1.1 #increase the length of the dataframe to avoid missing data from holidays etc.
    if period == '1mo':
       x = 30
