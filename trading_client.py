@@ -207,7 +207,7 @@ def main():
     df_historical_prices = pd.DataFrame()
     df_latest_prices_previous = pd.DataFrame()
     count = 0
-    
+
     starting_cash = 1000
     ndaq_tickers = []
     early_hour_first_iteration = True
@@ -383,6 +383,12 @@ def main():
                 early_hour_first_iteration = True
                 post_hour_first_iteration = False
                 logging.info("Market is closed. Performing post-market operations.")
+
+                logging.info("reset daily data temp objects")
+                action_talib_dict = {}
+                df_historical_prices = pd.DataFrame()
+                df_latest_prices_previous = pd.DataFrame()
+
             time.sleep(30)
         else:
             logging.error("An error occurred while checking market status.")

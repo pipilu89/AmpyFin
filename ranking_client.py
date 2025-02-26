@@ -370,7 +370,6 @@ def main():
    Main function to control the workflow based on the market's status.  
    """  
    global action_talib_dict
-   action_talib_dict = {}
    ndaq_tickers = []  
    early_hour_first_iteration = True
    post_market_hour_first_iteration = True
@@ -378,6 +377,7 @@ def main():
    count = 0
    sleep_time = 120
    period_list = ["1mo", "3mo", "6mo", "1y", "2y"]
+   action_talib_dict = {}
    df_historical_prices = pd.DataFrame()
    df_latest_prices_previous = pd.DataFrame()
 
@@ -453,7 +453,7 @@ def main():
          logging.info(f"{len(action_talib_dict) = } ")
 
 
-         logging.info(f"Finished processing all strategies. Waiting for 30 seconds. {count = }")
+         logging.info(f"Finished processing all strategies. Waiting for {sleep_time} seconds. {count = }")
          df_latest_prices_previous = df_latest_prices
          count += 1
          time.sleep(sleep_time)  
@@ -479,8 +479,13 @@ def main():
             early_hour_first_iteration = True
             logging.info("Market is closed. Performing post-market analysis.") 
             post_market_hour_first_iteration = False
-            # Update time delta based on the mode
+
+            logging.info("reset daily data temp objects")
+            action_talib_dict = {}
+            df_historical_prices = pd.DataFrame()
+            df_latest_prices_previous = pd.DataFrame()
             
+            # Update time delta based on the mode
             if time_delta_mode == 'additive':
                mongo_client.trading_simulator.time_delta.update_one({}, {"$inc": {"time_delta": time_delta_increment}})
             elif time_delta_mode == 'multiplicative':
