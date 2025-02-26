@@ -39,14 +39,14 @@ def get_data(ticker, mongo_client, period=None, start_date=None, end_date=None):
                print("Historical Data fetched from Yahoo Finance")
                return data
          except Exception as e:
-            print(f"Error fetching historical data for {ticker}, {period = }: {e}")
+            logging.error(f"Error fetching historical data for {ticker}, {period = }: {e}")
       
       return data  
    else:
       try:
          return yf.Ticker(ticker).history(start=start_date, end=end_date)
       except Exception as e:
-         print(f"Error fetching data for {ticker}, {period = }: {e}")
+         logging.error(f"Error fetching data for {ticker}, {period = }: {e}")
          time.sleep(10)
   
 def simulate_strategy(strategy, ticker, current_price, historical_data, account_cash, portfolio_qty, total_portfolio_value, action_talib_dict=None):
