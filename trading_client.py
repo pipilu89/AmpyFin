@@ -206,7 +206,8 @@ def main():
     period_list = ["1mo", "3mo", "6mo", "1y", "2y"]
     df_historical_prices = pd.DataFrame()
     df_latest_prices_previous = pd.DataFrame()
-
+    count = 0
+    
     starting_cash = 1000
     ndaq_tickers = []
     early_hour_first_iteration = True
@@ -278,8 +279,9 @@ def main():
             
             df_latest_prices = get_latest_prices(ndaq_tickers)
             if df_latest_prices.empty:
-                logging.warning(f"Fatal. Failed getting latest price. break.")
-                break
+                logging.warning(f"Fatal. Failed getting latest price. sleep.")
+                time.sleep(3600)
+                continue
             
             # account = trading_client.get_account()
             logging.info(f"starting threads...")
@@ -316,7 +318,10 @@ def main():
 
             trading_client = TradingClient(API_KEY, API_SECRET)
             account = trading_client.get_account()
-            while (buy_heap or suggestion_heap) and float(account.cash) > trade_liquidity_limit and sold is False:
+
+            logging.info(f"{account.buying_power = }, {trade_liquidity_limit = }, {sold = }")
+            # while (buy_heap or suggestion_heap) and float(account.cash) > trade_liquidity_limit and sold is False:
+            while (buy_heap or suggestion_heap) and float(account.buying_power) > trade_liquidity_limit and sold is False:
                 logging.info(f"placing orders...")
                 try:
                     trading_client = TradingClient(API_KEY, API_SECRET)
@@ -353,7 +358,9 @@ def main():
             sold = False
             
             logging.info(f"{len(action_talib_dict) = } ")
-            logging.info("Sleeping for 60 seconds...")
+            logging.info(f"Sleeping for 60 seconds... {count = }")
+            df_latest_prices_previous = df_latest_prices
+            count += 1
             time.sleep(60)
 
         elif status == "early_hours":
