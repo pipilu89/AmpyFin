@@ -17,7 +17,6 @@ from alpaca.data.requests import (StockBarsRequest, StockTradesRequest, StockQuo
 from alpaca.common.exceptions import APIError
 from strategies.talib_indicators import *
 import math
-import yfinance as yf
 import logging
 from collections import Counter
 from trading_client import market_status
@@ -27,7 +26,7 @@ from datetime import datetime
 import heapq 
 import certifi
 ca = certifi.where()
-from price_data import get_alpaca_historical_price, get_alpaca_latest_price
+from price_data import get_historical_prices, get_latest_prices, adjust_df_length_based_on_period
 
 from control import time_delta_mode, time_delta_increment, time_delta_multiplicative,time_delta_balanced, rank_liquidity_limit, rank_asset_limit, profit_price_change_ratio_d1, profit_profit_time_d1, profit_price_change_ratio_d2, profit_profit_time_d2, profit_profit_time_else, loss_price_change_ratio_d1, loss_price_change_ratio_d2, loss_profit_time_d1, loss_profit_time_d2, loss_profit_time_else
 
@@ -365,178 +364,6 @@ def update_ranks(client):
    logging.info("Successfully updated ranks")
    logging.info("Successfully deleted historical database")
    
-def get_historical_data_from_yf(ndaq_tickers, period):
-    logging.info('download historical price data from yf...')
-    try:
-        df = yf.download(ndaq_tickers, group_by='Ticker', period=period, interval='1d', auto_adjust=True, repair=True, rounding=True)
-        return df
-    except Exception as e:
-        logging.error(f'yf error: {e}')
-        return None
-
-def adjust_df_length_based_on_period(df, period, current_date):
-   adjustment = 1.1 #increase the length of the dataframe to avoid missing data from holidays etc.
-   if period == '1mo':
-      x = 30
-   elif period == '3mo':
-      x = 90
-   elif period == '6mo':
-      x = 180
-   elif period == '1y':
-      x = 365
-   # elif period == '2y':
-   #    start_date = current_date - timedelta(days=730)
-   if period == '2y':
-      return df
-   else:
-      df = df.tail(x)
-   return df
-
-def get_yf_historical_data_and_format(ndaq_tickers, period_max ='2y'):
-   """
-   Batch download the historical data for multiple tickers using yfinance.
-
-   Parameters:
-   - tickers (list): List of ticker symbols.
-   """
-   # use yf dowloaded data, split period_max('2y') into shorter periods, rather than dl multiple periods. Possible problem if ticker does have 2 years of data (it may have 1mo or 6mo). Test with recent ipo.
-   df = get_historical_data_from_yf(ndaq_tickers, period_max)
-   if not df.empty:
-      # Stack multi-level column index
-      df = df.stack(level=0, future_stack=True).rename_axis(['Date', 'Ticker']).reset_index(level=1)
-      df = df[['Ticker','Open', 'High', 'Low', 'Close', 'Volume']]
-      return df
-
-def batch_insert_historical_price_df_into_mdb(mongo_client, ndaq_tickers, period_list, current_date, df):
-   db = mongo_client.HistoricalDatabase
-   collection = db.HistoricalDatabase
-
-   logging.info("Deleting historical database...")
-   try:
-      collection.delete_many({})
-      logging.info("Successfully deleted historical database")
-   except Exception as e:
-      logging.error(f"Error deleting historical database: {e}")
-      raise
- 
-
-   documents = []
-   for period in period_list:
-      for ticker in ndaq_tickers:
-         df_single_ticker = df.loc[df['Ticker'] == ticker]
-         df_single_ticker = df_single_ticker.dropna()
-
-         df_single_ticker = adjust_df_length_based_on_period(df_single_ticker, period, current_date)
-
-         records = df_single_ticker.reset_index().to_dict('records')
-         documents.append({"ticker": ticker, "period": period, 'data': records})
-   if documents:
-      collection.insert_many(documents)
-      # logging.info(f"Data for period {period} stored in MongoDB. {len(df_single_ticker) = }.")
-      logging.info(f"Data for period {period_list} stored in MongoDB.")
-      logging.debug(f"{df_single_ticker.head(1) = }")
-      logging.debug(f"{df_single_ticker.tail(1) = }")
-  
-
-def dl_historical_data_and_batch_insert_into_mdb(mongo_client, ndaq_tickers, period_list, current_date):
-   db = mongo_client.HistoricalDatabase
-   collection = db.HistoricalDatabase
-
-   logging.info("Deleting historical database...")
-   try:
-      collection.delete_many({})
-      logging.info("Successfully deleted historical database")
-   except Exception as e:
-      logging.error(f"Error deleting historical database: {e}")
-      raise
-
-   period_max ='2y'
-
-   # use yf dowloaded data, split period_max('2y') into shorter periods, rather than dl multiple periods. Possible problem if ticker does have 2 years of data (it may have 1mo or 6mo). Test with recent ipo.
-   df = get_historical_data_from_yf(ndaq_tickers, period_max)
-   if not df.empty:
-      # Stack multi-level column index
-      df = df.stack(level=0, future_stack=True).rename_axis(['Date', 'Ticker']).reset_index(level=1)
-      df = df[['Ticker','Open', 'High', 'Low', 'Close', 'Volume']]
-
-      documents = []
-      for period in period_list:
-         for ticker in ndaq_tickers:
-            df_single_ticker = df.loc[df['Ticker'] == ticker]
-            df_single_ticker = df_single_ticker.dropna()
-
-            df_single_ticker = adjust_df_length_based_on_period(df_single_ticker, period, current_date)
-
-            records = df_single_ticker.reset_index().to_dict('records')
-            documents.append({"ticker": ticker, "period": period, 'data': records})
-      if documents:
-         collection.insert_many(documents)
-         # logging.info(f"Data for period {period} stored in MongoDB. {len(df_single_ticker) = }.")
-         logging.info(f"Data for period {period_list} stored in MongoDB.")
-         logging.debug(f"{df_single_ticker.head(1) = }")
-         logging.debug(f"{df_single_ticker.tail(1) = }")
-   return df
- 
-def get_latest_prices_from_yf(tickers):
-    """
-    Batch download the latest prices for multiple tickers using yfinance.
-    
-    Parameters:
-    - tickers (list): List of ticker symbols.
-    
-    Returns:
-    - dict: A dictionary with ticker symbols as keys and their latest prices as values.
-    """
-    logging.info(f"Batch downloading latest prices from yfinance... {len(tickers) = }")
-    try:
-        # Download the latest prices for the tickers
-        df = yf.download(tickers, period='1d', interval='1m', group_by='Ticker', auto_adjust=True, repair=True, rounding=True)
-        
-        # Extract the latest prices
-        latest_prices = {}
-        for ticker in tickers:
-            if ticker in df.columns.levels[0]:
-                latest_prices[ticker] = df[ticker]['Close'].iloc[-1]
-            else:
-                latest_prices[ticker] = None
-        logging.info(f"{len(latest_prices) = }")
-        logging.info(f"{latest_prices}")
-        return latest_prices
-    except Exception as e:
-        logging.error(f"Error downloading latest prices from yfinance: {e}")
-        return {}
-
-def get_latest_prices_from_yf2(tickers):
-      """
-      Batch download the latest prices for multiple tickers using yfinance.
-      
-      Parameters:
-      - tickers (list): List of ticker symbols.
-      
-      Returns:
-      - dict: A dictionary with ticker symbols as keys and their latest prices as values.
-      """
-      logging.info(f"Batch downloading latest prices from yfinance... {len(tickers) = }")
-      try:
-         # Download the latest prices for the tickers
-         df = yf.download(tickers, period='1d', interval='1m', group_by='Ticker', auto_adjust=True, repair=True, rounding=True)
-         if not df.empty:
-            # truncate df to most recent date only
-            df = df[df.index == df.index.max()]
-            # Stack multi-level column index
-            df = df.stack(level=0, future_stack=True).rename_axis(['Date', 'Ticker']).reset_index(level=1)
-            df = df[['Ticker','Open', 'High', 'Low', 'Close', 'Volume']]
-            return df
-      except Exception as e:
-         logging.error(f"Error downloading latest prices from yfinance: {e}")
-         return {}
-      
-def clean_old_files(directory, pattern, max_files):
-   files = sorted(glob.glob(os.path.join(directory, pattern)), key=os.path.getmtime)
-   while len(files) > max_files:
-      file_to_delete = files.pop(0)
-      os.remove(file_to_delete)
-      logging.info(f"Deleted old file: {file_to_delete}")
 
 def main():  
    """  
@@ -554,11 +381,11 @@ def main():
    df_historical_prices = pd.DataFrame()
    df_latest_prices_previous = pd.DataFrame()
 
-   today_date_str = datetime.now().strftime('%Y-%m-%d')
-   historical_data_filename = f'df_historical_prices_{today_date_str}.csv'
-   historical_data_directory = '.'  # Directory where the historical data files are stored
-   # price_data_source = 'yf'  # Source of price data (yf or alpaca)
-   price_data_source = 'alpaca'  # Source of price data (yf or alpaca)
+   # today_date_str = datetime.now().strftime('%Y-%m-%d')
+   # historical_data_filename = f'df_historical_prices_{today_date_str}.csv'
+   # historical_data_directory = '.'  # Directory where the historical data files are stored
+   # # price_data_source = 'yf'  # Source of price data (yf or alpaca)
+   # price_data_source = 'alpaca'  # Source of price data (yf or alpaca)
    mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
    client = RESTClient(api_key=POLYGON_API_KEY)# Get the market status from the Polygon API
    while True: 
@@ -583,35 +410,13 @@ def main():
             # ndaq_tickers = ["AAPL", "AMD", "GOOG"]
 
          # batch download ticker data from yfinance or alpaca prior to threading
-         if df_historical_prices.empty:            
-            if not os.path.exists(historical_data_filename):
-               if price_data_source == 'yf':
-                  df_historical_prices = get_yf_historical_data_and_format(ndaq_tickers, period_max ='2y')
-               elif price_data_source == 'alpaca':
-                  df_historical_prices = get_alpaca_historical_price(ndaq_tickers, 730)
-               #store in mdb
-               batch_insert_historical_price_df_into_mdb(mongo_client, ndaq_tickers, period_list, current_date, df_historical_prices)
-               # store df_historical_yf_prices in local file
-               df_historical_prices.to_csv(historical_data_filename, index=True)
-               logging.info(f"Downloaded and saved df_historical_prices to {historical_data_filename}")
-               # Clean old files to maintain a maximum of 5 files
-               clean_old_files(historical_data_directory, 'df_historical_prices_*.csv', 5)
-            else:
-               # load df_historical_prices from local file
-               try:
-                  df_historical_prices = pd.read_csv(historical_data_filename)
-                  logging.info(f"Loaded df_historical_yf_prices from {historical_data_filename}. {len(df_historical_prices) = }")
-               except Exception as e:
-                  logging.error(f"Error loading {historical_data_filename}: {e}")
-
-         # batch download current prices from yf. This is to avoid multiple calls to yf in the threads.
-         if price_data_source == 'yf':
-            df_latest_prices = get_latest_prices_from_yf2(ndaq_tickers)
-         elif price_data_source == 'alpaca':
-            df_latest_prices = get_alpaca_latest_price(ndaq_tickers)
-            # df_latest_prices = get_alpaca_latest_price(ndaq_tickers)
-         # save df to local file
-         df_latest_prices.to_csv('latest_prices.csv', index=True)
+         if df_historical_prices.empty:
+            df_historical_prices = get_historical_prices(mongo_client, ndaq_tickers, period_list, current_date)
+         
+         df_latest_prices = get_latest_prices(ndaq_tickers)
+         if df_latest_prices.empty:
+            logging.warning(f"Fatal. Failed getting latest price. break.")
+            break
        
          logging.info(f"starting threads...")
          threads = []

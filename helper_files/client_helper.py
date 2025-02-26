@@ -149,6 +149,7 @@ def get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY):
     # tickers = [stock['symbol'] for stock in mongo_client.stock_list.ndaq100_tickers.find()]
     tickers = [ticker['symbol'] for ticker in ndaq_stocks]
     
+    logging.info(f"{len(tickers) = }")
     return tickers
 
 # Market status checker helper
