@@ -175,7 +175,8 @@ def get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY):
             logging.info(f"Loaded df_tickers from {tickers_filename}. {df_tickers.shape = }")
             # convert df into list of tickers
             tickers = df_tickers['symbol'].tolist()
-            logging.info(f"created list of tickers from file: {len(tickers) = }. {tickers}")
+            logging.info(f"created list of tickers from file: {len(tickers) = }.")
+            logging.debug(f"{tickers = }")
             return tickers
         except Exception as e:
             logging.error(f"Error loading {tickers_filename}: {e}")
