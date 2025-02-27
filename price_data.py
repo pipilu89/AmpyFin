@@ -7,9 +7,9 @@ from zoneinfo import ZoneInfo
 from config import API_KEY, API_SECRET
 import logging
 import os
-import glob
 import yfinance as yf
 import time
+from helper_files.client_helper import clean_old_files
 
 # setup stock historical data client for alpaca.
 stock_historical_data_client = StockHistoricalDataClient(API_KEY, API_SECRET)
@@ -233,13 +233,6 @@ def filter_df_by_days(df, days, current_date):
     start_date = current_date - timedelta(days=days)
     filtered_df = df[df.index >= start_date]
     return filtered_df
-
-def clean_old_files(directory, pattern, max_files):
-   files = sorted(glob.glob(os.path.join(directory, pattern)), key=os.path.getmtime)
-   while len(files) > max_files:
-      file_to_delete = files.pop(0)
-      os.remove(file_to_delete)
-      logging.info(f"Deleted old file: {file_to_delete}")
 
 def get_historical_prices(mongo_client, ndaq_tickers, period_list, max_retries=5, initial_delay=60):            
     if not os.path.exists(historical_data_filename):

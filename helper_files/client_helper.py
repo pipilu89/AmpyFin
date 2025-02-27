@@ -8,6 +8,7 @@ import logging
 import yfinance as yf
 import sys
 import os
+import glob
 import pandas as pd
 from pathlib import Path
 sys.path.append("..")
@@ -148,7 +149,7 @@ def get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY):
 
     today_date_str = datetime.now().strftime('%Y-%m-%d')
     tickers_filename = f'ndaq_tickers_{today_date_str}.csv'
-    historical_data_directory = '.'  # Directory where the historical data files are stored
+    ticker_data_directory = '.'  # Directory where the historical data files are stored
 
     if not os.path.exists(tickers_filename):
         ndaq_stocks = call_ndaq_100()
@@ -167,6 +168,10 @@ def get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY):
         df_tickers = pd.DataFrame(tickers, columns=['symbol'])
         df_tickers.to_csv(tickers_filename, index=False)
         logging.info(f"tickers saved to csv file. {len(tickers) = }")
+        
+        # Clean old files to maintain a maximum of 5 files
+        clean_old_files(ticker_data_directory, 'ndaq_tickers_*.csv', 5)
+        
         return tickers
     else:
         # load tickers from local file
@@ -257,7 +262,12 @@ def dynamic_period_selector(ticker):
     optimal_period = min(volatility_scores, key=lambda x: x[1])[0] if volatility_scores else '1y'
     return optimal_period
 
-
+def clean_old_files(directory, pattern, max_files):
+   files = sorted(glob.glob(os.path.join(directory, pattern)), key=os.path.getmtime)
+   while len(files) > max_files:
+      file_to_delete = files.pop(0)
+      os.remove(file_to_delete)
+      logging.info(f"Deleted old file: {file_to_delete}")
 
 # Dictionary to store the summed actions
 def summarize_action_talib_dict(action_talib_dict):
