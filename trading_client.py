@@ -275,7 +275,7 @@ def main():
             # batch download ticker data from yfinance or alpaca prior to threading
             current_date = datetime.now()
             if df_historical_prices.empty:
-                df_historical_prices = get_historical_prices(mongo_client, ndaq_tickers, period_list, current_date)
+                df_historical_prices = get_historical_prices(mongo_client, ndaq_tickers, period_list)
             
             df_latest_prices = get_latest_prices(ndaq_tickers)
             if df_latest_prices.empty:

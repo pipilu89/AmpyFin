@@ -7,6 +7,8 @@ from datetime import datetime, timedelta, timezone
 import logging
 import yfinance as yf
 import sys
+import os
+import pandas as pd
 from pathlib import Path
 sys.path.append("..")
 from control import stop_loss, take_profit, fractional_shares
@@ -129,7 +131,7 @@ def get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY):
             logging.info("Successfully retrieved NASDAQ 100 tickers.")
         except Exception as e:
             logging.error(f"Error fetching NASDAQ 100 tickers: {e}")
-            return
+            return None
         try:
             # MongoDB connection details
             
@@ -144,13 +146,40 @@ def get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY):
         
         return ndaq_stocks
 
-    ndaq_stocks = call_ndaq_100()
-    
-    # tickers = [stock['symbol'] for stock in mongo_client.stock_list.ndaq100_tickers.find()]
-    tickers = [ticker['symbol'] for ticker in ndaq_stocks]
-    
-    logging.info(f"{len(tickers) = }")
-    return tickers
+    today_date_str = datetime.now().strftime('%Y-%m-%d')
+    tickers_filename = f'ndaq_tickers_{today_date_str}.csv'
+    historical_data_directory = '.'  # Directory where the historical data files are stored
+
+    if not os.path.exists(tickers_filename):
+        ndaq_stocks = call_ndaq_100()
+        # ndaq_stocks = None
+        if ndaq_stocks is None:
+            logging.info(f"{ndaq_stocks = }, getting tickers fom mdb...")
+            try:
+                tickers = [stock['symbol'] for stock in mongo_client.stock_list.ndaq100_tickers.find()]
+            except Exception as e:
+                logging.error(f"Error getting tickers from MongoDB: {e}")
+        else:
+            tickers = [ticker['symbol'] for ticker in ndaq_stocks]
+        
+        # SAVE tickers to csv
+        # df_tickers = pd.DataFrame(tickers, columns=['symbol','name','sector','subSector','founded'])
+        df_tickers = pd.DataFrame(tickers, columns=['symbol'])
+        df_tickers.to_csv(tickers_filename, index=False)
+        logging.info(f"tickers saved to csv file. {len(tickers) = }")
+        return tickers
+    else:
+        # load tickers from local file
+        try:
+            df_tickers = pd.read_csv(tickers_filename)
+            logging.info(f"Loaded df_tickers from {tickers_filename}. {df_tickers.shape = }")
+            # convert df into list of tickers
+            tickers = df_tickers['symbol'].tolist()
+            logging.info(f"created list of tickers from file: {len(tickers) = }. {tickers}")
+            return tickers
+        except Exception as e:
+            logging.error(f"Error loading {tickers_filename}: {e}")
+            return None
 
 # Market status checker helper
 def market_status(polygon_client):
