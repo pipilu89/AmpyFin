@@ -160,6 +160,7 @@ def get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY):
                 tickers = [stock['symbol'] for stock in mongo_client.stock_list.ndaq100_tickers.find()]
             except Exception as e:
                 logging.error(f"Error getting tickers from MongoDB: {e}")
+                return None
         else:
             tickers = [ticker['symbol'] for ticker in ndaq_stocks]
         
@@ -188,24 +189,36 @@ def get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY):
             return None
 
 # Market status checker helper
-def market_status(polygon_client):
+def market_status(polygon_client, max_retries=5, initial_delay=60):
     """
-    Check market status using the Polygon API.
+    Check market status using the Polygon API with retry mechanism and exponential back-off delay.
 
     :param polygon_client: An instance of the Polygon RESTClient
+    :param max_retries: Maximum number of retries before giving up
+    :param initial_delay: Initial delay between retries in seconds
     :return: Current market status ('open', 'early_hours', 'closed')
     """
-    try:
-        status = polygon_client.get_market_status()
-        if status.exchanges.nasdaq == "open" and status.exchanges.nyse == "open":
-            return "open"
-        elif status.early_hours:
-            return "early_hours"
-        else:
-            return "closed"
-    except Exception as e:
-        logging.error(f"Error retrieving market status: {e}")
-        return "error"
+    retries = 0
+    delay = initial_delay
+
+    while retries < max_retries:
+        try:
+            status = polygon_client.get_market_status()
+            if status.exchanges.nasdaq == "open" and status.exchanges.nyse == "open":
+                return "open"
+            elif status.early_hours:
+                return "early_hours"
+            else:
+                return "closed"
+        except Exception as e:
+            logging.error(f"Error retrieving market status: {e}")
+            retries += 1
+            if retries < max_retries:
+                logging.info(f"Retrying in {delay} seconds...")
+                time.sleep(delay)
+                delay *= 2  # Exponential back-off
+            else:
+                return "error"
 
 # Helper to get latest price
 def get_latest_price(ticker):  
