@@ -445,8 +445,9 @@ def main():
                      logging.info(f"No ideal period found for {strategy.__name__}, using default.")
             return ideal_period
 
-         if not strategy_ideal_period_lookup_dict:
-            strategy_ideal_period_lookup_dict = create_strategy_ideal_period_dict(mongo_client)
+         # if not strategy_ideal_period_lookup_dict:
+         #    strategy_ideal_period_lookup_dict = create_strategy_ideal_period_dict(mongo_client)
+         strategy_ideal_period_lookup_dict = create_strategy_ideal_period_dict(mongo_client)
 
          logging.info(f"starting threads...")
          threads = []
