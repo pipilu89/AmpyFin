@@ -30,15 +30,9 @@ from price_data import get_historical_prices, get_latest_prices, adjust_df_lengt
 
 from control import time_delta_mode, time_delta_increment, time_delta_multiplicative,time_delta_balanced, rank_liquidity_limit, rank_asset_limit, profit_price_change_ratio_d1, profit_profit_time_d1, profit_price_change_ratio_d2, profit_profit_time_d2, profit_profit_time_else, loss_price_change_ratio_d1, loss_price_change_ratio_d2, loss_profit_time_d1, loss_profit_time_d2, loss_profit_time_else
 
-import json
 import pandas as pd
-
 from helper_files.client_helper import market_status as market_status_helper
 import traceback
-import os
-import glob
-
-# action_talib_dict = {}
 
 def process_ticker(ticker, mongo_client, df_historical_single_ticker, latest_price, strategy_ideal_period_lookup_dict):
    global action_talib_dict
@@ -319,7 +313,6 @@ def update_portfolio_values(client):
 
    # Update MongoDB with the modified strategy documents
    
-
 def update_ranks(client):
    """"
    based on portfolio values, rank the strategies to use for actual trading_simulator
@@ -367,7 +360,6 @@ def update_ranks(client):
    logging.info("Successfully updated ranks")
    logging.info("Successfully deleted historical database")
    
-
 def main():  
    """  
    Main function to control the workflow based on the market's status.  
@@ -385,159 +377,153 @@ def main():
    df_latest_prices_previous = pd.DataFrame()
    strategy_ideal_period_lookup_dict= {}
 
-   # today_date_str = datetime.now().strftime('%Y-%m-%d')
-   # historical_data_filename = f'df_historical_prices_{today_date_str}.csv'
-   # historical_data_directory = '.'  # Directory where the historical data files are stored
-   # # price_data_source = 'yf'  # Source of price data (yf or alpaca)
-   # price_data_source = 'alpaca'  # Source of price data (yf or alpaca)
-   mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
-   client = RESTClient(api_key=POLYGON_API_KEY)# Get the market status from the Polygon API
    while True: 
+      with MongoClient(mongo_url, tlsCAFile=ca) as mongo_client:
+         client = RESTClient(api_key=POLYGON_API_KEY)# Get the market status from the Polygon API
          
-      # status = mongo_client.market_data.market_status.find_one({})["market_status"] # orig update status
-      # status = market_status(client) if environment != "dev" else "open"
-      status = "open"
+         # status = mongo_client.market_data.market_status.find_one({})["market_status"] # orig update status
+         status = market_status(client) if environment != "dev" else "open"
+         # status = "open"
 
-      if status != status_previous:
-         logging.info(f"Market status: {status}")
-      status_previous = status
-   
-      if status == "open":  
-         # Connection pool is not thread safe. Create a new client for each thread.
-         # We can use ThreadPoolExecutor to manage threads - maybe use this but this risks clogging
-         # resources if we have too many threads or if a thread is on stall mode
-         # We can also use multiprocessing.Pool to manage threads
-         current_date = datetime.now()
-         logging.info("Market is open. Processing strategies.")  
+         if status != status_previous:
+            logging.info(f"Market status: {status}")
+         status_previous = status
       
-         if not ndaq_tickers:
-            # ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
-            ndaq_tickers = ["AAPL", "AMD", "GOOG"]
-
-         # batch download ticker data from yfinance or alpaca prior to threading
-         if df_historical_prices.empty:
-            df_historical_prices = get_historical_prices(mongo_client, ndaq_tickers, period_list)
+         if status == "open":  
+            # Connection pool is not thread safe. Create a new client for each thread.
+            # We can use ThreadPoolExecutor to manage threads - maybe use this but this risks clogging
+            # resources if we have too many threads or if a thread is on stall mode
+            # We can also use multiprocessing.Pool to manage threads
+            current_date = datetime.now()
+            logging.info("Market is open. Processing strategies.")  
          
-         df_latest_prices = get_latest_prices(ndaq_tickers)
-         if df_latest_prices.empty:
-            logging.warning(f"Fatal. Failed getting latest price. sleep.")
-            time.sleep(3600)
-            continue
-       
-         # create local strategy ideal period lookup dict. (faster than repeated mdb calls).
-         def create_strategy_ideal_period_dict(mongo_client):
-            ideal_period = {}
+            if not ndaq_tickers:
+               # ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
+               ndaq_tickers = ["AAPL", "AMD", "GOOG"]
 
-            # Connect to MongoDB and batch fetch indicator periods for all strategies.
-            db = mongo_client.IndicatorsDatabase
-            indicator_collection = db.Indicators
-            logging.info("Connected to MongoDB: Retrieved Indicators collection.")
-
-            # Assuming 'strategies' is a global list of strategy objects
-            strategy_names = [strategy.__name__ for strategy in strategies]
-            indicator_docs = list(indicator_collection.find({'indicator': {"$in": strategy_names}}))
-            indicator_lookup = {doc['indicator']: doc.get('ideal_period') for doc in indicator_docs}
-            for strategy in strategies:
-               if strategy.__name__ in indicator_lookup:
-                     ideal_period[strategy.__name__] = indicator_lookup[strategy.__name__]
-                     # logging.info(f"Retrieved ideal period for {strategy.__name__}: {indicator_lookup[strategy.__name__]}")
-               else:
-                     logging.info(f"No ideal period found for {strategy.__name__}, using default.")
-            return ideal_period
-
-         # if not strategy_ideal_period_lookup_dict:
-         #    strategy_ideal_period_lookup_dict = create_strategy_ideal_period_dict(mongo_client)
-         strategy_ideal_period_lookup_dict = create_strategy_ideal_period_dict(mongo_client)
-
-         logging.info(f"starting threads...")
-         threads = []
-
-         for ticker in ndaq_tickers:
-            if ticker not in action_talib_dict:
-               action_talib_dict[ticker] = {} #talib indicator results
-            df_single_ticker_hist_price = df_historical_prices.loc[df_historical_prices['Ticker'] == ticker]
-            df_single_ticker_hist_price = df_single_ticker_hist_price.dropna()
-            latest_price = df_latest_prices.loc[df_latest_prices['Ticker'] == ticker, 'Close'].values[0]
-            # logging.info(f"{latest_price = }")
-            # check if latest price is None or NaN
-            if latest_price is None or math.isnan(latest_price):
-               logging.warning(f"Latest price for {ticker}: {latest_price} is invalid (None or NaN). Skipping...")
+            # batch download ticker data from yfinance or alpaca prior to threading
+            if df_historical_prices.empty:
+               df_historical_prices = get_historical_prices(mongo_client, ndaq_tickers, period_list)
+            
+            df_latest_prices = get_latest_prices(ndaq_tickers)
+            if df_latest_prices.empty:
+               logging.warning(f"Fatal. Failed getting latest price. sleep.")
+               time.sleep(3600)
                continue
-            # check if price has changed. if true process ticker. if false, skip.
-            if not df_latest_prices_previous.empty:
-               if latest_price == df_latest_prices_previous.loc[df_latest_prices_previous['Ticker'] == ticker, 'Close'].values[0]:
-                  logging.info(f"Price for {ticker} has not changed. Skipping...")
+         
+            # create local strategy ideal period lookup dict. (faster than repeated mdb calls).
+            def create_strategy_ideal_period_dict(mongo_client):
+               ideal_period = {}
+
+               # Connect to MongoDB and batch fetch indicator periods for all strategies.
+               db = mongo_client.IndicatorsDatabase
+               indicator_collection = db.Indicators
+               logging.info("Connected to MongoDB: Retrieved Indicators collection.")
+
+               # Assuming 'strategies' is a global list of strategy objects
+               strategy_names = [strategy.__name__ for strategy in strategies]
+               indicator_docs = list(indicator_collection.find({'indicator': {"$in": strategy_names}}))
+               indicator_lookup = {doc['indicator']: doc.get('ideal_period') for doc in indicator_docs}
+               for strategy in strategies:
+                  if strategy.__name__ in indicator_lookup:
+                        ideal_period[strategy.__name__] = indicator_lookup[strategy.__name__]
+                        # logging.info(f"Retrieved ideal period for {strategy.__name__}: {indicator_lookup[strategy.__name__]}")
+                  else:
+                        logging.info(f"No ideal period found for {strategy.__name__}, using default.")
+               return ideal_period
+
+            if not strategy_ideal_period_lookup_dict:
+               strategy_ideal_period_lookup_dict = create_strategy_ideal_period_dict(mongo_client)
+            
+            logging.info(f"starting threads...")
+            threads = []
+
+            for ticker in ndaq_tickers:
+               if ticker not in action_talib_dict:
+                  action_talib_dict[ticker] = {} #talib indicator results
+               df_single_ticker_hist_price = df_historical_prices.loc[df_historical_prices['Ticker'] == ticker]
+               df_single_ticker_hist_price = df_single_ticker_hist_price.dropna()
+               latest_price = df_latest_prices.loc[df_latest_prices['Ticker'] == ticker, 'Close'].values[0]
+               # logging.info(f"{latest_price = }")
+               # check if latest price is None or NaN
+               if latest_price is None or math.isnan(latest_price):
+                  logging.warning(f"Latest price for {ticker}: {latest_price} is invalid (None or NaN). Skipping...")
                   continue
+               # check if price has changed. if true process ticker. if false, skip.
+               if not df_latest_prices_previous.empty:
+                  if latest_price == df_latest_prices_previous.loc[df_latest_prices_previous['Ticker'] == ticker, 'Close'].values[0]:
+                     logging.info(f"Price for {ticker} has not changed. Skipping...")
+                     continue
 
-            thread = threading.Thread(target=process_ticker, args=(ticker, mongo_client, df_single_ticker_hist_price, latest_price, strategy_ideal_period_lookup_dict))
-            threads.append(thread)
-            thread.start()
+               thread = threading.Thread(target=process_ticker, args=(ticker, mongo_client, df_single_ticker_hist_price, latest_price, strategy_ideal_period_lookup_dict))
+               threads.append(thread)
+               thread.start()
 
-         # Wait for all threads to complete
-         for thread in threads:
-            thread.join()
-
-
-         # Example usage
-         summary = summarize_action_talib_dict(action_talib_dict)
-         logging.info(f"{len(action_talib_dict) = } ")
+            # Wait for all threads to complete
+            for thread in threads:
+               thread.join()
 
 
-         logging.info(f"Finished processing all strategies. Waiting for {sleep_time} seconds. {count = }")
-         df_latest_prices_previous = df_latest_prices
-         count += 1
-         time.sleep(sleep_time)  
-   
-      elif status == "early_hours":  
-            # During early hour, currently we only support prep
-            # However, we should add more features here like premarket analysis
-         
-            if early_hour_first_iteration is True:  
-            
-               ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)  
-               early_hour_first_iteration = False  
-               post_market_hour_first_iteration = True
-               logging.info("Market is in early hours. Waiting for 30 seconds.")  
+            # Example usage
+            summary = summarize_action_talib_dict(action_talib_dict)
+            logging.info(f"{len(action_talib_dict) = } ")
+
+
+            logging.info(f"Finished processing all strategies. Waiting for {sleep_time} seconds. {count = }")
+            df_latest_prices_previous = df_latest_prices
+            count += 1
             time.sleep(sleep_time)  
-
-      elif status == "closed":  
-         # Performs post-market analysis for next trading day
-         # Will only run once per day to reduce clogging logging
-         # Should self-implementing a delete log process after a certain time - say 1 year
       
-         if post_market_hour_first_iteration is True:
-            early_hour_first_iteration = True
-            logging.info("Market is closed. Performing post-market analysis.") 
-            post_market_hour_first_iteration = False
-
-            logging.info("reset daily data temp objects")
-            action_talib_dict = {}
-            df_historical_prices = pd.DataFrame()
-            df_latest_prices_previous = pd.DataFrame()
+         elif status == "early_hours":  
+               # During early hour, currently we only support prep
+               # However, we should add more features here like premarket analysis
             
-            # Update time delta based on the mode
-            if time_delta_mode == 'additive':
-               mongo_client.trading_simulator.time_delta.update_one({}, {"$inc": {"time_delta": time_delta_increment}})
-            elif time_delta_mode == 'multiplicative':
-               mongo_client.trading_simulator.time_delta.update_one({}, {"$mul": {"time_delta": time_delta_multiplicative}})
-            elif time_delta_mode == 'balanced':
-               """
-               retrieve time_delta first
-               """
-               time_delta = mongo_client.trading_simulator.time_delta.find_one({})['time_delta']
-               mongo_client.trading_simulator.time_delta.update_one({}, {"$inc": {"time_delta": time_delta_balanced * time_delta}})
-         
-            #Update ranks
-            update_portfolio_values(mongo_client)
-            # We keep reusing the same mongo client and never close to reduce the number within the connection pool
+               if early_hour_first_iteration is True:  
+               
+                  ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)  
+                  early_hour_first_iteration = False  
+                  post_market_hour_first_iteration = True
+                  logging.info("Market is in early hours. Waiting for 30 seconds.")  
+               time.sleep(sleep_time)  
 
-            update_ranks(mongo_client)
-            logging.info(f"Post-market analysis completed. {sleep_time = }")
-         time.sleep(sleep_time)  
-      else:  
-         logging.error("An error occurred while checking market status.")  
-         time.sleep(sleep_time)
-      # mongo_client.close()
+         elif status == "closed":  
+            # Performs post-market analysis for next trading day
+            # Will only run once per day to reduce clogging logging
+            # Should self-implementing a delete log process after a certain time - say 1 year
+         
+            if post_market_hour_first_iteration is True:
+               early_hour_first_iteration = True
+               logging.info("Market is closed. Performing post-market analysis.") 
+               post_market_hour_first_iteration = False
+
+               logging.info("reset daily data temp objects")
+               action_talib_dict = {}
+               df_historical_prices = pd.DataFrame()
+               df_latest_prices_previous = pd.DataFrame()
+               
+               # Update time delta based on the mode
+               if time_delta_mode == 'additive':
+                  mongo_client.trading_simulator.time_delta.update_one({}, {"$inc": {"time_delta": time_delta_increment}})
+               elif time_delta_mode == 'multiplicative':
+                  mongo_client.trading_simulator.time_delta.update_one({}, {"$mul": {"time_delta": time_delta_multiplicative}})
+               elif time_delta_mode == 'balanced':
+                  """
+                  retrieve time_delta first
+                  """
+                  time_delta = mongo_client.trading_simulator.time_delta.find_one({})['time_delta']
+                  mongo_client.trading_simulator.time_delta.update_one({}, {"$inc": {"time_delta": time_delta_balanced * time_delta}})
+            
+               #Update ranks
+               update_portfolio_values(mongo_client)
+               # We keep reusing the same mongo client and never close to reduce the number within the connection pool
+
+               update_ranks(mongo_client)
+               logging.info(f"Post-market analysis completed. {sleep_time = }")
+            time.sleep(sleep_time)  
+         else:  
+            logging.error("An error occurred while checking market status.")  
+            time.sleep(sleep_time)
+         # mongo_client.close()
    
    
   
