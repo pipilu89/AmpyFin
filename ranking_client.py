@@ -383,6 +383,7 @@ def main():
    action_talib_dict = {}
    df_historical_prices = pd.DataFrame()
    df_latest_prices_previous = pd.DataFrame()
+   strategy_ideal_period_lookup_dict= {}
 
    # today_date_str = datetime.now().strftime('%Y-%m-%d')
    # historical_data_filename = f'df_historical_prices_{today_date_str}.csv'
@@ -444,7 +445,8 @@ def main():
                      logging.info(f"No ideal period found for {strategy.__name__}, using default.")
             return ideal_period
 
-         strategy_ideal_period_lookup_dict = create_strategy_ideal_period_dict(mongo_client)
+         if not strategy_ideal_period_lookup_dict:
+            strategy_ideal_period_lookup_dict = create_strategy_ideal_period_dict(mongo_client)
 
          logging.info(f"starting threads...")
          threads = []
@@ -534,7 +536,7 @@ def main():
       else:  
          logging.error("An error occurred while checking market status.")  
          time.sleep(sleep_time)
-      mongo_client.close()
+      # mongo_client.close()
    
    
   
