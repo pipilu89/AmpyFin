@@ -40,7 +40,7 @@ import glob
 
 # action_talib_dict = {}
 
-def process_ticker(ticker, mongo_client, df_historical_single_ticker, latest_price):
+def process_ticker(ticker, mongo_client, df_historical_single_ticker, latest_price, strategy_ideal_period_lookup_dict):
    global action_talib_dict
    try:
       
@@ -61,21 +61,24 @@ def process_ticker(ticker, mongo_client, df_historical_single_ticker, latest_pri
       
 
       for strategy in strategies:
-         historical_data = None
+         # historical_data = None
+         # while historical_data is None:
+         #    try:
+         #       period = indicator_collection.find_one({'indicator': strategy.__name__})
+         #       if not df_historical_single_ticker.empty:
+         #          historical_data = df_historical_single_ticker
+         #          historical_data = adjust_df_length_based_on_period(df_historical_single_ticker, period['ideal_period'])
+         #          logging.debug(f"historical_data: {ticker}, {strategy.__name__}, {period['ideal_period']}, {len(historical_data) = }")
+         #       else:
+         #          historical_data = get_data(ticker, mongo_client, period['ideal_period'])
+         #    except Exception as fetch_error:
+         #       logging.warning(f"Error fetching historical data for {ticker}. Retrying... {fetch_error}")
+         #       time.sleep(60)
 
-         while historical_data is None:
-            try:
-               period = indicator_collection.find_one({'indicator': strategy.__name__})
-               if not df_historical_single_ticker.empty:
-                  historical_data = df_historical_single_ticker
-                  historical_data = adjust_df_length_based_on_period(df_historical_single_ticker, period['ideal_period'])
-                  logging.debug(f"historical_data: {ticker}, {strategy.__name__}, {period['ideal_period']}, {len(historical_data) = }")
-               else:
-                  historical_data = get_data(ticker, mongo_client, period['ideal_period'])
-            except Exception as fetch_error:
-               logging.warning(f"Error fetching historical data for {ticker}. Retrying... {fetch_error}")
-               time.sleep(60)
-
+         
+         historical_data = adjust_df_length_based_on_period(df_historical_single_ticker, strategy_ideal_period_lookup_dict[strategy.__name__])
+         logging.debug(f"historical data: {ticker}, {strategy.__name__}, {strategy_ideal_period_lookup_dict[strategy.__name__] = }, {len(historical_data) = }")
+         
          db = mongo_client.trading_simulator  
          holdings_collection = db.algorithm_holdings
          # print(f"Processing {strategy.__name__} for {ticker}")
@@ -406,8 +409,8 @@ def main():
          logging.info("Market is open. Processing strategies.")  
       
          if not ndaq_tickers:
-            ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
-            # ndaq_tickers = ["AAPL", "AMD", "GOOG"]
+            # ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
+            ndaq_tickers = ["AAPL", "AMD", "GOOG"]
 
          # batch download ticker data from yfinance or alpaca prior to threading
          if df_historical_prices.empty:
@@ -419,6 +422,29 @@ def main():
             time.sleep(3600)
             continue
        
+         # create local strategy ideal period lookup dict. (faster than repeated mdb calls).
+         def create_strategy_ideal_period_dict(mongo_client):
+            ideal_period = {}
+
+            # Connect to MongoDB and batch fetch indicator periods for all strategies.
+            db = mongo_client.IndicatorsDatabase
+            indicator_collection = db.Indicators
+            logging.info("Connected to MongoDB: Retrieved Indicators collection.")
+
+            # Assuming 'strategies' is a global list of strategy objects
+            strategy_names = [strategy.__name__ for strategy in strategies]
+            indicator_docs = list(indicator_collection.find({'indicator': {"$in": strategy_names}}))
+            indicator_lookup = {doc['indicator']: doc.get('ideal_period') for doc in indicator_docs}
+            for strategy in strategies:
+               if strategy.__name__ in indicator_lookup:
+                     ideal_period[strategy.__name__] = indicator_lookup[strategy.__name__]
+                     # logging.info(f"Retrieved ideal period for {strategy.__name__}: {indicator_lookup[strategy.__name__]}")
+               else:
+                     logging.info(f"No ideal period found for {strategy.__name__}, using default.")
+            return ideal_period
+
+         strategy_ideal_period_lookup_dict = create_strategy_ideal_period_dict(mongo_client)
+
          logging.info(f"starting threads...")
          threads = []
 
@@ -439,7 +465,7 @@ def main():
                   logging.info(f"Price for {ticker} has not changed. Skipping...")
                   continue
 
-            thread = threading.Thread(target=process_ticker, args=(ticker, mongo_client, df_single_ticker_hist_price, latest_price))
+            thread = threading.Thread(target=process_ticker, args=(ticker, mongo_client, df_single_ticker_hist_price, latest_price, strategy_ideal_period_lookup_dict))
             threads.append(thread)
             thread.start()
 
