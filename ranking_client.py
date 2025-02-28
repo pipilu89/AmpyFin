@@ -393,8 +393,9 @@ def main():
    client = RESTClient(api_key=POLYGON_API_KEY)# Get the market status from the Polygon API
    while True: 
          
-      status = market_status(client) if environment != "dev" else "open"
       # status = mongo_client.market_data.market_status.find_one({})["market_status"] # orig update status
+      # status = market_status(client) if environment != "dev" else "open"
+      status = "open"
 
       if status != status_previous:
          logging.info(f"Market status: {status}")
