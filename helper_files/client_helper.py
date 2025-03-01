@@ -85,7 +85,7 @@ def place_order(trading_client, symbol, side, quantity, mongo_client):
 
     if side == OrderSide.BUY:
         if fractional_shares == True:
-            assets.update_one({'symbol': symbol}, {'$inc': {'quantity': Decimal128(str(qty))}}, upsert=True)
+            assets.update_one({'symbol': symbol}, {'$inc': {'quantity': float_to_decimal128(qty)}}, upsert=True)
         else:
             assets.update_one({'symbol': symbol}, {'$inc': {'quantity': qty}}, upsert=True)
         limits.update_one(
@@ -95,18 +95,15 @@ def place_order(trading_client, symbol, side, quantity, mongo_client):
         )
     elif side == OrderSide.SELL:
         if fractional_shares == True:
-            # Convert float to Decimal
-            decimal_qty = Decimal(qty)
-            # Make it negative
-            negative_decimal_qty = decimal_qty * -1
-            # Convert to Decimal128
-            negative_decimal128 = Decimal128(negative_decimal_qty)
-            assets.update_one({'symbol': symbol}, {'$inc': {'quantity': negative_decimal128}}, upsert=True)
+            assets.update_one({'symbol': symbol}, {'$inc': {'quantity': float_to_decimal128(-qty)}}, upsert=True)
+            if decimal128_to_float(assets.find_one({'symbol': symbol})['quantity']) == 0:
+                assets.delete_one({'symbol': symbol})
+                limits.delete_one({'symbol': symbol})
         else:
             assets.update_one({'symbol': symbol}, {'$inc': {'quantity': -qty}}, upsert=True)
-        if assets.find_one({'symbol': symbol})['quantity'] == 0:
-            assets.delete_one({'symbol': symbol})
-            limits.delete_one({'symbol': symbol})
+            if assets.find_one({'symbol': symbol})['quantity'] == 0:
+                assets.delete_one({'symbol': symbol})
+                limits.delete_one({'symbol': symbol})
 
     return order
 
@@ -306,3 +303,23 @@ def summarize_action_talib_dict(action_talib_dict):
         summary[ticker]["total"] = sum(summary[ticker].values())
         logging.info(f"action_talib_dict {ticker}: {summary[ticker]}")
     return summary
+
+def float_to_decimal128(value):
+    """
+    Convert a float to Decimal128.
+    
+    :param value: float
+    :return: Decimal128
+    """
+    decimal_value = Decimal(value)
+    return Decimal128(decimal_value)
+
+def decimal128_to_float(value):
+    """
+    Convert a Decimal128 to float.
+    
+    :param value: Decimal128
+    :return: float
+    """
+    decimal_value = value.to_decimal()
+    return float(decimal_value)

@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from pymongo import MongoClient
 import time
 from datetime import datetime, timedelta
-from helper_files.client_helper import place_order, get_ndaq_tickers, market_status, strategies, get_latest_price, summarize_action_talib_dict, dynamic_period_selector
+from helper_files.client_helper import place_order, get_ndaq_tickers, market_status, strategies, get_latest_price, summarize_action_talib_dict, dynamic_period_selector, float_to_decimal128, decimal128_to_float
 from alpaca.trading.client import TradingClient
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from alpaca.data.historical.stock import StockHistoricalDataClient
@@ -105,11 +105,8 @@ def process_ticker(ticker, client, trading_client, data_client, mongo_client, st
            
             # fractional shares: decimal128 needed to avoid rounding errors. float and decimal128 not directly compatible, so need to convert.
             if fractional_shares == True:
-                if isinstance(portfolio_qty, Decimal128):
-                    # Convert Decimal128 to decimal.Decimal
-                    portfolio_qty = portfolio_qty.to_decimal()
-                # Convert decimal.Decimal to float
-                portfolio_qty = float(portfolio_qty)
+                portfolio_qty = decimal128_to_float(portfolio_qty)
+
 
             logging.debug(f"Portfolio quantity for {ticker}: {portfolio_qty}")
 
