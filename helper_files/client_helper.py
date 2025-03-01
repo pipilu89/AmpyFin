@@ -13,6 +13,8 @@ import pandas as pd
 from pathlib import Path
 sys.path.append("..")
 from control import stop_loss, take_profit, fractional_shares
+from decimal import Decimal
+from bson.decimal128 import Decimal128
 
 parent_dir = Path(__file__).resolve().parent.parent
 sys.path.append(str(parent_dir))
@@ -92,7 +94,16 @@ def place_order(trading_client, symbol, side, quantity, mongo_client):
             upsert=True
         )
     elif side == OrderSide.SELL:
-        assets.update_one({'symbol': symbol}, {'$inc': {'quantity': -qty}}, upsert=True)
+        if fractional_shares == True:
+            # Convert float to Decimal
+            decimal_qty = Decimal(qty)
+            # Make it negative
+            negative_decimal_qty = decimal_qty * -1
+            # Convert to Decimal128
+            negative_decimal128 = Decimal128(negative_decimal_qty)
+            assets.update_one({'symbol': symbol}, {'$inc': {'quantity': negative_decimal128}}, upsert=True)
+        else:
+            assets.update_one({'symbol': symbol}, {'$inc': {'quantity': -qty}}, upsert=True)
         if assets.find_one({'symbol': symbol})['quantity'] == 0:
             assets.delete_one({'symbol': symbol})
             limits.delete_one({'symbol': symbol})

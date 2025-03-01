@@ -120,6 +120,11 @@ def process_ticker(ticker, client, trading_client, data_client, mongo_client, st
                 if current_price <= stop_loss_price or current_price >= take_profit_price:
                     sold = True
                     logging.info(f"Executing SELL order for {ticker} due to stop-loss or take-profit condition {portfolio_qty = }")
+                    if current_price <= stop_loss_price:
+                        logging.info(f"Stop-loss {ticker} {current_price = }, {stop_loss_price = }, {current_price/stop_loss_price = }")
+                    if current_price >= take_profit_price:
+                        logging.info(f"Take profit {ticker} {current_price = }, {take_profit_price = }, {current_price/take_profit_price = }")
+
                     quantity = portfolio_qty
                     order = place_order(trading_client, symbol=ticker, side=OrderSide.SELL, quantity=quantity, mongo_client=mongo_client)
                     logging.info(f"Executed SELL order for {ticker}: {order}")
