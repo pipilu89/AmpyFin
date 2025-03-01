@@ -311,7 +311,7 @@ def float_to_decimal128(value):
     :param value: float
     :return: Decimal128
     """
-    decimal_value = Decimal(value)
+    decimal_value = Decimal(str(value))
     return Decimal128(decimal_value)
 
 def decimal128_to_float(value):

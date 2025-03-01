@@ -101,12 +101,15 @@ def process_ticker(ticker, client, trading_client, data_client, mongo_client, st
 
             asset_info = asset_collection.find_one({'symbol': ticker})
             
-            portfolio_qty = asset_info['quantity'] if asset_info else 0.0
-           
             # fractional shares: decimal128 needed to avoid rounding errors. float and decimal128 not directly compatible, so need to convert.
             if fractional_shares == True:
-                portfolio_qty = decimal128_to_float(portfolio_qty)
-
+                try:
+                    portfolio_qty = decimal128_to_float(asset_info['quantity']) if asset_info else 0.0
+                    if asset_info: logging.info(f"{ticker} {portfolio_qty = }, {asset_info['quantity']}")
+                except ValueError as e:
+                    logging.error(f"import portfolio_qty from mdb error {e}")
+            else:
+                portfolio_qty = asset_info['quantity'] if asset_info else 0.0
 
             logging.debug(f"Portfolio quantity for {ticker}: {portfolio_qty}")
 
@@ -123,14 +126,19 @@ def process_ticker(ticker, client, trading_client, data_client, mongo_client, st
                         logging.info(f"Take profit {ticker} {current_price = }, {take_profit_price = }, {current_price/take_profit_price = }")
 
                     quantity = portfolio_qty
-                    order = place_order(trading_client, symbol=ticker, side=OrderSide.SELL, quantity=quantity, mongo_client=mongo_client)
-                    logging.info(f"Executed SELL order for {ticker}: {order}")
+                    try:
+                        order = place_order(trading_client, symbol=ticker, side=OrderSide.SELL, quantity=quantity, mongo_client=mongo_client)
+                        logging.info(f"Executed SELL order for {ticker}: {order}")
+                    except Exception as e:
+                        logging.error(f"Error placing order {ticker} {e}")
                     return
 
             indicator_tb = mongo_client.IndicatorsDatabase
             indicator_collection = indicator_tb.Indicators
 
+
             for strategy in strategies:
+                # raise ValueError('A very specific bad thing happened.')
                 historical_data = None
                 while historical_data is None:
                     try:
@@ -148,6 +156,7 @@ def process_ticker(ticker, client, trading_client, data_client, mongo_client, st
                 logging.debug(f"Strategy: {strategy.__name__}, Decision: {decision}, Quantity: {quantity} for {ticker}")
                 weight = strategy_to_coefficient[strategy.__name__]
                 decisions_and_quantities.append((decision, quantity, weight))
+
 
             decision, quantity, buy_weight, sell_weight, hold_weight = weighted_majority_decision_and_median_quantity(decisions_and_quantities)
             # logging.info(f"Ticker: {ticker}, Decision: {decision}, Quantity: {quantity}, Weights: Buy: {round(buy_weight,0)}, Sell: {round(sell_weight,0)}, Hold: {round(hold_weight,0)}")
@@ -359,7 +368,7 @@ def main():
             suggestion_heap = []
             sold = False
             
-            summary = summarize_action_talib_dict(action_talib_dict)
+            # summary = summarize_action_talib_dict(action_talib_dict)
             logging.info(f"{len(action_talib_dict) = } ")
             logging.info(f"Sleeping for 60 seconds... {count = }")
             df_latest_prices_previous = df_latest_prices

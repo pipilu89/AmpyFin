@@ -1,7 +1,18 @@
 from alpaca.trading.client import TradingClient
 from pymongo import MongoClient
 import certifi
+import sys
+import os
+import decimal
+from bson.decimal128 import Decimal128
+
+# Add the root directory to sys.path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from control import fractional_shares
+from helper_files.client_helper import float_to_decimal128
 from config import API_KEY, API_SECRET, mongo_url
+# from ..config import API_KEY, API_SECRET, mongo_url
 import logging
 
 logging.basicConfig(
@@ -55,6 +66,10 @@ def sync_positions():
             db.assets_quantities.delete_many({})
 
             for symbol, quantity in alpaca_holdings.items():
+                # print(f"Type of quantity before conversion: {type(quantity)}, {quantity = }")
+                # quantity = Decimal128(decimal.Decimal(quantity))
+                if fractional_shares == True:
+                    quantity = float_to_decimal128(str(quantity))
                 db.assets_quantities.insert_one({
                     "symbol": symbol,
                     "quantity": quantity
