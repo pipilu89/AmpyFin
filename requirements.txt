@@ -16,4 +16,4 @@ ripser
 datetime
 TA-Lib
 pandas-ta
-seaborn
+git+https://github.com/NitinDatta8/quantstats.git

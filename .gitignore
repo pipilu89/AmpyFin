@@ -4,6 +4,8 @@ config.py
 .vscode/
 **/__pycache__/
 *.json
+**/.DS_Store
+
 ftp_downloads/
 *.csv
 todo.md

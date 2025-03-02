@@ -49,8 +49,8 @@ please keep in mind training takes quite a long time. Our team trained it on a 1
 so please understand the time it takes to train.
 
 """
-period_start = "2024-01-01"
-period_end = "2025-02-14"
+period_start = "2001-01-01"
+period_end = "2009-12-31"
 train_tickers = []
 
 """
@@ -104,7 +104,7 @@ train_rank_asset_limit to portfolio is how much asset you are allowed to hold in
 The lower this number, the more diversification you will have in your portfolio. The higher the number, 
 the less diversification you will have but it will be buying more selective assets.
 """
-train_rank_asset_limit = 0.1
+train_rank_asset_limit = 0.3
 
 """
 train_profit_price_change_ratio_(d1 - d2) is at what price ratio you should reward each strategy
