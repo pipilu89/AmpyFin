@@ -1,6 +1,12 @@
+from operator import imod
 from alpaca.trading.client import TradingClient
 from pymongo import MongoClient
 import certifi
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+
 from config import API_KEY, API_SECRET, mongo_url
 import logging
 

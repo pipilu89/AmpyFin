@@ -1,5 +1,8 @@
 import logging
 from pymongo import MongoClient
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config import mongo_url
 from datetime import datetime
 
