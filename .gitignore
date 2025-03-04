@@ -5,3 +5,6 @@ config.py
 **/__pycache__/
 *.json
 **/.DS_Store
+*.csv
+todo.md
+ftp_downloads/
