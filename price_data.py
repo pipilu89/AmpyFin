@@ -14,9 +14,9 @@ from helper_files.client_helper import clean_old_files
 # setup stock historical data client for alpaca.
 stock_historical_data_client = StockHistoricalDataClient(API_KEY, API_SECRET)
 
-today_date_str = datetime.now().strftime('%Y-%m-%d')
-historical_data_filename = f'df_historical_prices_{today_date_str}.csv'
-historical_data_directory = '.'  # Directory where the historical data files are stored
+# today_date_str = datetime.now().strftime('%Y-%m-%d')
+# historical_data_filename = f'df_historical_prices_{today_date_str}.csv'
+# historical_data_directory = '.'  # Directory where the historical data files are stored
 # price_data_source = 'yf'  # Source of price data (yf or alpaca)
 price_data_source = 'alpaca'  # Source of price data (yf or alpaca)
 
@@ -234,7 +234,10 @@ def filter_df_by_days(df, days, current_date):
     filtered_df = df[df.index >= start_date]
     return filtered_df
 
-def get_historical_prices(mongo_client, ndaq_tickers, period_list, max_retries=5, initial_delay=60):            
+def get_historical_prices(mongo_client, ndaq_tickers, period_list, max_retries=5, initial_delay=60):
+    today_date_str = datetime.now().strftime('%Y-%m-%d')
+    historical_data_filename = f'df_historical_prices_{today_date_str}.csv'
+    historical_data_directory = '.'  # Directory where the historical data files are stored           
     if not os.path.exists(historical_data_filename):
         
         df_historical_prices = pd.DataFrame()

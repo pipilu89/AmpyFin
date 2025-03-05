@@ -479,7 +479,7 @@ def main():
                # However, we should add more features here like premarket analysis
             
                if early_hour_first_iteration is True:  
-               
+                  df_historical_prices = pd.DataFrame()
                   ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)  
                   early_hour_first_iteration = False  
                   post_market_hour_first_iteration = True
@@ -490,7 +490,10 @@ def main():
             # Performs post-market analysis for next trading day
             # Will only run once per day to reduce clogging logging
             # Should self-implementing a delete log process after a certain time - say 1 year
-         
+            
+            # clear historical data cache so it reloads on next market open.
+            df_historical_prices = pd.DataFrame()
+
             if post_market_hour_first_iteration is True:
                early_hour_first_iteration = True
                logging.info("Market is closed. Performing post-market analysis.") 
