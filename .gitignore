@@ -8,3 +8,5 @@ config.py
 *.csv
 todo.md
 ftp_downloads/
+wandb/
+tearsheets/

@@ -1,8 +1,8 @@
 # This file is simply to fine tune parameters and switch modes
 import sys
 
-project_name = 'FirstProject'
-experiment_name = 'FirstTest'
+project_name = 'AmpyFin'
+experiment_name = '10year_Nasdaq'
 # general parameters
 """
 time_delta_mode can be multiplicative, additive, or balanced. Additive results in less overfitting but could result in underfitting as time goes on
@@ -52,11 +52,11 @@ please keep in mind training takes quite a long time. Our team trained it on a 1
 so please understand the time it takes to train.
 
 """
-train_period_start = "2023-01-01"
-train_period_end = "2023-01-31"
-test_period_start = '2024-02-01'
-test_period_end = '2024-02-25'
-train_tickers = ['AAPL', 'MSFT', 'TSLA', 'NVDA', 'AMZN', 'GOOGL', 'META']
+train_period_start = "2013-01-01"
+train_period_end = "2023-12-31"
+test_period_start = '2024-01-01'
+test_period_end = '2024-02-28'
+train_tickers = []
 
 """
 train_time_delta_mode can be multiplicative, additive, or balanced. Additive results in less overfitting but could result in underfitting as time goes on
