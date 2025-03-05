@@ -126,7 +126,7 @@ def test(ticker_price_history, ideal_period, mongo_client, precomputed_decisions
 
     # Load saved results
     logger.info("Loading saved training results...")
-    with open(os.path.join(results_dir, f'{config_dict['experiment_name']}.json'), 'r') as json_file:
+    with open(os.path.join(results_dir, f"{config_dict['experiment_name']}.json"), 'r') as json_file:
         results = json.load(json_file)
         trading_simulator = results['trading_simulator']
         points = results['points']

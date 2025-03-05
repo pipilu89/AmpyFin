@@ -92,12 +92,12 @@ def train(ticker_price_history, ideal_period, mongo_client, precomputed_decision
         "time_delta": time_delta
     }
 
-    results_file_path = os.path.join(results_dir, f'{config_dict['experiment_name']}.json')
+    results_file_path = os.path.join(results_dir, f"{config_dict['experiment_name']}.json")
     with open(results_file_path, 'w') as json_file:
         json.dump(results, json_file, indent=4)
     
     # Create an artifact
-    artifact = wandb.Artifact(f'{config_dict['experiment_name']}.json', type="results")
+    artifact = wandb.Artifact(f"{config_dict['experiment_name']}.json", type="results")
     artifact.add_file(results_file_path)
     
     # Log artifact to the current run
