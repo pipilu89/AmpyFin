@@ -278,7 +278,8 @@ def test(ticker_price_history, ideal_period, mongo_client, precomputed_decisions
     logger.info("Final metrics calculated.")
     logger.info(metrics)
 
-    generate_tear_sheet(account_values, 'SPY_vs_strategy')
+    # generate_tear_sheet(account_values, 'SPY_vs_strategy')
+    generate_tear_sheet(account_values, f'SPY_vs_strategy{config_dict['experiment_name']}')
     logger.info("Tear sheet generated.")
 
     # Print final results
