@@ -377,6 +377,7 @@ def main():
 
         elif status == "early_hours":
             if early_hour_first_iteration:
+                df_historical_prices = pd.DataFrame()
                 ndaq_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
                 sim_db = mongo_client.trading_simulator
                 rank_collection = sim_db.rank
@@ -391,6 +392,7 @@ def main():
             time.sleep(30)
 
         elif status == "closed":
+            
             if post_hour_first_iteration:
                 early_hour_first_iteration = True
                 post_hour_first_iteration = False

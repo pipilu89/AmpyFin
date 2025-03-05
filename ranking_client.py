@@ -491,9 +491,6 @@ def main():
             # Will only run once per day to reduce clogging logging
             # Should self-implementing a delete log process after a certain time - say 1 year
             
-            # clear historical data cache so it reloads on next market open.
-            df_historical_prices = pd.DataFrame()
-
             if post_market_hour_first_iteration is True:
                early_hour_first_iteration = True
                logging.info("Market is closed. Performing post-market analysis.") 
