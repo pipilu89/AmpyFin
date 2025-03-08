@@ -276,12 +276,12 @@ def main():
             trades_db = mongo_client.trades
             portfolio_collection = trades_db.portfolio_values
 
-            if environment != "dev":
-                qqq_latest = get_latest_price('QQQ')
-                spy_latest = get_latest_price('SPY')
-                portfolio_collection.update_one({"name" : "portfolio_percentage"}, {"$set": {"portfolio_value": (portfolio_value-starting_cash)/starting_cash}})
-                portfolio_collection.update_one({"name" : "ndaq_percentage"}, {"$set": {"portfolio_value": (qqq_latest-518.58)/518.58}})
-                portfolio_collection.update_one({"name" : "spy_percentage"}, {"$set": {"portfolio_value": (spy_latest-591.95)/591.95}})
+            # if environment != "dev":
+            #     qqq_latest = get_latest_price('QQQ')
+            #     spy_latest = get_latest_price('SPY')
+            #     portfolio_collection.update_one({"name" : "portfolio_percentage"}, {"$set": {"portfolio_value": (portfolio_value-starting_cash)/starting_cash}})
+            #     portfolio_collection.update_one({"name" : "ndaq_percentage"}, {"$set": {"portfolio_value": (qqq_latest-518.58)/518.58}})
+            #     portfolio_collection.update_one({"name" : "spy_percentage"}, {"$set": {"portfolio_value": (spy_latest-591.95)/591.95}})
 
             # batch download ticker data from yfinance or alpaca prior to threading
             current_date = datetime.now()
