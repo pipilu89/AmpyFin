@@ -1,7 +1,7 @@
 import sys
 
-project_name = "AmpyFin - TestRound"
-experiment_name = "FourthTest"
+project_name = "AmpyFin - Crypto"
+experiment_name = "btc+eth"
 # general parameters
 """
 time_delta_mode can be multiplicative, additive, or balanced.
@@ -45,7 +45,7 @@ The default for mode is live to protect against accidental training
 benchmark asset is what benchmark you want to compare to - typically SPY, QQQ, DOW, or NDAQ.
 """
 
-mode = "live"
+mode = "train"
 
 benchmark_asset = "QQQ"
 """
@@ -59,13 +59,13 @@ so please understand the time it takes to train.
 
 """
 
-train_period_start = "2024-01-01"
-train_period_end = "2024-01-15"
-test_period_start = "2024-01-15"
-test_period_end = "2024-01-30"
+train_period_start = "2020-01-01"
+train_period_end = "2024-12-31"
+test_period_start = "2025-01-01"
+test_period_end = "2025-03-09"
 
 
-train_tickers = []
+train_tickers = ['BTC-USD', 'ETH-USD']
 
 """
 train_time_delta_mode can be multiplicative, additive, or balanced.
