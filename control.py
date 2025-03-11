@@ -1,8 +1,10 @@
 # This file is simply to fine tune parameters and switch modes
 import sys
 
-project_name = 'AmpyFin'
-experiment_name = '10year_Nasdaq'
+# project_name = 'AmpyFin'
+# experiment_name = '10year_Nasdaq'
+project_name = 'AmpyFin - Crypto'
+experiment_name = 'btc-eth'
 # general parameters
 """
 time_delta_mode can be multiplicative, additive, or balanced. Additive results in less overfitting but could result in underfitting as time goes on
@@ -52,11 +54,16 @@ please keep in mind training takes quite a long time. Our team trained it on a 1
 so please understand the time it takes to train.
 
 """
-train_period_start = "2013-01-01"
-train_period_end = "2023-12-31"
-test_period_start = '2024-01-01'
-test_period_end = '2024-02-28'
-train_tickers = []
+train_period_start = "2020-01-01"
+train_period_end = "2024-12-31"
+test_period_start = '2025-01-01'
+test_period_end = '2025-03-10'
+train_tickers = ['BTC-USD', 'ETH-USD']
+# train_period_start = "2013-01-01"
+# train_period_end = "2023-12-31"
+# test_period_start = '2024-01-01'
+# test_period_end = '2024-02-28'
+# train_tickers = []
 
 """
 train_time_delta_mode can be multiplicative, additive, or balanced. Additive results in less overfitting but could result in underfitting as time goes on
