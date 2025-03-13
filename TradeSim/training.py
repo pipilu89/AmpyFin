@@ -4,7 +4,7 @@ import os
 import sys
 import time
 from datetime import datetime, timedelta
-
+import pandas as pd
 from variables import config_dict
 
 import wandb
@@ -19,6 +19,7 @@ from control import (
     train_tickers,
     train_time_delta,
     train_time_delta_mode,
+    regime_tickers,
 )
 
 train_tickers
@@ -54,6 +55,7 @@ def train(
             "neutral_trades": 0,
             "failed_trades": 0,
             "portfolio_value": 50000,
+            "trades_list": [],
         }
         for strategy in strategies
     }
@@ -92,6 +94,7 @@ def train(
             train_tickers,
             precomputed_decisions,
             logger,
+            regime_tickers
         )
 
         active_count, trading_simulator = local_update_portfolio_values(
@@ -113,10 +116,27 @@ def train(
         current_date += timedelta(days=1)
         time.sleep(5)
 
+    # new trades dataframe and save to.csv
+    # trades_df = pd.DataFrame
+    trades_list_all = []
+    for strategy in strategies:
+        strategy_name = strategy.__name__
+        trades_list_all += trading_simulator[strategy_name]["trades_list"]
+    
+    trades_df = pd.DataFrame(trades_list_all, columns=['strategy', 'ticker','current_price', 'sell_price', 'qty', 'ratio', 'current_vix', 'sp500'])
+
     results_dir = "results"
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
         logger.info(f"Created results directory: {results_dir}")
+    
+    # Save trades_df to csv file
+    trades_csv_filename = f"{config_dict['experiment_name']}_trades.csv"
+    trades_csv_path = os.path.join(results_dir, trades_csv_filename)
+    trades_df.to_csv(trades_csv_path, index=False)
+    logger.info(f"Trades data saved to {trades_csv_path}")
+    # new end
+
 
     results = {
         "trading_simulator": trading_simulator,

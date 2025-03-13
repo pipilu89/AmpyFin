@@ -1,36 +1,31 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, precision_score, recall_score, ConfusionMatrixDisplay
+from sklearn.metrics import accuracy_score, classification_report, precision_score, recall_score
+from helper_files.client_helper import strategies
 import warnings
+
 warnings.filterwarnings('ignore')
 
-# Corrected URL for the dataset
-url = "https://raw.githubusercontent.com/datasciencedojo/datasets/master/titanic.csv"
-titanic_data = pd.read_csv(url)
-# titanic_data = pd.read_excel('random-trade-data.xlsx', index_col=0)
-titanic_data = pd.read_excel('random-trade-data.xlsx')
-# titanic_data
+# Load the data
+trades_data = pd.read_csv('./results/10year_sp500_trades.csv')
 
-# Drop rows with missing 'Survived' values
-# titanic_data = titanic_data.dropna(subset=['Survived'])
+# Create the 'return' column efficiently
+trades_data['return'] = (trades_data['ratio'] > 1).astype(int)
+
+# Create 'strategy_index' column efficiently
+strategy_to_integer = {strategy.__name__: i for i, strategy in enumerate(strategies)}
+trades_data['strategy_index'] = trades_data['strategy'].map(strategy_to_integer)
 
 # Features and target variable
-# X = titanic_data[['Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare']]
-X = titanic_data[['strategy', 'vix', 'sp500']]
-y = titanic_data['return']
-
-# Encode 'Sex' column
-# X.loc[:, 'Sex'] = X['Sex'].map({'female': 0, 'male': 1})
-
-# Fill missing 'Age' values with the median
-# X.loc[:, 'Age'].fillna(X['Age'].median(), inplace=True)
+X = trades_data[['strategy_index', 'current_vix']]
+y = trades_data['return']
 
 # Split data into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
 # Initialize RandomForestClassifier
-rf_classifier = RandomForestClassifier(n_estimators=100, random_state=42)
+rf_classifier = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1) #added n_jobs
 
 # Fit the classifier to the training data
 rf_classifier.fit(X_train, y_train)
@@ -38,29 +33,22 @@ rf_classifier.fit(X_train, y_train)
 # Make predictions
 y_pred = rf_classifier.predict(X_test)
 
-# Calculate accuracy and classification report
+# Calculate and print metrics
 accuracy = accuracy_score(y_test, y_pred)
 precision = precision_score(y_test, y_pred)
 recall = recall_score(y_test, y_pred)
 classification_rep = classification_report(y_test, y_pred)
 
-# Print the results
 print(f"Accuracy: {accuracy:.2f}")
-print(f"precision: {precision:.2f}")
-print("Recall:", recall)
+print(f"Precision: {precision:.2f}")
+print(f"Recall: {recall:.2f}")
 print("\nClassification Report:\n", classification_rep)
 
 # Sample prediction
-# sample = X_test.iloc[0:1]  # Keep as DataFrame to match model input format
-data = {'row_1': ["0","50","0"]}
-sample = pd.DataFrame.from_dict(data, orient='index', columns=['strategy', 'vix', 'sp500'])
+sample = X_test.iloc[[0]]
 
 prediction = rf_classifier.predict(sample)
-print(f"\nsample {sample}")
-# print(f"{prediction = }")
 
-# Retrieve and display the sample
-sample_dict = sample.iloc[0].to_dict()
-print(f"\nSample Passenger: {sample_dict}")
-# print(f"Predicted return: {'Survived' if prediction[0] == 1 else 'Did Not Survive'}")
-print(f"Predicted return: {prediction[0] = }")
+print(f"\nSample: \n{sample}")
+print(f"\nSample Values: {sample.iloc[0].to_dict()}")
+print(f"Predicted Return: {prediction[0]}")

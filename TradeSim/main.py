@@ -15,7 +15,7 @@ import wandb
 
 # Local module imports after standard/third-party imports
 from config import FINANCIAL_PREP_API_KEY, mongo_url
-from control import mode, test_period_end, train_period_start, train_tickers
+from control import mode, test_period_end, train_period_start, train_tickers, regime_tickers
 from helper_files.client_helper import get_ndaq_tickers, strategies
 from TradeSim.utils import initialize_simulation, precompute_strategy_decisions
 
@@ -58,14 +58,22 @@ if __name__ == "__main__":
         train_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
         logger.info(f"Fetched {len(train_tickers)} tickers.")
 
+    # new combine train and regime tickers
+    train_regime_tickers = train_tickers + regime_tickers
+
+    # Initialize simulation
+
     ticker_price_history, ideal_period = initialize_simulation(
         train_period_start,
         test_period_end,
-        train_tickers,
+        train_regime_tickers,
         mongo_client,
         FINANCIAL_PREP_API_KEY,
         logger,
     )
+
+    # prepare regime ma calcs eg 1-day spy return. Use pandas dataframe.
+    # Maybe create a .get(eg vix) function to complete the trade data list.
 
     # Precompute all strategy decisions
     precomputed_decisions = precompute_strategy_decisions(

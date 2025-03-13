@@ -152,11 +152,16 @@ def update_time_delta(time_delta, mode):
 
 
 def update_points_and_trades(
-    strategy, ratio, current_price, trading_simulator, points, time_delta, ticker, qty
+    strategy, ratio, current_price, trading_simulator, points, time_delta, ticker, qty, current_vix
 ):
     """
     Updates points based on trade performance and manages trade statistics
     """
+    # New log trade
+    trade_details = [strategy.__name__, ticker, round(current_price,2), round(trading_simulator[strategy.__name__]["holdings"][ticker]["price"],2), qty, round(ratio,4),  round(current_vix,2), 'sp500']
+    trading_simulator[strategy.__name__]["trades_list"].append(trade_details)
+    # new end
+    
     if (
         current_price
         > trading_simulator[strategy.__name__]["holdings"][ticker]["price"]
@@ -221,6 +226,7 @@ def execute_trade(
     time_delta,
     portfolio_qty,
     total_portfolio_value,
+    current_vix,
 ):
     """
     Executes a trade based on the strategy decision and updates trading simulator and points
@@ -267,6 +273,7 @@ def execute_trade(
             time_delta,
             ticker,
             qty,
+            current_vix,
         )
 
     return trading_simulator, points
@@ -282,12 +289,17 @@ def simulate_trading_day(
     train_tickers,
     precomputed_decisions,
     logger,
+    regime_tickers
 ):
     """
     Optimized version of simulate_trading_day that uses precomputed strategy decisions.
     """
     date_str = current_date.strftime("%Y-%m-%d")
     logger.info(f"Simulating trading for {date_str}.")
+
+    # new get daily regime data
+    daily_regime_data = ticker_price_history[regime_tickers[0]].loc[date_str]
+    current_vix = daily_regime_data["Close"]
 
     for ticker in train_tickers:
         if date_str in ticker_price_history[ticker].index:
@@ -339,6 +351,7 @@ def simulate_trading_day(
                     time_delta,
                     portfolio_qty,
                     total_portfolio_value,
+                    current_vix
                 )
 
     return trading_simulator, points
