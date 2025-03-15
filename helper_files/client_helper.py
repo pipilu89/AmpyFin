@@ -1,4 +1,5 @@
 import json
+import os
 import logging
 import sys
 from datetime import datetime, timezone
@@ -505,3 +506,30 @@ def dynamic_period_selector(ticker):
         min(volatility_scores, key=lambda x: x[1])[0] if volatility_scores else "1y"
     )
     return optimal_period
+
+
+def store_dict_as_json(data_dict, filename, folder_name="results"):
+    """
+    Stores a dictionary as a JSON file in a specified folder.
+
+    Args:
+        data_dict (dict): The dictionary to store.
+        filename (str): The name of the JSON file (e.g., "my_data.json").
+        folder_name (str, optional): The name of the folder to store the file in. 
+                                    Defaults to "results_folder".
+    """
+
+    # Create the folder if it doesn't exist
+    if not os.path.exists(folder_name):
+        os.makedirs(folder_name)
+        print(f"Created folder: {folder_name}")
+
+    # Construct the full filepath
+    filepath = os.path.join(folder_name, filename)
+
+    try:
+        with open(filepath, 'w') as f:
+            json.dump(data_dict, f, indent=4)  # Use indent for pretty-printing
+        print(f"Dictionary successfully stored as JSON in: {filepath}")
+    except Exception as e:
+        print(f"Error storing dictionary as JSON: {e}")

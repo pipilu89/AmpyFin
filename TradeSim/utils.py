@@ -23,7 +23,7 @@ from control import (
     train_time_delta_increment,
     train_time_delta_multiplicative,
 )
-from helper_files.client_helper import get_ndaq_tickers, strategies
+from helper_files.client_helper import get_ndaq_tickers, strategies, store_dict_as_json
 from helper_files.train_client_helper import get_historical_data
 
 # from strategies.talib_indicators import *
@@ -79,7 +79,13 @@ def initialize_simulation(
 
     # Determine the historical data start date (2 years before period_start)
     start_date = datetime.strptime(period_start, "%Y-%m-%d")
+
+    # adjust start date to 1 day previous to avoid look-ahead bias.
+    start_date -= timedelta(days=1) 
+
     data_start_date = (start_date - timedelta(days=730)).strftime("%Y-%m-%d")
+    
+    
     logger.info(f"Fetching historical data from {data_start_date} to {period_end}.")
 
     # Bulk download ticker data using yfinance (with threading enabled)
@@ -295,6 +301,11 @@ def simulate_trading_day(
     Optimized version of simulate_trading_day that uses precomputed strategy decisions.
     """
     date_str = current_date.strftime("%Y-%m-%d")
+
+    # adjust start date to 1 day previous to avoid look-ahead bias.
+    previous_date = current_date - timedelta(days=1)
+    date_str_prev = previous_date.strftime("%Y-%m-%d")
+    
     logger.info(f"Simulating trading for {date_str}.")
 
     # new get daily regime data
@@ -310,7 +321,9 @@ def simulate_trading_day(
                 strategy_name = strategy.__name__
 
                 # Get precomputed strategy decision
-                action = precomputed_decisions[strategy_name][ticker].get(date_str)
+                # action = precomputed_decisions[strategy_name][ticker].get(date_str)
+                # adjust start date to 1 day previous to avoid look-ahead bias.
+                action = precomputed_decisions[strategy_name][ticker].get(date_str_prev)
 
                 if action is None:
                     # Skip if no precomputed decision (should not happen if properly precomputed)
@@ -393,6 +406,7 @@ def precompute_strategy_decisions(
     # Convert string dates to datetime objects if needed
     if isinstance(start_date, str):
         start_date = datetime.strptime(start_date, "%Y-%m-%d")
+        start_date -= timedelta(days=1)
     if isinstance(end_date, str):
         end_date = datetime.strptime(end_date, "%Y-%m-%d")
 
@@ -438,6 +452,9 @@ def precompute_strategy_decisions(
     logger.info(
         f"Strategy decision precomputation complete. Processed {len(results)} trading days."
     )
+
+    store_dict_as_json(precomputed_decisions, 'precomputed_decisions.json', 'results')
+
     return precomputed_decisions
 
 

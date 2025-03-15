@@ -62,9 +62,9 @@ so please understand the time it takes to train.
 train_period_start = "2023-12-21"
 train_period_end = "2023-12-31"
 test_period_start = "2024-01-01"
-test_period_end = "2025-02-10"
+test_period_end = "2024-01-10"
 
-regime_tickers = ['^VIX']
+regime_tickers = ['^VIX', '^GSPC']
 # train_tickers = []
 train_tickers = ['AAPL', 'MSFT']
 # train_tickers = ['BTC-USD', 'ETH-USD']
