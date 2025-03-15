@@ -1,5 +1,6 @@
 import json
 import os
+import pandas as pd
 import logging
 import sys
 from datetime import datetime, timezone
@@ -533,3 +534,52 @@ def store_dict_as_json(data_dict, filename, folder_name="results"):
         print(f"Dictionary successfully stored as JSON in: {filepath}")
     except Exception as e:
         print(f"Error storing dictionary as JSON: {e}")
+
+
+def save_df_to_csv(df, filename, folder, logger=None):
+    """
+    Saves a Pandas DataFrame to a CSV file in the specified folder.
+
+    Args:
+        df (pd.DataFrame): The DataFrame to save.
+        filename (str): The name of the CSV file (e.g., "data.csv").
+        folder (str): The path to the folder where the file should be saved.
+        logger (logging.Logger, optional): A logger object for logging messages. Defaults to None.
+
+    Raises:
+        TypeError: If df is not a Pandas DataFrame.
+        ValueError: If filename or folder is empty.
+        FileNotFoundError: If the folder does not exist and cannot be created.
+        Exception: For other errors during file saving.
+    """
+
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError("df must be a Pandas DataFrame.")
+    if not filename:
+        raise ValueError("filename cannot be empty.")
+    if not folder:
+        raise ValueError("folder cannot be empty.")
+
+    # Ensure the folder exists
+    if not os.path.exists(folder):
+        try:
+            os.makedirs(folder)
+            if logger:
+                logger.info(f"Created directory: {folder}")
+        except OSError as e:
+            if logger:
+                logger.error(f"Failed to create directory {folder}: {e}")
+            raise FileNotFoundError(f"Failed to create directory: {folder}") from e
+
+    # Construct the full file path
+    filepath = os.path.join(folder, filename)
+
+    try:
+        # Save the DataFrame to CSV
+        df.to_csv(filepath, index=True)  # Include index by default
+        if logger:
+            logger.info(f"DataFrame saved to: {filepath}")
+    except Exception as e:
+        if logger:
+            logger.error(f"Error saving DataFrame to {filepath}: {e}")
+        raise Exception(f"Error saving DataFrame to {filepath}") from e

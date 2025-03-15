@@ -80,8 +80,8 @@ def initialize_simulation(
     # Determine the historical data start date (2 years before period_start)
     start_date = datetime.strptime(period_start, "%Y-%m-%d")
 
-    # adjust start date to 1 day previous to avoid look-ahead bias.
-    start_date -= timedelta(days=1) 
+    # adjust start date to 1 day previous to avoid look-ahead bias. 2 days for 1day pct change for sp500
+    start_date -= timedelta(days=2) 
 
     data_start_date = (start_date - timedelta(days=730)).strftime("%Y-%m-%d")
     
@@ -158,7 +158,7 @@ def update_time_delta(time_delta, mode):
 
 
 def update_points_and_trades(
-    strategy, ratio, current_price, trading_simulator, points, time_delta, ticker, qty, current_vix, current_date,
+    strategy, ratio, current_price, trading_simulator, points, time_delta, ticker, qty, current_date,
 ):
     """
     Updates points based on trade performance and manages trade statistics.
@@ -168,7 +168,7 @@ def update_points_and_trades(
     # New log trade
     date_str = current_date.strftime("%Y-%m-%d")
     
-    trade_details = [strategy.__name__, ticker, round(current_price,2), round(trading_simulator[strategy.__name__]["holdings"][ticker]["price"],2), qty, round(ratio,4),  round(current_vix,2), 'sp500', trading_simulator[strategy.__name__]["holdings"][ticker]["buy_date"], date_str]
+    trade_details = [strategy.__name__, ticker, round(current_price,2), round(trading_simulator[strategy.__name__]["holdings"][ticker]["price"],2), qty, round(ratio,4),  round(trading_simulator[strategy.__name__]["holdings"][ticker]["vix"],2), round(trading_simulator[strategy.__name__]["holdings"][ticker]["1day_sp500_return"]*100,2), trading_simulator[strategy.__name__]["holdings"][ticker]["buy_date"], date_str]
     trading_simulator[strategy.__name__]["trades_list"].append(trade_details)
     # new end
     
@@ -236,7 +236,7 @@ def execute_trade(
     time_delta,
     portfolio_qty,
     total_portfolio_value,
-    current_vix,
+    current_regime_data,
     current_date,
     logger,
 ):
@@ -269,6 +269,8 @@ def execute_trade(
         trading_simulator[strategy.__name__]["holdings"][ticker][
             "buy_date"
         ] = date_str
+        trading_simulator[strategy.__name__]["holdings"][ticker]["vix"] = current_regime_data[0]
+        trading_simulator[strategy.__name__]["holdings"][ticker]["1day_sp500_return"] = current_regime_data[1]
         # new end
 
 
@@ -294,7 +296,6 @@ def execute_trade(
             time_delta,
             ticker,
             qty,
-            current_vix,
             current_date,
         )
 
@@ -325,8 +326,18 @@ def simulate_trading_day(
     logger.info(f"Simulating trading for {date_str}.")
 
     # new get daily regime data
-    daily_regime_data = ticker_price_history[regime_tickers[0]].loc[date_str]
-    current_vix = daily_regime_data["Close"]
+    # daily_regime_data = ticker_price_history[regime_tickers[0]].loc[date_str]
+    # current_vix_data = daily_regime_data["Close"].values[0]
+    current_vix_data = ticker_price_history[regime_tickers[0]].at[date_str, 'Close']
+    
+    # df_daily_sp500 = ticker_price_history['^GSPC'].loc[date_str]
+    # current_1day_sp500_return = df_daily_sp500['1day_return'].values[0]
+    # current_1day_sp500_return = ticker_price_history['^GSPC'].loc[date_str].values[0]
+    current_1day_sp500_return = ticker_price_history['^GSPC'].at[date_str, '1day_return']
+
+    print(f"{current_date} {current_vix_data = }, {current_1day_sp500_return}")
+    current_regime_data = [current_vix_data, current_1day_sp500_return]
+
 
     for ticker in train_tickers:
         if date_str in ticker_price_history[ticker].index:
@@ -380,7 +391,7 @@ def simulate_trading_day(
                     time_delta,
                     portfolio_qty,
                     total_portfolio_value,
-                    current_vix,
+                    current_regime_data,
                     current_date,
                     logger
                 )

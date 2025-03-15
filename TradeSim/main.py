@@ -16,7 +16,7 @@ import wandb
 # Local module imports after standard/third-party imports
 from config import FINANCIAL_PREP_API_KEY, mongo_url
 from control import mode, test_period_end, train_period_start, train_tickers, regime_tickers
-from helper_files.client_helper import get_ndaq_tickers, strategies
+from helper_files.client_helper import get_ndaq_tickers, strategies, save_df_to_csv
 from TradeSim.utils import initialize_simulation, precompute_strategy_decisions
 
 # Ensure sys.path manipulation is at the top, before other local imports
@@ -31,8 +31,8 @@ if not os.path.exists(logs_dir):
     os.makedirs(logs_dir)
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-# logger.setLevel(logging.WARNING)
+# logger.setLevel(logging.INFO)
+logger.setLevel(logging.WARNING)
 
 formatter = logging.Formatter(
     "%(asctime)s - %(levelname)s - %(funcName)s - %(message)s",
@@ -73,8 +73,14 @@ if __name__ == "__main__":
         logger,
     )
 
-    # prepare regime ma calcs eg 1-day spy return. Use pandas dataframe.
+    # === prepare REGIME ma calcs eg 1-day spy return. Use pandas dataframe.
     # Maybe create a .get(eg vix) function to complete the trade data list.
+    df_sp500 = ticker_price_history.get('^GSPC')
+    # print(ticker_price_history.get('^GSPC'))
+    df_sp500['1day_return'] = df_sp500['Close'].pct_change()
+    ticker_price_history['^GSPC'] = df_sp500
+    save_df_to_csv(ticker_price_history['^GSPC'], "regime_sp500_data.csv", "results", logger=logger)
+    save_df_to_csv(ticker_price_history['^VIX'], "regime_vix_data.csv", "results", logger=logger)
 
     # Precompute all strategy decisions
     precomputed_decisions = precompute_strategy_decisions(
