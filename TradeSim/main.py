@@ -32,6 +32,7 @@ if not os.path.exists(logs_dir):
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+# logger.setLevel(logging.WARNING)
 
 formatter = logging.Formatter(
     "%(asctime)s - %(levelname)s - %(funcName)s - %(message)s",

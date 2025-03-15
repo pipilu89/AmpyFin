@@ -123,7 +123,7 @@ def train(
         strategy_name = strategy.__name__
         trades_list_all += trading_simulator[strategy_name]["trades_list"]
     
-    trades_df = pd.DataFrame(trades_list_all, columns=['strategy', 'ticker','current_price', 'sell_price', 'qty', 'ratio', 'current_vix', 'sp500'])
+    trades_df = pd.DataFrame(trades_list_all, columns=['strategy', 'ticker','current_price', 'buy_price', 'qty', 'ratio', 'current_vix', 'sp500', 'buy_date','sell_date'])
 
     results_dir = "results"
     if not os.path.exists(results_dir):

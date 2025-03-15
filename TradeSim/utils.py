@@ -158,13 +158,17 @@ def update_time_delta(time_delta, mode):
 
 
 def update_points_and_trades(
-    strategy, ratio, current_price, trading_simulator, points, time_delta, ticker, qty, current_vix
+    strategy, ratio, current_price, trading_simulator, points, time_delta, ticker, qty, current_vix, current_date,
 ):
     """
-    Updates points based on trade performance and manages trade statistics
+    Updates points based on trade performance and manages trade statistics.
+
+    Stores all completed trades in trading_simulator.
     """
     # New log trade
-    trade_details = [strategy.__name__, ticker, round(current_price,2), round(trading_simulator[strategy.__name__]["holdings"][ticker]["price"],2), qty, round(ratio,4),  round(current_vix,2), 'sp500']
+    date_str = current_date.strftime("%Y-%m-%d")
+    
+    trade_details = [strategy.__name__, ticker, round(current_price,2), round(trading_simulator[strategy.__name__]["holdings"][ticker]["price"],2), qty, round(ratio,4),  round(current_vix,2), 'sp500', trading_simulator[strategy.__name__]["holdings"][ticker]["buy_date"], date_str]
     trading_simulator[strategy.__name__]["trades_list"].append(trade_details)
     # new end
     
@@ -233,6 +237,8 @@ def execute_trade(
     portfolio_qty,
     total_portfolio_value,
     current_vix,
+    current_date,
+    logger,
 ):
     """
     Executes a trade based on the strategy decision and updates trading simulator and points
@@ -245,6 +251,7 @@ def execute_trade(
         and ((portfolio_qty + qty) * current_price) / total_portfolio_value
         < train_rank_asset_limit
     ):
+        logger.debug(f"debug: buy {qty} {ticker} at {current_price}, {current_date} {strategy.__name__}")
         trading_simulator[strategy.__name__]["amount_cash"] -= qty * current_price
 
         if ticker in trading_simulator[strategy.__name__]["holdings"]:
@@ -256,6 +263,14 @@ def execute_trade(
             "price"
         ] = current_price
         trading_simulator[strategy.__name__]["total_trades"] += 1
+
+        # new add buy date
+        date_str = current_date.strftime("%Y-%m-%d")
+        trading_simulator[strategy.__name__]["holdings"][ticker][
+            "buy_date"
+        ] = date_str
+        # new end
+
 
     elif (
         decision == "sell"
@@ -280,6 +295,7 @@ def execute_trade(
             ticker,
             qty,
             current_vix,
+            current_date,
         )
 
     return trading_simulator, points
@@ -302,7 +318,7 @@ def simulate_trading_day(
     """
     date_str = current_date.strftime("%Y-%m-%d")
 
-    # adjust start date to 1 day previous to avoid look-ahead bias.
+    # calc previous day to retrieve action from precomuted decisions date to 1 day previous to avoid look-ahead bias.
     previous_date = current_date - timedelta(days=1)
     date_str_prev = previous_date.strftime("%Y-%m-%d")
     
@@ -364,7 +380,9 @@ def simulate_trading_day(
                     time_delta,
                     portfolio_qty,
                     total_portfolio_value,
-                    current_vix
+                    current_vix,
+                    current_date,
+                    logger
                 )
 
     return trading_simulator, points
