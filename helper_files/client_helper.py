@@ -298,12 +298,12 @@ statistical_functions = [
 strategies = (
     overlap_studies
     + momentum_indicators
-    # + volume_indicators
-    # + cycle_indicators
-    # + price_transforms
-    # + volatility_indicators
-    # + pattern_recognition
-    # + statistical_functions
+    + volume_indicators
+    + cycle_indicators
+    + price_transforms
+    + volatility_indicators
+    + pattern_recognition
+    + statistical_functions
 )
 
 

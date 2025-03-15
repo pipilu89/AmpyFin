@@ -31,8 +31,8 @@ if not os.path.exists(logs_dir):
     os.makedirs(logs_dir)
 
 logger = logging.getLogger(__name__)
-# logger.setLevel(logging.INFO)
-logger.setLevel(logging.WARNING)
+logger.setLevel(logging.INFO)
+# logger.setLevel(logging.WARNING)
 
 formatter = logging.Formatter(
     "%(asctime)s - %(levelname)s - %(funcName)s - %(message)s",
@@ -74,9 +74,7 @@ if __name__ == "__main__":
     )
 
     # === prepare REGIME ma calcs eg 1-day spy return. Use pandas dataframe.
-    # Maybe create a .get(eg vix) function to complete the trade data list.
     df_sp500 = ticker_price_history.get('^GSPC')
-    # print(ticker_price_history.get('^GSPC'))
     df_sp500['1day_return'] = df_sp500['Close'].pct_change()
     ticker_price_history['^GSPC'] = df_sp500
     save_df_to_csv(ticker_price_history['^GSPC'], "regime_sp500_data.csv", "results", logger=logger)

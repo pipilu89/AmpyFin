@@ -301,6 +301,78 @@ def execute_trade(
 
     return trading_simulator, points
 
+def execute_trade_only_buy_one(
+    decision,
+    qty,
+    ticker,
+    current_price,
+    strategy,
+    trading_simulator,
+    points,
+    time_delta,
+    portfolio_qty,
+    total_portfolio_value,
+    current_regime_data,
+    current_date,
+    logger,
+):
+    """
+    Executes a trade based on the strategy decision and updates trading simulator and points
+    """
+    if (
+        decision == "buy"
+        # and trading_simulator[strategy.__name__]["amount_cash"]
+        # > train_rank_liquidity_limit
+        # and qty > 0
+        # and ((portfolio_qty + qty) * current_price) / total_portfolio_value
+        # < train_rank_asset_limit
+    ):
+        logger.debug(f"debug: buy {qty} {ticker} at {current_price}, {current_date} {strategy.__name__}")
+        trading_simulator[strategy.__name__]["amount_cash"] -= qty * current_price
+
+        if ticker in trading_simulator[strategy.__name__]["holdings"]:
+            trading_simulator[strategy.__name__]["holdings"][ticker]["quantity"] += qty
+        else:
+            trading_simulator[strategy.__name__]["holdings"][ticker] = {"quantity": qty}
+
+        trading_simulator[strategy.__name__]["holdings"][ticker]["price"] = current_price
+        trading_simulator[strategy.__name__]["total_trades"] += 1
+
+        # new add buy date
+        date_str = current_date.strftime("%Y-%m-%d")
+        trading_simulator[strategy.__name__]["holdings"][ticker]["buy_date"] = date_str
+        trading_simulator[strategy.__name__]["holdings"][ticker]["vix"] = current_regime_data[0]
+        trading_simulator[strategy.__name__]["holdings"][ticker]["1day_sp500_return"] = current_regime_data[1]
+        # new end
+
+
+    elif (
+        decision == "sell"
+        # and trading_simulator[strategy.__name__]["holdings"]
+        # .get(ticker, {})
+        # .get("quantity", 0)
+        # >= qty
+    ):
+        trading_simulator[strategy.__name__]["amount_cash"] += qty * current_price
+        ratio = (
+            current_price
+            / trading_simulator[strategy.__name__]["holdings"][ticker]["price"]
+        )
+
+        points, trading_simulator = update_points_and_trades(
+            strategy,
+            ratio,
+            current_price,
+            trading_simulator,
+            points,
+            time_delta,
+            ticker,
+            qty,
+            current_date,
+        )
+
+    return trading_simulator, points
+
 
 def simulate_trading_day(
     current_date,
@@ -335,7 +407,7 @@ def simulate_trading_day(
     # current_1day_sp500_return = ticker_price_history['^GSPC'].loc[date_str].values[0]
     current_1day_sp500_return = ticker_price_history['^GSPC'].at[date_str, '1day_return']
 
-    print(f"{current_date} {current_vix_data = }, {current_1day_sp500_return}")
+    # print(f"{current_date} {current_vix_data = }, {current_1day_sp500_return}")
     current_regime_data = [current_vix_data, current_1day_sp500_return]
 
 
@@ -371,30 +443,12 @@ def simulate_trading_day(
                 ]
 
                 # Compute trade decision and quantity based on precomputed action
-                decision, qty = compute_trade_quantities(
-                    action,
-                    current_price,
-                    account_cash,
-                    portfolio_qty,
-                    total_portfolio_value,
-                )
+                # decision, qty = compute_trade_quantities(action, current_price, account_cash, portfolio_qty, total_portfolio_value)
+                decision, qty = compute_trade_quantities_only_buy_one(action, portfolio_qty)
 
                 # Execute trade
-                trading_simulator, points = execute_trade(
-                    decision,
-                    qty,
-                    ticker,
-                    current_price,
-                    strategy,
-                    trading_simulator,
-                    points,
-                    time_delta,
-                    portfolio_qty,
-                    total_portfolio_value,
-                    current_regime_data,
-                    current_date,
-                    logger
-                )
+                # trading_simulator, points = execute_trade(decision, qty, ticker, current_price, strategy, trading_simulator, points, time_delta, portfolio_qty, total_portfolio_value, current_regime_data, current_date, logger)
+                trading_simulator, points = execute_trade_only_buy_one(decision, qty, ticker, current_price, strategy, trading_simulator, points, time_delta, portfolio_qty, total_portfolio_value, current_regime_data, current_date, logger)
 
     return trading_simulator, points
 
@@ -414,6 +468,18 @@ def compute_trade_quantities(
         )
     elif action == "Sell" and portfolio_qty > 0:
         return "sell", min(portfolio_qty, max(1, int(portfolio_qty * 0.5)))
+    else:
+        return "hold", 0
+
+def compute_trade_quantities_only_buy_one(action, portfolio_qty):
+    """
+    Computes trade decision and quantity based on the precomputed action.
+    This replaces the quantity calculation part of simulate_strategy.
+    """
+    if action == "Buy" and portfolio_qty == 0:
+        return "buy", 1
+    elif action == "Sell" and portfolio_qty > 0:
+        return "sell", 1
     else:
         return "hold", 0
 
