@@ -13,14 +13,15 @@ from variables import config_dict
 
 import wandb
 
-# Local module imports after standard/third-party imports
-from config import FINANCIAL_PREP_API_KEY, mongo_url
-from control import mode, test_period_end, train_period_start, train_tickers, regime_tickers
-from helper_files.client_helper import get_ndaq_tickers, strategies, save_df_to_csv
-from TradeSim.utils import initialize_simulation, precompute_strategy_decisions
-
 # Ensure sys.path manipulation is at the top, before other local imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Local module imports after standard/third-party imports
+from config import FINANCIAL_PREP_API_KEY, mongo_url, environment
+from control import mode, test_period_end, train_period_start, train_tickers, regime_tickers
+from helper_files.client_helper import get_ndaq_tickers, strategies
+from TradeSim.utils import initialize_simulation, precompute_strategy_decisions, prepare_regime_data
+from TradeSim.testing_random_forest import test_random_forest
 
 ca = certifi.where()
 
@@ -47,10 +48,19 @@ if __name__ == "__main__":
     mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
 
     # Initialize W&B run
+    if environment == 'dev':
+        mode = 'disabled'
+        # mode = 'offline'
+        # mode = 'dryrun'
+        # mode = 'async'
+    else:
+        mode = 'online'
+
     wandb.init(
         project=config_dict["project_name"],
         config=config_dict,
         name=config_dict["experiment_name"],
+        mode=mode,
     )
 
     # If no tickers provided, fetch Nasdaq tickers
@@ -74,11 +84,8 @@ if __name__ == "__main__":
     )
 
     # === prepare REGIME ma calcs eg 1-day spy return. Use pandas dataframe.
-    df_sp500 = ticker_price_history.get('^GSPC')
-    df_sp500['1day_return'] = df_sp500['Close'].pct_change()
-    ticker_price_history['^GSPC'] = df_sp500
-    save_df_to_csv(ticker_price_history['^GSPC'], "regime_sp500_data.csv", "results", logger=logger)
-    save_df_to_csv(ticker_price_history['^VIX'], "regime_vix_data.csv", "results", logger=logger)
+    ticker_price_history = prepare_regime_data(ticker_price_history, logger)
+
 
     # Precompute all strategy decisions
     precomputed_decisions = precompute_strategy_decisions(
@@ -101,13 +108,20 @@ if __name__ == "__main__":
         )
 
     elif mode == "test":
-        test(
+        test_random_forest(
             ticker_price_history,
             ideal_period,
             mongo_client,
             precomputed_decisions,
             logger,
         )
+        # test(
+        #     ticker_price_history,
+        #     ideal_period,
+        #     mongo_client,
+        #     precomputed_decisions,
+        #     logger,
+        # )
     elif mode == "push":
         push()
     # elif mode == "push":

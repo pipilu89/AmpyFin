@@ -23,7 +23,7 @@ from control import (
     train_time_delta_increment,
     train_time_delta_multiplicative,
 )
-from helper_files.client_helper import get_ndaq_tickers, strategies, store_dict_as_json
+from helper_files.client_helper import get_ndaq_tickers, strategies, store_dict_as_json, save_df_to_csv
 from helper_files.train_client_helper import get_historical_data
 
 # from strategies.talib_indicators import *
@@ -599,3 +599,32 @@ def _process_single_day(
                 continue
 
     return result
+
+def prepare_regime_data(ticker_price_history, logger):
+    """
+    Prepares regime data for trading simulation by calculating and storing
+    relevant metrics for the SP500 and VIX.
+
+    This function calculates the 1-day percentage change in the SP500's closing price
+    and stores it as a new column ('1day_return') in the SP500's DataFrame.
+    It then saves the SP500 and VIX DataFrames to CSV files for later use.
+
+    Args:
+        ticker_price_history (dict): A dictionary where keys are ticker symbols
+                                        and values are pandas DataFrames containing
+                                        historical price data.
+        logger (logging.Logger, optional): A logger object for logging messages.
+                                            Defaults to the module's logger.
+
+    Returns:
+        dict: The updated ticker_price_history dictionary with the modified SP500 DataFrame.
+    """
+    try:
+        df_sp500 = ticker_price_history.get('^GSPC')
+        df_sp500['1day_return'] = df_sp500['Close'].pct_change()
+        ticker_price_history['^GSPC'] = df_sp500
+        save_df_to_csv(ticker_price_history['^GSPC'], "regime_sp500_data.csv", "results", logger=logger)
+        save_df_to_csv(ticker_price_history['^VIX'], "regime_vix_data.csv", "results", logger=logger)
+    except Exception as e:
+        logger.error(f"Error procesing regime data {e}")
+    return ticker_price_history
