@@ -1,4 +1,3 @@
-from venv import logger
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -62,7 +61,7 @@ def predict_random_forest_classifier(rf_classifier, sample_df):
     return prediction[0]
 
 
-def train_and_store_classifiers(trades_data_df):
+def train_and_store_classifiers(trades_data_df, logger):
     """
     Trains a RandomForestClassifier for each strategy and stores them in a dictionary.
 
@@ -82,11 +81,13 @@ def train_and_store_classifiers(trades_data_df):
     strategy_counts = trades_data_df['strategy'].value_counts()
     strategies_with_enough_data = strategy_counts[strategy_counts >= min_rows].index.tolist()
 
-    print(f"{strategies_with_enough_data = }")
+    logger.info(f"{strategies_with_enough_data = }")
 
     for strategy_name in strategies_with_enough_data:
         try:
+            logger.info(f"Training classifier for strategy {strategy_name}")
             strategy_data = trades_data_df[trades_data_df['strategy'] == strategy_name]
+            logger.info(f"{strategy_data.head()}")
             rf_classifier, accuracy, precision, recall = train_random_forest_classifier(strategy_data)
             rf_classifiers[strategy_name] = {
                 'rf_classifier': rf_classifier,
@@ -94,10 +95,11 @@ def train_and_store_classifiers(trades_data_df):
                 'precision': precision,
                 'recall': recall
             }
+            logger.info(f"Classifier for strategy {strategy_name} trained successfully.")
         except Exception as e:
             print(f"Error training classifier for strategy {strategy_name}: {e}")
 
-    return rf_classifiers
+    return rf_classifiers, strategies_with_enough_data
 
 
 if __name__ == "__main__":

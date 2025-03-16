@@ -1,8 +1,10 @@
+from datetime import datetime
 import logging
 import os
 import sys
 
 import certifi
+import pandas as pd
 from push import push
 
 # from push import push
@@ -19,7 +21,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Local module imports after standard/third-party imports
 from config import FINANCIAL_PREP_API_KEY, mongo_url, environment
 from control import mode, test_period_end, train_period_start, train_tickers, regime_tickers
-from helper_files.client_helper import get_ndaq_tickers, strategies
+from helper_files.client_helper import get_ndaq_tickers, load_json_to_dict, store_dict_as_json, strategies
 from TradeSim.utils import initialize_simulation, precompute_strategy_decisions, prepare_regime_data
 from TradeSim.testing_random_forest import test_random_forest
 
@@ -46,21 +48,27 @@ logger.addHandler(file_handler)
 
 if __name__ == "__main__":
     mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
+    
+    results_dir = "results"
+    if not os.path.exists(results_dir):
+        os.makedirs(results_dir)
+
+    today_date_str = datetime.now().strftime('%Y-%m-%d')
 
     # Initialize W&B run
     if environment == 'dev':
-        mode = 'disabled'
-        # mode = 'offline'
-        # mode = 'dryrun'
-        # mode = 'async'
+        wandb_mode = 'disabled'
+        # wandb_mode = 'offline'
+        # wandb_mode = 'dryrun'
+        # wandb_mode = 'async'
     else:
-        mode = 'online'
+        wandb_mode = 'online'
 
     wandb.init(
         project=config_dict["project_name"],
         config=config_dict,
         name=config_dict["experiment_name"],
-        mode=mode,
+        mode=wandb_mode,
     )
 
     # If no tickers provided, fetch Nasdaq tickers
@@ -73,7 +81,6 @@ if __name__ == "__main__":
     train_regime_tickers = train_tickers + regime_tickers
 
     # Initialize simulation
-
     ticker_price_history, ideal_period = initialize_simulation(
         train_period_start,
         test_period_end,
@@ -87,8 +94,12 @@ if __name__ == "__main__":
     ticker_price_history = prepare_regime_data(ticker_price_history, logger)
 
 
+    precomputed_decisions_filename = f'precomputed_decisions_{today_date_str}.json'
+    precomputed_decisions_filepath = os.path.join(results_dir, precomputed_decisions_filename)          
+    if not os.path.exists(precomputed_decisions_filepath):
+
     # Precompute all strategy decisions
-    precomputed_decisions = precompute_strategy_decisions(
+        precomputed_decisions = precompute_strategy_decisions(
         strategies,
         ticker_price_history,
         train_tickers,
@@ -97,6 +108,12 @@ if __name__ == "__main__":
         test_period_end,
         logger,
     )
+        store_dict_as_json(precomputed_decisions, precomputed_decisions_filename, results_dir, logger)
+
+    else:
+        # load from local file
+        precomputed_decisions, _ = load_json_to_dict(results_dir, precomputed_decisions_filename)
+  
 
     if mode == "train":
         train(
@@ -124,5 +141,5 @@ if __name__ == "__main__":
         # )
     elif mode == "push":
         push()
-    # elif mode == "push":
-    #     push()
+    else:
+        logger.error(f'Invalid mode. Exiting. {mode = }')

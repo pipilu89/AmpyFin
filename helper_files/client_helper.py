@@ -509,7 +509,7 @@ def dynamic_period_selector(ticker):
     return optimal_period
 
 
-def store_dict_as_json(data_dict, filename, folder_name="results"):
+def store_dict_as_json(data_dict, filename, folder_name, logger):
     """
     Stores a dictionary as a JSON file in a specified folder.
 
@@ -523,7 +523,7 @@ def store_dict_as_json(data_dict, filename, folder_name="results"):
     # Create the folder if it doesn't exist
     if not os.path.exists(folder_name):
         os.makedirs(folder_name)
-        print(f"Created folder: {folder_name}")
+        logger.info(f"Created folder: {folder_name}")
 
     # Construct the full filepath
     filepath = os.path.join(folder_name, filename)
@@ -531,9 +531,9 @@ def store_dict_as_json(data_dict, filename, folder_name="results"):
     try:
         with open(filepath, 'w') as f:
             json.dump(data_dict, f, indent=4)  # Use indent for pretty-printing
-        print(f"Dictionary successfully stored as JSON in: {filepath}")
+        logger.info(f"Dictionary successfully stored as JSON in: {filepath}")
     except Exception as e:
-        print(f"Error storing dictionary as JSON: {e}")
+        logger.error(f"Error storing dictionary as JSON: {e}")
 
 
 def save_df_to_csv(df, filename, folder, logger=None):
@@ -583,3 +583,38 @@ def save_df_to_csv(df, filename, folder, logger=None):
         if logger:
             logger.error(f"Error saving DataFrame to {filepath}: {e}")
         raise Exception(f"Error saving DataFrame to {filepath}") from e
+    
+import json
+import os
+
+def load_json_to_dict(folder_path, filename):
+    """
+    Loads a JSON file from a specific folder and returns its content as a Python dictionary.
+
+    Args:
+        folder_path (str): The path to the folder containing the JSON file.
+        filename (str): The name of the JSON file to load.
+
+    Returns:
+        dict: The data loaded from the JSON file as a dictionary.
+              Returns None if the file does not exist or an error occurs.
+        str : the absolute path to the loaded json file
+    """
+    filepath = os.path.join(folder_path, filename)
+    abs_filepath = os.path.abspath(filepath)
+
+    if not os.path.exists(filepath):
+        print(f"Error: File not found at {filepath}")
+        return None, None
+
+    try:
+        with open(filepath, 'r') as f:
+            data = json.load(f)
+        print(f"Loaded {filepath}")
+        return data, abs_filepath
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON format in {filepath}: {e}")
+        return None, None
+    except Exception as e:
+        print(f"Error: An unexpected error occurred while loading {filepath}: {e}")
+        return None, None

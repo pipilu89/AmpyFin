@@ -22,6 +22,7 @@ from control import (
     train_time_delta_balanced,
     train_time_delta_increment,
     train_time_delta_multiplicative,
+    mode,
 )
 from helper_files.client_helper import get_ndaq_tickers, strategies, store_dict_as_json, save_df_to_csv
 from helper_files.train_client_helper import get_historical_data
@@ -443,12 +444,16 @@ def simulate_trading_day(
                 ]
 
                 # Compute trade decision and quantity based on precomputed action
-                # decision, qty = compute_trade_quantities(action, current_price, account_cash, portfolio_qty, total_portfolio_value)
-                decision, qty = compute_trade_quantities_only_buy_one(action, portfolio_qty)
+                if mode == 'train':
+                    decision, qty = compute_trade_quantities_only_buy_one(action, portfolio_qty)
+                    # Execute trade
+                    trading_simulator, points = execute_trade_only_buy_one(decision, qty, ticker, current_price, strategy, trading_simulator, points, time_delta, portfolio_qty, total_portfolio_value, current_regime_data, current_date, logger)
+                
+                else:
+                    decision, qty = compute_trade_quantities(action, current_price, account_cash, portfolio_qty, total_portfolio_value)
+                    # Execute trade
+                    trading_simulator, points = execute_trade(decision, qty, ticker, current_price, strategy, trading_simulator, points, time_delta, portfolio_qty, total_portfolio_value, current_regime_data, current_date, logger)
 
-                # Execute trade
-                # trading_simulator, points = execute_trade(decision, qty, ticker, current_price, strategy, trading_simulator, points, time_delta, portfolio_qty, total_portfolio_value, current_regime_data, current_date, logger)
-                trading_simulator, points = execute_trade_only_buy_one(decision, qty, ticker, current_price, strategy, trading_simulator, points, time_delta, portfolio_qty, total_portfolio_value, current_regime_data, current_date, logger)
 
     return trading_simulator, points
 
@@ -547,8 +552,6 @@ def precompute_strategy_decisions(
     logger.info(
         f"Strategy decision precomputation complete. Processed {len(results)} trading days."
     )
-
-    store_dict_as_json(precomputed_decisions, 'precomputed_decisions.json', 'results')
 
     return precomputed_decisions
 

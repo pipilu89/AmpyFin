@@ -1,7 +1,8 @@
 import sys
 
 project_name = "AmpyFin_Random_Forest"
-experiment_name = "24year_sp500"
+# experiment_name = "24year_sp500"
+experiment_name = "10year_sp500"
 # general parameters
 """
 time_delta_mode can be multiplicative, additive, or balanced.
@@ -70,10 +71,10 @@ prediction_modifier = 1
 # test_period_end = "2025-02-01"
 
 # short test period
-train_period_start = "2024-12-21"
+train_period_start = "2024-11-01"
 train_period_end = "2024-12-31"
-test_period_start = "2025-01-01"
-test_period_end = "2025-01-02"
+test_period_start = "2025-02-01"
+test_period_end = "2025-02-10"
 
 # train_tickers = []
 train_tickers = ['AAPL', 'MSFT']

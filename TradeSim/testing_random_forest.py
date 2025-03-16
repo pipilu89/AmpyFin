@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import certifi
 import pandas as pd
 from pymongo import MongoClient
-from random_forest import train_and_store_classifiers
+from random_forest import predict_random_forest_classifier, train_and_store_classifiers
 from variables import config_dict
 
 import wandb
@@ -25,6 +25,7 @@ from control import (
     train_time_delta_mode,
     train_trade_asset_limit,
     train_trade_liquidity_limit,
+    regime_tickers,
 )
 
 train_tickers
@@ -174,22 +175,27 @@ def test_random_forest(
     global train_tickers
     logger.info("Starting testing phase...")
 
-    # Load the trades data
-    # trades_data_df = pd.read_csv('./results/10year_sp500_trades.csv')
+    # train rf classifiers
     try:
-        trades_data_df = pd.read_csv(os.path.join(results_dir, f"{config_dict['experiment_name']}_trades.csv"), "r")
+        # Load the trades data
+        trades_data_df = pd.read_csv(os.path.join(results_dir, f"{config_dict['experiment_name']}_trades.csv"))
 
         # train random forest classifier based on training trades list
-        trained_classifiers = train_and_store_classifiers(trades_data_df)
-        store_dict_as_json(trained_classifiers, f"{config_dict['experiment_name']}_trained_classifiers.json", folder_name="results")
+        trained_classifiers, strategies_with_enough_data = train_and_store_classifiers(trades_data_df, logger)
+
     except Exception as e:
-        logger.error(f"Error training rf classifiers")
+        logger.error(f"Error training rf classifiers {e}")
+        return
+
+    # need to store classifiers as pickle .pkl file separately from metadata because it is not json serializable.
+    # store_dict_as_json(trained_classifiers, f"{config_dict['experiment_name']}_trained_classifiers.json", results_dir, logger)
+    
 
     # Get rank coefficients from database
-    # db = mongo_client.trading_simulator
-    # r_t_c = db.rank_to_coefficient
-    # rank_to_coefficient = {doc["rank"]: doc["coefficient"] for doc in r_t_c.find({})}
-    # logger.info("Rank coefficients retrieved from database.")
+    db = mongo_client.trading_simulator
+    r_t_c = db.rank_to_coefficient
+    rank_to_coefficient = {doc["rank"]: doc["coefficient"] for doc in r_t_c.find({})}
+    logger.info("Rank coefficients retrieved from database.")
 
     # Load saved results
     logger.info("Loading saved training results...")
@@ -205,7 +211,10 @@ def test_random_forest(
     # Initialize testing variables
     strategy_to_coefficient = {}
     account = initialize_test_account()
-    # rank = update_strategy_ranks(strategies, points, trading_simulator)
+    
+    # needed?
+    rank = update_strategy_ranks(strategies, points, trading_simulator)
+
     start_date = datetime.strptime(test_period_start, "%Y-%m-%d")
     end_date = datetime.strptime(test_period_end, "%Y-%m-%d")
     current_date = start_date
@@ -228,12 +237,12 @@ def test_random_forest(
             current_date += timedelta(days=1)
             continue
 
-        # Update strategy coefficients
-        # for strategy in strategies:
-        #     strategy_to_coefficient[strategy.__name__] = rank_to_coefficient[
-        #         rank[strategy.__name__]
-        #     ]
-        # logger.info(f"Strategy coefficients updated: {strategy_to_coefficient}")
+        # Update strategy coefficients. needed?
+        for strategy in strategies:
+            strategy_to_coefficient[strategy.__name__] = rank_to_coefficient[
+                rank[strategy.__name__]
+            ]
+        logger.info(f"Strategy coefficients updated: {strategy_to_coefficient}")
 
         # Process trading day
         buy_heap, suggestion_heap = [], []
@@ -271,12 +280,26 @@ def test_random_forest(
                     decision, qty = compute_trade_quantities(action, current_price, account_cash, portfolio_qty, total_portfolio_value)
                     # decision, qty = compute_trade_quantities_only_buy_one(action, portfolio_qty)
 
-                    data = {'strategy_index': [8], 'current_vix': [14.27]}
-                    sample_df = pd.DataFrame(data, index=[0])
-                    # prediction, accuracy, precision, recall = random_forest_classifier(sample_df)
+             
+                    if strategy_name in strategies_with_enough_data:
+                        daily_vix_df = ticker_price_history['^VIX'].loc[date_str]["Close"]
+                        data = {'current_vix': [daily_vix_df]}
+                        sample_df = pd.DataFrame(data, index=[0])
 
-                    weight = strategy_to_coefficient[strategy.__name__]
+                        logger.info(f"{daily_vix_df = }")
+                        
+                        prediction = predict_random_forest_classifier(trained_classifiers[strategy_name]['rf_classifier'], sample_df)
+                        accuracy = trained_classifiers[strategy_name]['accuracy']
+                        logger.info(f"Prediction {current_date} {strategy_name} {ticker}: {prediction}, {accuracy = } ")
+                        weight = prediction * accuracy
+                    else:
+                        prediction = 0
+                        weight = 0
+                    
+                    
+                    # weight = strategy_to_coefficient[strategy.__name__]
                     decisions_and_quantities.append((decision, qty, weight))
+                    logger.info(f"{ticker} {strategy_name} {decision = }, {qty = }, {weight = }")
 
                 # Process weighted decisions
                 (decision, quantity, buy_weight, sell_weight, hold_weight, ) = weighted_majority_decision_and_median_quantity(decisions_and_quantities)
@@ -357,15 +380,18 @@ def test_random_forest(
             train_tickers,
             precomputed_decisions,
             logger,
+            regime_tickers,
         )
 
+        # logger.info(f"{points = }")
+        # logger.info(f"{trading_simulator = }")
         # Update portfolio values
         active_count, trading_simulator = local_update_portfolio_values(
             current_date, strategies, trading_simulator, ticker_price_history, logger
         )
 
         # Update time delta
-        time_delta = update_time_delta(time_delta, train_time_delta_mode)
+        # time_delta = update_time_delta(time_delta, train_time_delta_mode)
 
         # Calculate and update total portfolio value
         total_value = account["cash"]
