@@ -1,0 +1,54 @@
+{
+    "MAMA_indicator": {
+        "AAPL": {"action": "Sell", "prediction": None, "accuracy": None},
+        "MSFT": {"action": "Sell", "prediction": None, "accuracy": None},
+    },
+    "MIDPOINT_indicator": {
+        "AAPL": {"action": "Sell", "prediction": None, "accuracy": None},
+        "MSFT": {"action": "Sell", "prediction": None, "accuracy": None},
+    },
+    "MIDPRICE_indicator": {
+        "AAPL": {"action": "Sell", "prediction": None, "accuracy": None},
+        "MSFT": {"action": "Sell", "prediction": None, "accuracy": None},
+    },
+    "BOP_indicator": {
+        "AAPL": {"action": "hold", "prediction": 0, "accuracy": 1.0},
+        "MSFT": {"action": "hold", "prediction": 0, "accuracy": 1.0},
+    },
+    "STOCHRSI_indicator": {
+        "AAPL": {"action": "Hold", "prediction": None, "accuracy": None},
+        "MSFT": {"action": "Sell", "prediction": None, "accuracy": None},
+    },
+    "HT_PHASOR_indicator": {
+        "AAPL": {"action": "Sell", "prediction": None, "accuracy": None},
+        "MSFT": {"action": "Sell", "prediction": None, "accuracy": None},
+    },
+    "AVGPRICE_indicator": {
+        "AAPL": {"action": "hold", "prediction": 0, "accuracy": 0.0},
+        "MSFT": {"action": "hold", "prediction": 0, "accuracy": 0.0},
+    },
+    "MEDPRICE_indicator": {
+        "AAPL": {"action": "Buy", "prediction": 1, "accuracy": 1.0},
+        "MSFT": {"action": "Buy", "prediction": 1, "accuracy": 1.0},
+    },
+    "TYPPRICE_indicator": {
+        "AAPL": {"action": "Buy", "prediction": 1, "accuracy": 1.0},
+        "MSFT": {"action": "Buy", "prediction": 1, "accuracy": 1.0},
+    },
+    "WCLPRICE_indicator": {
+        "AAPL": {"action": "Buy", "prediction": 1, "accuracy": 1.0},
+        "MSFT": {"action": "Buy", "prediction": 1, "accuracy": 1.0},
+    },
+    "BETA_indicator": {
+        "AAPL": {"action": "Sell", "prediction": None, "accuracy": None},
+        "MSFT": {"action": "Sell", "prediction": None, "accuracy": None},
+    },
+    "LINEARREG_indicator": {
+        "AAPL": {"action": "Sell", "prediction": None, "accuracy": None},
+        "MSFT": {"action": "hold", "prediction": 0, "accuracy": 0.5},
+    },
+    "TSF_indicator": {
+        "AAPL": {"action": "Sell", "prediction": None, "accuracy": None},
+        "MSFT": {"action": "hold", "prediction": 0, "accuracy": 0.5},
+    },
+}

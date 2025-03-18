@@ -1,12 +1,18 @@
 import heapq
 import json
 import os
+import re
+import sys
 import time
 from datetime import datetime, timedelta
 
 import certifi
 import pandas as pd
 from pymongo import MongoClient
+
+# Add parent directory to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from random_forest import predict_random_forest_classifier, train_and_store_classifiers
 from variables import config_dict
 
@@ -178,10 +184,14 @@ def test_random_forest(
     # train rf classifiers
     try:
         # Load the trades data
-        trades_data_df = pd.read_csv(os.path.join(results_dir, f"{config_dict['experiment_name']}_trades.csv"))
+        trades_data_df = pd.read_csv(
+            os.path.join(results_dir, f"{config_dict['experiment_name']}_trades.csv")
+        )
 
         # train random forest classifier based on training trades list
-        trained_classifiers, strategies_with_enough_data = train_and_store_classifiers(trades_data_df, logger)
+        trained_classifiers, strategies_with_enough_data = train_and_store_classifiers(
+            trades_data_df, logger
+        )
 
     except Exception as e:
         logger.error(f"Error training rf classifiers {e}")
@@ -189,7 +199,6 @@ def test_random_forest(
 
     # need to store classifiers as pickle .pkl file separately from metadata because it is not json serializable.
     # store_dict_as_json(trained_classifiers, f"{config_dict['experiment_name']}_trained_classifiers.json", results_dir, logger)
-    
 
     # Get rank coefficients from database
     db = mongo_client.trading_simulator
@@ -199,19 +208,26 @@ def test_random_forest(
 
     # Load saved results
     logger.info("Loading saved training results...")
-    with open(
-        os.path.join(results_dir, f"{config_dict['experiment_name']}.json"), "r"
-    ) as json_file:
-        results = json.load(json_file)
-        trading_simulator = results["trading_simulator"]
-        points = results["points"]
-        time_delta = results["time_delta"]
-    logger.info("Training results loaded successfully.")
+    try:
+        with open(
+            os.path.join(results_dir, f"{config_dict['experiment_name']}.json"), "r"
+        ) as json_file:
+            results = json.load(json_file)
+            trading_simulator = results["trading_simulator"]
+            points = results["points"]
+            time_delta = results["time_delta"]
+        logger.info(
+            f"Training results loaded successfully from {config_dict['experiment_name']}.json"
+        )
+    except Exception as e:
+        logger.error(
+            f"Error loading training results. Filename: {config_dict['experiment_name']}.json. Error: {e}"
+        )
 
     # Initialize testing variables
     strategy_to_coefficient = {}
     account = initialize_test_account()
-    
+
     # needed?
     rank = update_strategy_ranks(strategies, points, trading_simulator)
 
@@ -242,11 +258,13 @@ def test_random_forest(
             strategy_to_coefficient[strategy.__name__] = rank_to_coefficient[
                 rank[strategy.__name__]
             ]
-        logger.info(f"Strategy coefficients updated: {strategy_to_coefficient}")
+        # logger.info(f"Strategy coefficients updated: {strategy_to_coefficient}")
 
         # Process trading day
         buy_heap, suggestion_heap = [], []
         date_str = current_date.strftime("%Y-%m-%d")
+        prediction_results = {}
+        prediction_results_list = []
         for ticker in train_tickers:
             if date_str in ticker_price_history[ticker].index:
                 daily_data = ticker_price_history[ticker].loc[date_str]
@@ -276,93 +294,152 @@ def test_random_forest(
                     account_cash = account["cash"]
                     total_portfolio_value = account["total_portfolio_value"]
 
-                    # Compute trade decision and quantity based on precomputed action
-                    decision, qty = compute_trade_quantities(action, current_price, account_cash, portfolio_qty, total_portfolio_value)
-                    # decision, qty = compute_trade_quantities_only_buy_one(action, portfolio_qty)
-
-             
+                    # Get prediction from random forest classifier
                     if strategy_name in strategies_with_enough_data:
-                        daily_vix_df = ticker_price_history['^VIX'].loc[date_str]["Close"]
-                        data = {'current_vix': [daily_vix_df]}
-                        sample_df = pd.DataFrame(data, index=[0])
+                        if action == "Buy":
+                            daily_vix_df = ticker_price_history["^VIX"].loc[date_str][
+                                "Close"
+                            ]
+                            data = {"current_vix": [daily_vix_df]}
+                            sample_df = pd.DataFrame(data, index=[0])
 
-                        logger.info(f"{daily_vix_df = }")
-                        
-                        prediction = predict_random_forest_classifier(trained_classifiers[strategy_name]['rf_classifier'], sample_df)
-                        accuracy = trained_classifiers[strategy_name]['accuracy']
-                        logger.info(f"Prediction {current_date} {strategy_name} {ticker}: {prediction}, {accuracy = } ")
-                        weight = prediction * accuracy
-                    else:
-                        prediction = 0
-                        weight = 0
-                    
-                    
-                    # weight = strategy_to_coefficient[strategy.__name__]
-                    decisions_and_quantities.append((decision, qty, weight))
-                    logger.info(f"{ticker} {strategy_name} {decision = }, {qty = }, {weight = }")
+                            prediction = predict_random_forest_classifier(
+                                trained_classifiers[strategy_name]["rf_classifier"],
+                                sample_df,
+                            )
 
-                # Process weighted decisions
-                (decision, quantity, buy_weight, sell_weight, hold_weight, ) = weighted_majority_decision_and_median_quantity(decisions_and_quantities)
-                
-                logger.info(
-                    f"{ticker} - Decision: {decision}, Quantity: {quantity}, Buy Weight: {buy_weight}, Sell Weight: {sell_weight}, Hold Weight: {hold_weight}"
-                )
+                            if prediction != 1:
+                                action = "hold"
+                            accuracy = trained_classifiers[strategy_name]["accuracy"]
+                            logger.info(
+                                f"Prediction {current_date} {strategy_name} {ticker}: {prediction}, {accuracy = } daily_vix_df = {daily_vix_df:.2f} {action = }"
+                            )
 
-                # Execute trading decisions
-                if (
-                    decision == "buy"
-                    and ((portfolio_qty + quantity) * current_price)
-                    / account["total_portfolio_value"]
-                    <= train_trade_asset_limit
-                ):
-                    heapq.heappush(
-                        buy_heap,
-                        (
-                            -(buy_weight - (sell_weight + (hold_weight * 0.5))),
-                            quantity,
-                            ticker,
-                        ),
-                    )
+                            weight = prediction * accuracy  # not needed
 
-                elif decision == "sell" and ticker in account["holdings"]:
-                    quantity = max(quantity, 1)
-                    quantity = account["holdings"][ticker]["quantity"]
-                    account["trades"].append(
-                        {
-                            "symbol": ticker,
-                            "quantity": quantity,
-                            "price": current_price,
-                            "action": "sell",
-                            "date": current_date.strftime("%Y-%m-%d"),
-                        }
-                    )
-                    account["cash"] += quantity * current_price
-                    del account["holdings"][ticker]
-                    logger.info(
-                        f"{ticker} - Sold {quantity} shares at ${current_price}"
-                    )
+                        else:
+                            prediction = None
+                            accuracy = None
+                            weight = 0
 
-                elif (
-                    portfolio_qty == 0.0
-                    and buy_weight > sell_weight
-                    and ((quantity * current_price) / account["total_portfolio_value"])
-                    < trade_asset_limit
-                    and float(account["cash"]) >= train_trade_liquidity_limit
-                ):
-                    max_investment = (
-                        account["total_portfolio_value"] * train_trade_asset_limit
-                    )
-                    buy_quantity = min(
-                        int(max_investment // current_price),
-                        int(account["cash"] // current_price),
-                    )
-                    if buy_weight > train_suggestion_heap_limit:
-                        buy_quantity = max(2, buy_quantity)
-                        buy_quantity = buy_quantity // 2
-                        heapq.heappush(
-                            suggestion_heap,
-                            (-(buy_weight - sell_weight), buy_quantity, ticker),
+                        prediction_results_list.append(
+                            {
+                                "strategy_name": strategy_name,
+                                "ticker": ticker,
+                                "action": action,
+                                "prediction": prediction,
+                                "accuracy": accuracy,
+                            }
                         )
+
+                        # prediction results for buy actions/signals store in dict
+                        if strategy_name not in prediction_results:
+                            prediction_results[strategy_name] = {}
+
+                        prediction_results[strategy_name][ticker] = {
+                            "action": action,
+                            "prediction": prediction,
+                            "accuracy": accuracy,
+                        }
+
+                    else:
+                        weight = 0
+
+                    # logger.info(f"{prediction_results = }")
+
+                #     # Compute trade decision and quantity based on precomputed action and prediction
+                #     decision, qty = compute_trade_quantities(
+                #         action,
+                #         current_price,
+                #         account_cash,
+                #         portfolio_qty,
+                #         total_portfolio_value,
+                #     )
+                #     # decision, qty = compute_trade_quantities_only_buy_one(action, portfolio_qty)
+
+                #     # weight = strategy_to_coefficient[strategy.__name__]
+                #     decisions_and_quantities.append((decision, qty, weight))
+                #     # logger.info(f"{ticker} {strategy_name} {decision = }, {qty = }, {weight = }")
+
+                # logger.info(f"{decisions_and_quantities = }")
+                # logger.info(f"{prediction_results = }")
+
+                # # Process weighted decisions
+                # (
+                #     decision,
+                #     quantity,
+                #     buy_weight,
+                #     sell_weight,
+                #     hold_weight,
+                # ) = weighted_majority_decision_and_median_quantity(
+                #     decisions_and_quantities
+                # )
+
+                # logger.info(
+                #     f"{ticker} - Decision: {decision}, Quantity: {quantity}, Buy Weight: {buy_weight}, Sell Weight: {sell_weight}, Hold Weight: {hold_weight}"
+                # )
+
+                # # Execute trading decisions
+                # if (
+                #     decision == "buy"
+                #     and ((portfolio_qty + quantity) * current_price)
+                #     / account["total_portfolio_value"]
+                #     <= train_trade_asset_limit
+                # ):
+                #     heapq.heappush(
+                #         buy_heap,
+                #         (
+                #             -(buy_weight - (sell_weight + (hold_weight * 0.5))),
+                #             quantity,
+                #             ticker,
+                #         ),
+                #     )
+
+                # elif decision == "sell" and ticker in account["holdings"]:
+                #     quantity = max(quantity, 1)
+                #     quantity = account["holdings"][ticker]["quantity"]
+                #     account["trades"].append(
+                #         {
+                #             "symbol": ticker,
+                #             "quantity": quantity,
+                #             "price": current_price,
+                #             "action": "sell",
+                #             "date": current_date.strftime("%Y-%m-%d"),
+                #         }
+                #     )
+                #     account["cash"] += quantity * current_price
+                #     del account["holdings"][ticker]
+                #     logger.info(
+                #         f"{ticker} - Sold {quantity} shares at ${current_price}"
+                #     )
+
+                # elif (
+                #     portfolio_qty == 0.0
+                #     and buy_weight > sell_weight
+                #     and ((quantity * current_price) / account["total_portfolio_value"])
+                #     < trade_asset_limit
+                #     and float(account["cash"]) >= train_trade_liquidity_limit
+                # ):
+                #     max_investment = (
+                #         account["total_portfolio_value"] * train_trade_asset_limit
+                #     )
+                #     buy_quantity = min(
+                #         int(max_investment // current_price),
+                #         int(account["cash"] // current_price),
+                #     )
+                #     if buy_weight > train_suggestion_heap_limit:
+                #         buy_quantity = max(2, buy_quantity)
+                #         buy_quantity = buy_quantity // 2
+                #         heapq.heappush(
+                #             suggestion_heap,
+                #             (-(buy_weight - sell_weight), buy_quantity, ticker),
+                #         )
+
+        # Convert list of dictionaries to DataFrame
+        prediction_results_df = pd.DataFrame(prediction_results_list)
+        # Save DataFrame to CSV in results folder
+        csv_file_path = os.path.join(results_dir, "prediction_results.csv")
+        prediction_results_df.to_csv(csv_file_path, index=False)
 
         # Execute buy orders
         account = execute_buy_orders(
@@ -427,8 +504,11 @@ def test_random_forest(
     logger.info("Final metrics calculated.")
     logger.info(metrics)
 
-    generate_tear_sheet(account_values, filename=f"{benchmark_asset}_vs_strategy")
-    logger.info("Tear sheet generated.")
+    try:
+        generate_tear_sheet(account_values, filename=f"{benchmark_asset}_vs_strategy")
+        logger.info("Tear sheet generated.")
+    except Exception as e:
+        logger.error(f"Error generating tear sheet: {e}")
 
     # Print final results
     logger.info("Testing Completed.")
@@ -436,3 +516,58 @@ def test_random_forest(
     logger.info(f"Account Cash: ${account['cash']: ,.2f}")
     logger.info(f"Total Portfolio Value: ${account['total_portfolio_value']: ,.2f}")
     logger.info("-------------------------------------------------")
+
+
+def strategy_weights(prediction_results_df):
+    """
+    Calculates the weights for each strategy based on the prediction results
+    """
+    high_threshold_bonus = 100
+    low_threshold_bonus = 1
+    strategy_weights = {}
+    for strategy_name in prediction_results_df["strategy_name"].unique():
+        strategy_df = prediction_results_df[
+            prediction_results_df["strategy_name"] == strategy_name
+        ]
+        strategy_df = strategy_df.dropna()
+        strategy_df = strategy_df[strategy_df["action"] == "Buy"]
+        strategy_df = strategy_df[strategy_df["prediction"] == 1]
+        strategy_df = strategy_df[strategy_df["accuracy"] > 0.75]
+
+        strategy_weights[strategy_name] = len(strategy_df) * high_threshold_bonus
+
+    for strategy_name in prediction_results_df["strategy_name"].unique():
+        strategy_df = prediction_results_df[
+            prediction_results_df["strategy_name"] == strategy_name
+        ]
+        strategy_df = strategy_df.dropna()
+        strategy_df = strategy_df[strategy_df["action"] == "Buy"]
+        strategy_df = strategy_df[strategy_df["prediction"] == 1]
+        strategy_df = strategy_df[strategy_df["accuracy"] > 0.51]
+
+        strategy_weights[strategy_name] += len(strategy_df) * low_threshold_bonus
+
+    return strategy_weights
+
+
+def strategy_and_tickers_weights(prediction_results_df):
+    prediction_results_df["score"] = (
+        prediction_results_df["accuracy"] * prediction_results_df["prediction"]
+    )
+
+    # return prediction_results_df.groupby(["strategy_name", "ticker"])["score"].sum()
+    return (
+        prediction_results_df.groupby(["strategy_name", "ticker"])
+        .sum()
+        .sort_values(by=["score", "strategy_name"], ascending=[False, True])
+    )
+
+
+if __name__ == "__main__":
+    # Load DataFrame from CSV in results folder
+    csv_file_path = os.path.join(results_dir, "prediction_results.csv")
+    prediction_results_df = pd.read_csv(csv_file_path)
+
+    # strategy_weights_df = strategy_weights(prediction_results_df)
+    strategy_weights_df = strategy_and_tickers_weights(prediction_results_df)
+    print(strategy_weights_df)

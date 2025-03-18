@@ -2,11 +2,17 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report, precision_score, recall_score
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    precision_score,
+    recall_score,
+)
 from helper_files.client_helper import strategies
 import warnings
 
-warnings.filterwarnings('ignore')
+warnings.filterwarnings("ignore")
+
 
 def train_random_forest_classifier(trades_data):
     """
@@ -19,17 +25,21 @@ def train_random_forest_classifier(trades_data):
         tuple: A tuple containing the trained RandomForestClassifier, accuracy, precision, and recall.
     """
     # Create the 'return' column where 1 = +ve return, 0 = neutral or -ve.
-    trades_data['return'] = np.where(trades_data['ratio'] > 1, 1, 0)
+    trades_data["return"] = np.where(trades_data["ratio"] > 1, 1, 0)
 
     # Features and target variable
-    X = trades_data[['current_vix']]  # Using only 'current_vix' as a feature
-    y = trades_data['return']
+    X = trades_data[["current_vix"]]  # Using only 'current_vix' as a feature
+    y = trades_data["return"]
 
     # Split data into training and testing sets
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
 
     # Initialize RandomForestClassifier
-    rf_classifier = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)  # added n_jobs
+    rf_classifier = RandomForestClassifier(
+        n_estimators=100, random_state=42, n_jobs=-1
+    )  # added n_jobs
 
     # Fit the classifier to the training data
     rf_classifier.fit(X_train, y_train)
@@ -58,7 +68,7 @@ def predict_random_forest_classifier(rf_classifier, sample_df):
         int: The predicted return (0 or 1). 1 is positive return, 0 is -ve return.
     """
     prediction = rf_classifier.predict(sample_df)
-    return prediction[0]
+    return int(prediction[0])
 
 
 def train_and_store_classifiers(trades_data_df, logger):
@@ -74,37 +84,46 @@ def train_and_store_classifiers(trades_data_df, logger):
     """
     rf_classifiers = {}
 
-    if 'strategy' not in trades_data_df.columns:
+    if "strategy" not in trades_data_df.columns:
         raise ValueError("The DataFrame must contain a 'strategy' column.")
 
     min_rows = 5
-    strategy_counts = trades_data_df['strategy'].value_counts()
-    strategies_with_enough_data = strategy_counts[strategy_counts >= min_rows].index.tolist()
+    strategy_counts = trades_data_df["strategy"].value_counts()
+    strategies_with_enough_data = strategy_counts[
+        strategy_counts >= min_rows
+    ].index.tolist()
 
+    logger.info(f"{len(strategies_with_enough_data) = }")
     logger.info(f"{strategies_with_enough_data = }")
 
     for strategy_name in strategies_with_enough_data:
         try:
-            logger.info(f"Training classifier for strategy {strategy_name}")
-            strategy_data = trades_data_df[trades_data_df['strategy'] == strategy_name]
-            logger.info(f"{strategy_data.head()}")
-            rf_classifier, accuracy, precision, recall = train_random_forest_classifier(strategy_data)
+            strategy_data = trades_data_df[trades_data_df["strategy"] == strategy_name]
+            logger.info(
+                f"Training classifier for strategy {strategy_name}. {len(strategy_data) = }"
+            )
+            # logger.info(f"{strategy_data.head()}")
+            rf_classifier, accuracy, precision, recall = train_random_forest_classifier(
+                strategy_data
+            )
             rf_classifiers[strategy_name] = {
-                'rf_classifier': rf_classifier,
-                'accuracy': accuracy,
-                'precision': precision,
-                'recall': recall
+                "rf_classifier": rf_classifier,
+                "accuracy": accuracy,
+                "precision": precision,
+                "recall": recall,
             }
-            logger.info(f"Classifier for strategy {strategy_name} trained successfully.")
+            logger.info(
+                f"Classifier for strategy {strategy_name} trained successfully."
+            )
         except Exception as e:
-            print(f"Error training classifier for strategy {strategy_name}: {e}")
+            logger.error(f"Error training classifier for strategy {strategy_name}: {e}")
 
     return rf_classifiers, strategies_with_enough_data
 
 
 if __name__ == "__main__":
     # Load the trades data
-    trades_data_df = pd.read_csv('./results/10year_sp500_trades.csv')
+    trades_data_df = pd.read_csv("./results/10year_sp500_trades.csv")
 
     # Train and store classifiers
     trained_classifiers = train_and_store_classifiers(trades_data_df)
@@ -112,14 +131,16 @@ if __name__ == "__main__":
     print(f"{trained_classifiers}")
 
     # Example usage: Make a prediction for a specific strategy
-    sample_data = {'current_vix': [34.27]}
+    sample_data = {"current_vix": [34.27]}
     sample_df = pd.DataFrame(sample_data, index=[0])
 
     for strategy_name, classifier_data in trained_classifiers.items():
-        rf_classifier = classifier_data['rf_classifier']
-        accuracy = classifier_data['accuracy']
-        precision = classifier_data['precision']
-        recall = classifier_data['recall']
+        rf_classifier = classifier_data["rf_classifier"]
+        accuracy = classifier_data["accuracy"]
+        precision = classifier_data["precision"]
+        recall = classifier_data["recall"]
 
         prediction = predict_random_forest_classifier(rf_classifier, sample_df)
-        print(f"\nFinal Prediction for {strategy_name}: {prediction}, accuracy = {accuracy:.2f}, precision = {precision:.2f}, recall = {recall:.2f}")
+        print(
+            f"\nFinal Prediction for {strategy_name}: {prediction}, accuracy = {accuracy:.2f}, precision = {precision:.2f}, recall = {recall:.2f}"
+        )
