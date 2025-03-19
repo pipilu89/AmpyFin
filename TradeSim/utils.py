@@ -24,7 +24,12 @@ from control import (
     train_time_delta_multiplicative,
     mode,
 )
-from helper_files.client_helper import get_ndaq_tickers, strategies, store_dict_as_json, save_df_to_csv
+from helper_files.client_helper import (
+    get_ndaq_tickers,
+    strategies,
+    store_dict_as_json,
+    save_df_to_csv,
+)
 from helper_files.train_client_helper import get_historical_data
 
 # from strategies.talib_indicators import *
@@ -82,11 +87,10 @@ def initialize_simulation(
     start_date = datetime.strptime(period_start, "%Y-%m-%d")
 
     # adjust start date to 1 day previous to avoid look-ahead bias. 2 days for 1day pct change for sp500
-    start_date -= timedelta(days=2) 
+    start_date -= timedelta(days=2)
 
     data_start_date = (start_date - timedelta(days=730)).strftime("%Y-%m-%d")
-    
-    
+
     logger.info(f"Fetching historical data from {data_start_date} to {period_end}.")
 
     # Bulk download ticker data using yfinance (with threading enabled)
@@ -159,7 +163,15 @@ def update_time_delta(time_delta, mode):
 
 
 def update_points_and_trades(
-    strategy, ratio, current_price, trading_simulator, points, time_delta, ticker, qty, current_date,
+    strategy,
+    ratio,
+    current_price,
+    trading_simulator,
+    points,
+    time_delta,
+    ticker,
+    qty,
+    current_date,
 ):
     """
     Updates points based on trade performance and manages trade statistics.
@@ -168,11 +180,28 @@ def update_points_and_trades(
     """
     # New log trade
     date_str = current_date.strftime("%Y-%m-%d")
-    
-    trade_details = [strategy.__name__, ticker, round(current_price,2), round(trading_simulator[strategy.__name__]["holdings"][ticker]["price"],2), qty, round(ratio,4),  round(trading_simulator[strategy.__name__]["holdings"][ticker]["vix"],2), round(trading_simulator[strategy.__name__]["holdings"][ticker]["1day_sp500_return"]*100,2), trading_simulator[strategy.__name__]["holdings"][ticker]["buy_date"], date_str]
+
+    trade_details = [
+        strategy.__name__,
+        ticker,
+        round(current_price, 2),
+        round(trading_simulator[strategy.__name__]["holdings"][ticker]["price"], 2),
+        qty,
+        round(ratio, 4),
+        round(trading_simulator[strategy.__name__]["holdings"][ticker]["vix"], 2),
+        round(
+            trading_simulator[strategy.__name__]["holdings"][ticker][
+                "1day_sp500_return"
+            ]
+            * 100,
+            2,
+        ),
+        trading_simulator[strategy.__name__]["holdings"][ticker]["buy_date"],
+        date_str,
+    ]
     trading_simulator[strategy.__name__]["trades_list"].append(trade_details)
     # new end
-    
+
     if (
         current_price
         > trading_simulator[strategy.__name__]["holdings"][ticker]["price"]
@@ -252,7 +281,9 @@ def execute_trade(
         and ((portfolio_qty + qty) * current_price) / total_portfolio_value
         < train_rank_asset_limit
     ):
-        logger.debug(f"debug: buy {qty} {ticker} at {current_price}, {current_date} {strategy.__name__}")
+        logger.debug(
+            f"debug: buy {qty} {ticker} at {current_price}, {current_date} {strategy.__name__}"
+        )
         trading_simulator[strategy.__name__]["amount_cash"] -= qty * current_price
 
         if ticker in trading_simulator[strategy.__name__]["holdings"]:
@@ -267,13 +298,14 @@ def execute_trade(
 
         # new add buy date
         date_str = current_date.strftime("%Y-%m-%d")
+        trading_simulator[strategy.__name__]["holdings"][ticker]["buy_date"] = date_str
+        trading_simulator[strategy.__name__]["holdings"][ticker]["vix"] = (
+            current_regime_data[0]
+        )
         trading_simulator[strategy.__name__]["holdings"][ticker][
-            "buy_date"
-        ] = date_str
-        trading_simulator[strategy.__name__]["holdings"][ticker]["vix"] = current_regime_data[0]
-        trading_simulator[strategy.__name__]["holdings"][ticker]["1day_sp500_return"] = current_regime_data[1]
+            "1day_sp500_return"
+        ] = current_regime_data[1]
         # new end
-
 
     elif (
         decision == "sell"
@@ -302,6 +334,7 @@ def execute_trade(
 
     return trading_simulator, points
 
+
 def execute_trade_only_buy_one(
     decision,
     qty,
@@ -321,14 +354,17 @@ def execute_trade_only_buy_one(
     Executes a trade based on the strategy decision and updates trading simulator and points
     """
     if (
-        decision == "buy"
+        decision
+        == "buy"
         # and trading_simulator[strategy.__name__]["amount_cash"]
         # > train_rank_liquidity_limit
         # and qty > 0
         # and ((portfolio_qty + qty) * current_price) / total_portfolio_value
         # < train_rank_asset_limit
     ):
-        logger.debug(f"debug: buy {qty} {ticker} at {current_price}, {current_date} {strategy.__name__}")
+        logger.debug(
+            f"debug: buy {qty} {ticker} at {current_price}, {current_date} {strategy.__name__}"
+        )
         trading_simulator[strategy.__name__]["amount_cash"] -= qty * current_price
 
         if ticker in trading_simulator[strategy.__name__]["holdings"]:
@@ -336,19 +372,25 @@ def execute_trade_only_buy_one(
         else:
             trading_simulator[strategy.__name__]["holdings"][ticker] = {"quantity": qty}
 
-        trading_simulator[strategy.__name__]["holdings"][ticker]["price"] = current_price
+        trading_simulator[strategy.__name__]["holdings"][ticker][
+            "price"
+        ] = current_price
         trading_simulator[strategy.__name__]["total_trades"] += 1
 
         # new add buy date
         date_str = current_date.strftime("%Y-%m-%d")
         trading_simulator[strategy.__name__]["holdings"][ticker]["buy_date"] = date_str
-        trading_simulator[strategy.__name__]["holdings"][ticker]["vix"] = current_regime_data[0]
-        trading_simulator[strategy.__name__]["holdings"][ticker]["1day_sp500_return"] = current_regime_data[1]
+        trading_simulator[strategy.__name__]["holdings"][ticker]["vix"] = (
+            current_regime_data[0]
+        )
+        trading_simulator[strategy.__name__]["holdings"][ticker][
+            "1day_sp500_return"
+        ] = current_regime_data[1]
         # new end
 
-
     elif (
-        decision == "sell"
+        decision
+        == "sell"
         # and trading_simulator[strategy.__name__]["holdings"]
         # .get(ticker, {})
         # .get("quantity", 0)
@@ -385,7 +427,7 @@ def simulate_trading_day(
     train_tickers,
     precomputed_decisions,
     logger,
-    regime_tickers
+    regime_tickers,
 ):
     """
     Optimized version of simulate_trading_day that uses precomputed strategy decisions.
@@ -395,22 +437,23 @@ def simulate_trading_day(
     # calc previous day to retrieve action from precomuted decisions date to 1 day previous to avoid look-ahead bias.
     previous_date = current_date - timedelta(days=1)
     date_str_prev = previous_date.strftime("%Y-%m-%d")
-    
+
     logger.info(f"Simulating trading for {date_str}.")
 
     # new get daily regime data
     # daily_regime_data = ticker_price_history[regime_tickers[0]].loc[date_str]
     # current_vix_data = daily_regime_data["Close"].values[0]
-    current_vix_data = ticker_price_history[regime_tickers[0]].at[date_str, 'Close']
-    
+    current_vix_data = ticker_price_history[regime_tickers[0]].at[date_str, "Close"]
+
     # df_daily_sp500 = ticker_price_history['^GSPC'].loc[date_str]
     # current_1day_sp500_return = df_daily_sp500['1day_return'].values[0]
     # current_1day_sp500_return = ticker_price_history['^GSPC'].loc[date_str].values[0]
-    current_1day_sp500_return = ticker_price_history['^GSPC'].at[date_str, '1day_return']
+    current_1day_sp500_return = ticker_price_history["^GSPC"].at[
+        date_str, "1day_return"
+    ]
 
     # print(f"{current_date} {current_vix_data = }, {current_1day_sp500_return}")
     current_regime_data = [current_vix_data, current_1day_sp500_return]
-
 
     for ticker in train_tickers:
         if date_str in ticker_price_history[ticker].index:
@@ -444,16 +487,52 @@ def simulate_trading_day(
                 ]
 
                 # Compute trade decision and quantity based on precomputed action
-                if mode == 'train':
-                    decision, qty = compute_trade_quantities_only_buy_one(action, portfolio_qty)
+                # if mode == "train":
+                if mode == "train" or mode == "test":
+                    decision, qty = compute_trade_quantities_only_buy_one(
+                        action, portfolio_qty
+                    )
                     # Execute trade
-                    trading_simulator, points = execute_trade_only_buy_one(decision, qty, ticker, current_price, strategy, trading_simulator, points, time_delta, portfolio_qty, total_portfolio_value, current_regime_data, current_date, logger)
-                
-                else:
-                    decision, qty = compute_trade_quantities(action, current_price, account_cash, portfolio_qty, total_portfolio_value)
-                    # Execute trade
-                    trading_simulator, points = execute_trade(decision, qty, ticker, current_price, strategy, trading_simulator, points, time_delta, portfolio_qty, total_portfolio_value, current_regime_data, current_date, logger)
+                    trading_simulator, points = execute_trade_only_buy_one(
+                        decision,
+                        qty,
+                        ticker,
+                        current_price,
+                        strategy,
+                        trading_simulator,
+                        points,
+                        time_delta,
+                        portfolio_qty,
+                        total_portfolio_value,
+                        current_regime_data,
+                        current_date,
+                        logger,
+                    )
 
+                else:
+                    decision, qty = compute_trade_quantities(
+                        action,
+                        current_price,
+                        account_cash,
+                        portfolio_qty,
+                        total_portfolio_value,
+                    )
+                    # Execute trade
+                    trading_simulator, points = execute_trade(
+                        decision,
+                        qty,
+                        ticker,
+                        current_price,
+                        strategy,
+                        trading_simulator,
+                        points,
+                        time_delta,
+                        portfolio_qty,
+                        total_portfolio_value,
+                        current_regime_data,
+                        current_date,
+                        logger,
+                    )
 
     return trading_simulator, points
 
@@ -475,6 +554,7 @@ def compute_trade_quantities(
         return "sell", min(portfolio_qty, max(1, int(portfolio_qty * 0.5)))
     else:
         return "hold", 0
+
 
 def compute_trade_quantities_only_buy_one(action, portfolio_qty):
     """
@@ -603,6 +683,7 @@ def _process_single_day(
 
     return result
 
+
 def prepare_regime_data(ticker_price_history, logger):
     """
     Prepares regime data for trading simulation by calculating and storing
@@ -623,11 +704,21 @@ def prepare_regime_data(ticker_price_history, logger):
         dict: The updated ticker_price_history dictionary with the modified SP500 DataFrame.
     """
     try:
-        df_sp500 = ticker_price_history.get('^GSPC')
-        df_sp500['1day_return'] = df_sp500['Close'].pct_change()
-        ticker_price_history['^GSPC'] = df_sp500
-        save_df_to_csv(ticker_price_history['^GSPC'], "regime_sp500_data.csv", "results", logger=logger)
-        save_df_to_csv(ticker_price_history['^VIX'], "regime_vix_data.csv", "results", logger=logger)
+        df_sp500 = ticker_price_history.get("^GSPC")
+        df_sp500["1day_return"] = df_sp500["Close"].pct_change()
+        ticker_price_history["^GSPC"] = df_sp500
+        save_df_to_csv(
+            ticker_price_history["^GSPC"],
+            "regime_sp500_data.csv",
+            "results",
+            logger=logger,
+        )
+        save_df_to_csv(
+            ticker_price_history["^VIX"],
+            "regime_vix_data.csv",
+            "results",
+            logger=logger,
+        )
     except Exception as e:
         logger.error(f"Error procesing regime data {e}")
     return ticker_price_history

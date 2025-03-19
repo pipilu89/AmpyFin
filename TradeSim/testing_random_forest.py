@@ -32,6 +32,7 @@ from control import (
     train_trade_asset_limit,
     train_trade_liquidity_limit,
     regime_tickers,
+    train_trade_strategy_limit,
 )
 
 train_tickers
@@ -123,6 +124,7 @@ def execute_buy_orders(
                 "price": current_price,
                 "action": "buy",
                 "date": current_date.strftime("%Y-%m-%d"),
+                # "strategy": strategy_name,
             }
         )
 
@@ -132,6 +134,7 @@ def execute_buy_orders(
             "price": current_price,
             "stop_loss": current_price * (1 - train_stop_loss),
             "take_profit": current_price * (1 + train_take_profit),
+            # "strategy": strategy_name,
         }
 
     return account
@@ -329,6 +332,7 @@ def test_random_forest(
                                 "action": action,
                                 "prediction": prediction,
                                 "accuracy": accuracy,
+                                "current_price": current_price,
                             }
                         )
 
@@ -555,7 +559,7 @@ def strategy_and_tickers_weights(prediction_results_df):
         prediction_results_df["accuracy"] * prediction_results_df["prediction"]
     )
 
-    # return prediction_results_df.groupby(["strategy_name", "ticker"])["score"].sum()
+    return prediction_results_df.sort_values(by=["score"], ascending=False)
     return (
         prediction_results_df.groupby(["strategy_name", "ticker"])
         .sum()
@@ -564,10 +568,79 @@ def strategy_and_tickers_weights(prediction_results_df):
 
 
 if __name__ == "__main__":
+    account = initialize_test_account()
+
     # Load DataFrame from CSV in results folder
-    csv_file_path = os.path.join(results_dir, "prediction_results.csv")
+    csv_file_path = os.path.join(results_dir, "prediction_results2.csv")
     prediction_results_df = pd.read_csv(csv_file_path)
 
     # strategy_weights_df = strategy_weights(prediction_results_df)
     strategy_weights_df = strategy_and_tickers_weights(prediction_results_df)
     print(strategy_weights_df)
+
+    # Filter DataFrame where score > 0.5
+    filtered_df = strategy_weights_df[strategy_weights_df["score"] > 0.5]
+
+    # portfolio_qty = account["holdings"].get(ticker, {}).get("quantity", 0)
+    total_portfolio_value = account["total_portfolio_value"]
+
+    number_of_qualifing_strategies = len(filtered_df["strategy_name"].unique())
+
+    # number_of_tickers_in_qualifing_strategies = filtered_df.groupby("strategy_name")["ticker"].transform("count")
+    filtered_df["ticker_count"] = filtered_df.groupby("strategy_name")[
+        "ticker"
+    ].transform("count")
+
+    max_strategy_investment = total_portfolio_value * train_trade_strategy_limit
+
+    filtered_df["max_strategy_investment_per_ticker"] = (
+        max_strategy_investment / filtered_df["ticker_count"]
+    )
+
+    filtered_df["accuracy_adj_investment"] = (
+        filtered_df["max_strategy_investment_per_ticker"] * filtered_df["accuracy"]
+    )
+
+    # Apply compute_trade_quantities function
+    # for index, row in filtered_df.iterrows():
+    #     # for index, row in strategy_weights_df.iterrows():
+    #     ticker = row["ticker"]
+    #     strategy = row["strategy_name"]
+    #     action = row["action"]
+    #     accuracy = row["accuracy"]
+    #     current_price = row["current_price"]
+    #     account_cash = account["cash"]
+    #     portfolio_qty = account["holdings"].get(ticker, {}).get("quantity", 0)
+    #     total_portfolio_value = account["total_portfolio_value"]
+
+    #     new_action, qty = compute_trade_quantities(
+    #         action, current_price, account_cash, portfolio_qty, total_portfolio_value
+    #     )
+
+    #     filtered_df.at[index, "port_qty"] = portfolio_qty
+    #     filtered_df.at[index, "new_action"] = new_action
+    #     filtered_df.at[index, "quantity"] = qty
+
+    #     # number_of_qualifing_strategies = len(
+    #     #     strategy_weights_df[strategy_weights_df["score"] > 0.5][
+    #     #         "strategy_name"
+    #     #     ].unique()
+    #     # )
+    #     number_of_qualifing_strategies = len(filtered_df["strategy_name"].unique())
+    #     number_of_tickers_in_qualifing_strategies = len(
+    #         filtered_df[filtered_df["strategy_name"] == strategy]
+    #     )
+    #     max_strategy_investment = total_portfolio_value * train_trade_strategy_limit
+    #     # max_strategy_investment = min(
+    #     #     (total_portfolio_value * train_trade_strategy_limit),
+    #     #     (account_cash / number_of_qualifing_strategies),
+    #     # )
+    #     max_strategy_investment_per_ticker = (
+    #         max_strategy_investment / number_of_tickers_in_qualifing_strategies
+    #     )
+    #     accuracy_adj_investment = max_strategy_investment_per_ticker * accuracy
+
+    #     filtered_df.at[index, "max_investment"] = max_strategy_investment_per_ticker
+    #     filtered_df.at[index, "adj_investment"] = accuracy_adj_investment
+
+    print(filtered_df)
