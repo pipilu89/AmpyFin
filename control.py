@@ -122,7 +122,7 @@ you are allowed to hold in comparison to portfolio value for the training client
 The lower this number, the more diversification you will have in your portfolio. The higher the number,
 the less diversification you will have but it will be buying more selective assets.
 """
-train_trade_asset_limit = 0.4
+train_trade_asset_limit = 0.1
 train_trade_strategy_limit = 0.2
 
 """

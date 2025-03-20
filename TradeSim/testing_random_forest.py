@@ -111,7 +111,7 @@ def execute_buy_orders(
         else:
             break
 
-        _, quantity, ticker = heapq.heappop(heap)
+        _, quantity, ticker, strategy_name = heapq.heappop(heap)
         # print(f"Executing BUY order for {ticker} of quantity {quantity}")
         current_price = ticker_price_history[ticker].loc[
             current_date.strftime("%Y-%m-%d")
@@ -124,7 +124,7 @@ def execute_buy_orders(
                 "price": current_price,
                 "action": "buy",
                 "date": current_date.strftime("%Y-%m-%d"),
-                # "strategy": strategy_name,
+                "strategy": strategy_name,
             }
         )
 
@@ -134,7 +134,7 @@ def execute_buy_orders(
             "price": current_price,
             "stop_loss": current_price * (1 - train_stop_loss),
             "take_profit": current_price * (1 + train_take_profit),
-            # "strategy": strategy_name,
+            "strategy": strategy_name,
         }
 
     return account
@@ -445,6 +445,11 @@ def test_random_forest(
         csv_file_path = os.path.join(results_dir, "prediction_results.csv")
         prediction_results_df.to_csv(csv_file_path, index=False)
 
+        holdings_value_by_strategy = get_holdings_value_by_strategy(
+            account, ticker_price_history, current_date
+        )
+        print(f"{holdings_value_by_strategy = }")
+
         # Execute buy orders
         account = execute_buy_orders(
             buy_heap, suggestion_heap, account, ticker_price_history, current_date
@@ -567,80 +572,175 @@ def strategy_and_tickers_weights(prediction_results_df):
     )
 
 
+def get_holdings_value_by_strategy(account, ticker_price_history, current_date):
+    """
+    Calculates the current value of existing holdings by strategy.
+    """
+    holdings_value_by_strategy = {}
+    for ticker, holding in account["holdings"].items():
+        strategy = holding["strategy"]
+        current_price = ticker_price_history[ticker].loc[
+            current_date.strftime("%Y-%m-%d")
+        ]["Close"]
+        holding_value = holding["quantity"] * current_price
+
+        if strategy not in holdings_value_by_strategy:
+            holdings_value_by_strategy[strategy] = 0
+        holdings_value_by_strategy[strategy] += holding_value
+
+    return holdings_value_by_strategy
+
+
 if __name__ == "__main__":
-    account = initialize_test_account()
+    # account = initialize_test_account()
+    account = {
+        "holdings": {
+            "AAPL": {
+                "quantity": 10,
+                "price": 100,
+                "strategy": "MEDPRICE_indicator",
+            },
+            "MSFT": {
+                "quantity": 10,
+                "price": 300,
+                "strategy": "WCLPRICE_indicator",
+            },
+        },
+        "cash": train_start_cash,
+        "trades": [],
+        "total_portfolio_value": train_start_cash,
+    }
+
+    holdings_value_by_strategy = {
+        "MEDPRICE_indicator": 1500.0,
+        "WCLPRICE_indicator": 3000.0,
+    }
 
     # Load DataFrame from CSV in results folder
     csv_file_path = os.path.join(results_dir, "prediction_results2.csv")
     prediction_results_df = pd.read_csv(csv_file_path)
 
-    # strategy_weights_df = strategy_weights(prediction_results_df)
+    # Calculate strategy and tickers weights
     strategy_weights_df = strategy_and_tickers_weights(prediction_results_df)
-    print(strategy_weights_df)
+    # print(strategy_weights_df)
 
     # Filter DataFrame where score > 0.5
-    filtered_df = strategy_weights_df[strategy_weights_df["score"] > 0.5]
+    qualifing_strategies_df = strategy_weights_df[strategy_weights_df["score"] > 0.5]
 
     # portfolio_qty = account["holdings"].get(ticker, {}).get("quantity", 0)
     total_portfolio_value = account["total_portfolio_value"]
 
-    number_of_qualifing_strategies = len(filtered_df["strategy_name"].unique())
+    number_of_qualifing_strategies = len(
+        qualifing_strategies_df["strategy_name"].unique()
+    )
 
-    # number_of_tickers_in_qualifing_strategies = filtered_df.groupby("strategy_name")["ticker"].transform("count")
-    filtered_df["ticker_count"] = filtered_df.groupby("strategy_name")[
-        "ticker"
-    ].transform("count")
+    # number_of_tickers_in_qualifing_strategies
+    qualifing_strategies_df["ticker_count"] = qualifing_strategies_df.groupby(
+        "strategy_name"
+    )["ticker"].transform("count")
 
+    # max_strategy_investment = total_portfolio_value * train_trade_strategy_limit
     max_strategy_investment = total_portfolio_value * train_trade_strategy_limit
+    print(f"{max_strategy_investment = }")
 
-    filtered_df["max_strategy_investment_per_ticker"] = (
-        max_strategy_investment / filtered_df["ticker_count"]
+    qualifing_strategies_df["max_s_cash"] = max_strategy_investment
+
+    # Create a new column max_s_cash_adj in qualifing_strategies_df
+    holdings_value_df = pd.DataFrame.from_dict(
+        holdings_value_by_strategy, orient="index", columns=["holdings_value"]
     )
 
-    filtered_df["accuracy_adj_investment"] = (
-        filtered_df["max_strategy_investment_per_ticker"] * filtered_df["accuracy"]
+    qualifing_strategies_df = qualifing_strategies_df.merge(
+        holdings_value_df, left_on="strategy_name", right_index=True, how="left"
     )
 
-    # Apply compute_trade_quantities function
-    # for index, row in filtered_df.iterrows():
-    #     # for index, row in strategy_weights_df.iterrows():
-    #     ticker = row["ticker"]
-    #     strategy = row["strategy_name"]
-    #     action = row["action"]
-    #     accuracy = row["accuracy"]
-    #     current_price = row["current_price"]
-    #     account_cash = account["cash"]
-    #     portfolio_qty = account["holdings"].get(ticker, {}).get("quantity", 0)
-    #     total_portfolio_value = account["total_portfolio_value"]
+    qualifing_strategies_df["holdings_value"] = qualifing_strategies_df[
+        "holdings_value"
+    ].fillna(0)
+    qualifing_strategies_df["max_s_cash_adj"] = (
+        qualifing_strategies_df["max_s_cash"]
+        - qualifing_strategies_df["holdings_value"]
+    )
 
-    #     new_action, qty = compute_trade_quantities(
-    #         action, current_price, account_cash, portfolio_qty, total_portfolio_value
+    print(qualifing_strategies_df)
+
+    # max available cash for each strategy divided by the number of tickers in that strategy
+    qualifing_strategies_df["max_s_t_cash"] = (
+        qualifing_strategies_df["max_s_cash_adj"]
+        / qualifing_strategies_df["ticker_count"]
+    )
+
+    # Adjust max_s_t_cash based on existing holdings
+    # for strategy_name, group in qualifing_strategies_df.groupby("strategy_name"):
+    #     existing_holding_value = sum(
+    #         account["holdings"].get(ticker, {}).get("quantity", 0)
+    #         * row["current_price"]
+    #         for ticker, row in group.iterrows()
+    #         if account["holdings"].get(ticker, {}).get("strategy") == strategy_name
+    #     )
+    #     # print(f"{account["holdings"].get(ticker, {}).get("quantity", 0) = } {strategy_name}")
+    #     # print(f"{existing_holding_value = } {strategy_name}")
+    #     print(f"{existing_holding_value = } {strategy_name}")
+    #     remaining_investment = max(0, max_strategy_investment - existing_holding_value)
+    #     qualifing_strategies_df.loc[group.index, "max_s_t_cash"] = (
+    #         remaining_investment / group["ticker_count"]
     #     )
 
-    #     filtered_df.at[index, "port_qty"] = portfolio_qty
-    #     filtered_df.at[index, "new_action"] = new_action
-    #     filtered_df.at[index, "quantity"] = qty
+    qualifing_strategies_df["accuracy_adj_investment"] = (
+        qualifing_strategies_df["max_s_t_cash"] * qualifing_strategies_df["accuracy"]
+    )
 
-    #     # number_of_qualifing_strategies = len(
-    #     #     strategy_weights_df[strategy_weights_df["score"] > 0.5][
-    #     #         "strategy_name"
-    #     #     ].unique()
-    #     # )
-    #     number_of_qualifing_strategies = len(filtered_df["strategy_name"].unique())
-    #     number_of_tickers_in_qualifing_strategies = len(
-    #         filtered_df[filtered_df["strategy_name"] == strategy]
-    #     )
-    #     max_strategy_investment = total_portfolio_value * train_trade_strategy_limit
-    #     # max_strategy_investment = min(
-    #     #     (total_portfolio_value * train_trade_strategy_limit),
-    #     #     (account_cash / number_of_qualifing_strategies),
-    #     # )
-    #     max_strategy_investment_per_ticker = (
-    #         max_strategy_investment / number_of_tickers_in_qualifing_strategies
-    #     )
-    #     accuracy_adj_investment = max_strategy_investment_per_ticker * accuracy
+    # calc investment considering asset limit
+    # asset_limit = train_trade_asset_limit
+    asset_limit = 0.25
+    assest_limit_value = asset_limit * total_portfolio_value
+    print(f"{assest_limit_value = }")
 
-    #     filtered_df.at[index, "max_investment"] = max_strategy_investment_per_ticker
-    #     filtered_df.at[index, "adj_investment"] = accuracy_adj_investment
+    # Calculate cumulative investment for each ticker
+    qualifing_strategies_df["cum_investment"] = qualifing_strategies_df.groupby(
+        "ticker"
+    )["accuracy_adj_investment"].cumsum()
 
-    print(filtered_df)
+    # Allocate cash based on accuracy_adj_investment until cash is exhausted
+    # remaining_cash = assest_limit_value # min of account['cash'] divided by number of tickers? and assest_limit_value.
+    qualifing_strategies_df["allocated_cash"] = 0
+
+    for ticker, group in qualifing_strategies_df.groupby("ticker"):
+        # Calculate the remaining cash available for this ticker after considering existing holdings
+        existing_holding_value = (
+            account["holdings"].get(ticker, {}).get("quantity", 0)
+            * group.iloc[0]["current_price"]
+        )
+        remaining_cash = max(0, assest_limit_value - existing_holding_value)
+
+        for index, row in group.iterrows():
+            if remaining_cash <= 0:
+                break
+            allocation = min(row["accuracy_adj_investment"], remaining_cash)
+            qualifing_strategies_df.at[index, "allocated_cash"] = allocation
+            remaining_cash -= allocation
+
+    # Filter DataFrame where cum_investment < assest_limit_value
+    # qualifing_strategies_df = qualifing_strategies_df[
+    #     qualifing_strategies_df["cum_investment"] <= assest_limit_value
+    # ]
+
+    print(qualifing_strategies_df)
+
+    # Execute buy orders
+    # buy_heap = []
+    # for index, row in qualifing_strategies_df.iterrows():
+    #     if row["allocated_cash"] > 0:
+    #         heapq.heappush(
+    #             buy_heap,
+    #             (
+    #                 -row["score"],
+    #                 row["allocated_cash"] // row["current_price"],
+    #                 row["ticker"],
+    #                 row["strategy_name"],
+    #             ),
+    #         )
+
+    # account = execute_buy_orders(
+    #     buy_heap, [], account, ticker_price_history, current_date
+    # )
