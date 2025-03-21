@@ -1,10 +1,16 @@
 import unittest
 import pandas as pd
 from datetime import datetime
+import sys
+import os
+
+# Add parent directory to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from TradeSim.testing_random_forest import strategy_and_ticker_cash_allocation
 
-# python -m unittest discover -s c:\Users\pi\code\AmpyFin\TradeSim\tests -p "test_strategy_and_ticker_cash_allocation.py"
+
+# python -m unittest discover -s c:\Users\pi\code\AmpyFin\tests -p "test_strategy_and_ticker_cash_allocation.py"
 
 
 class TestStrategyAndTickerCashAllocation(unittest.TestCase):

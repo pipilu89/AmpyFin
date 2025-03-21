@@ -457,6 +457,15 @@ def test_random_forest(
         )
         print(f"{holdings_value_by_strategy = }")
 
+        buy_df = strategy_and_ticker_cash_allocation(
+            prediction_results_df,
+            account,
+            holdings_value_by_strategy,
+            prediction_threshold,
+            asset_limit,
+            strategy_limit,
+        )
+
         # Execute buy orders
         account = execute_buy_orders(
             buy_heap, suggestion_heap, account, ticker_price_history, current_date
@@ -707,9 +716,24 @@ def strategy_and_ticker_cash_allocation(
             remaining_cash -= allocation
             available_cash -= allocation
 
-    return qualifying_strategies_df[["strategy_name", "ticker", "allocated_cash"]][
-        qualifying_strategies_df["allocated_cash"] > 0
-    ]
+    return qualifying_strategies_df[
+        ["strategy_name", "ticker", "current_price", "score", "allocated_cash"]
+    ][qualifying_strategies_df["allocated_cash"] > 0]
+
+
+def create_buy_heap(buy_df):
+    buy_heap = []
+    for index, row in buy_df.iterrows():
+        heapq.heappush(
+            buy_heap,
+            (
+                -row["score"],
+                row["allocated_cash"] // row["current_price"],  # qty
+                row["ticker"],
+                row["strategy_name"],
+            ),
+        )
+    return buy_heap
 
 
 if __name__ == "__main__":
@@ -769,6 +793,9 @@ if __name__ == "__main__":
     )
     print(buy_df)
 
+    buy_heap = create_buy_heap(buy_df)
+
+    print(buy_heap)
     # todo:
     # tests
     # need to update functions to handle modified account structure
