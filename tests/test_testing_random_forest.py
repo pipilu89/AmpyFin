@@ -1,12 +1,17 @@
 import unittest
-import pandas as pd
 import sys
 import os
+import pandas as pd
+from datetime import datetime
 
 # Add parent directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from TradeSim.testing_random_forest import create_buy_heap
+from TradeSim.testing_random_forest import (
+    create_buy_heap,
+    execute_buy_orders,
+    update_account_portfolio_values,
+)
 
 
 class TestCreateBuyHeap(unittest.TestCase):
@@ -45,6 +50,227 @@ class TestCreateBuyHeap(unittest.TestCase):
         )
         buy_heap = create_buy_heap(empty_df)
         self.assertEqual(buy_heap, [])
+
+        # Add parent directory to sys.path
+        sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+
+class TestExecuteBuyOrders(unittest.TestCase):
+    def setUp(self):
+        self.maxDiff = None
+        self.train_stop_loss = 0.1
+        self.train_take_profit = 0.1
+        self.buy_heap = [
+            (-0.9, 10, "AAPL", 100, "strategy1"),
+            (-0.8, 10, "MSFT", 80, "strategy2"),
+            (-0.7, 10, "GOOGL", 60, "strategy3"),
+        ]
+        self.suggestion_heap = []
+        self.account = {
+            "holdings": {},
+            "cash": 5000,
+            "trades": [],
+            "total_portfolio_value": 5000,
+        }
+        self.current_date = datetime.strptime("2023-10-01", "%Y-%m-%d")
+        self.train_trade_liquidity_limit = 1000
+
+    def test_execute_buy_orders(self):
+        updated_account = execute_buy_orders(
+            self.buy_heap,
+            self.suggestion_heap,
+            self.account,
+            self.current_date,
+            self.train_trade_liquidity_limit,
+            self.train_stop_loss,
+            self.train_take_profit,
+        )
+
+        print(f"{updated_account =}")
+
+        expected_account = {
+            "holdings": {
+                "AAPL": {
+                    "strategy1": {
+                        "quantity": 10,
+                        "price": 100,
+                        "stop_loss": 90.0,
+                        "take_profit": 110.0,
+                    }
+                },
+                "MSFT": {
+                    "strategy2": {
+                        "quantity": 10,
+                        "price": 80,
+                        "stop_loss": 72.0,
+                        "take_profit": 88.0,
+                    }
+                },
+                "GOOGL": {
+                    "strategy3": {
+                        "quantity": 10,
+                        "price": 60,
+                        "stop_loss": 54.0,
+                        "take_profit": 66.0,
+                    }
+                },
+            },
+            "cash": 5000 - (10 * 100 + 10 * 80 + 10 * 60),
+            "trades": [
+                {
+                    "symbol": "AAPL",
+                    "quantity": 10,
+                    "price": 100,
+                    "action": "buy",
+                    "date": "2023-10-01",
+                    "strategy": "strategy1",
+                },
+                {
+                    "symbol": "MSFT",
+                    "quantity": 10,
+                    "price": 80,
+                    "action": "buy",
+                    "date": "2023-10-01",
+                    "strategy": "strategy2",
+                },
+                {
+                    "symbol": "GOOGL",
+                    "quantity": 10,
+                    "price": 60,
+                    "action": "buy",
+                    "date": "2023-10-01",
+                    "strategy": "strategy3",
+                },
+            ],
+            "total_portfolio_value": 5000,
+        }
+        # doesn't calc total_portfolio_value. there is a separate function for this.
+        self.assertEqual(updated_account, expected_account)
+
+    def test_execute_buy_orders_insufficient_cash(self):
+        self.account["cash"] = 100
+        updated_account = execute_buy_orders(
+            self.buy_heap,
+            self.suggestion_heap,
+            self.account,
+            self.current_date,
+            self.train_trade_liquidity_limit,
+            self.train_stop_loss,
+            self.train_take_profit,
+        )
+        print(updated_account)
+        expected_account = {
+            "holdings": {},
+            "cash": 100,
+            "trades": [],
+            "total_portfolio_value": 5000,
+        }
+        self.assertEqual(updated_account, expected_account)
+
+
+class TestUpdateAccountPortfolioValues(unittest.TestCase):
+    def setUp(self):
+        self.account = {
+            "holdings": {
+                "AAPL": {
+                    "strategy1": {
+                        "quantity": 10,
+                        "price": 100,
+                    }
+                },
+                "MSFT": {
+                    "strategy2": {
+                        "quantity": 5,
+                        "price": 200,
+                    }
+                },
+            },
+            "cash": 1000,
+            "total_portfolio_value": 2000,
+        }
+        self.ticker_price_history = {
+            "AAPL": pd.DataFrame(
+                {
+                    "Close": [150, 155],
+                },
+                index=[
+                    datetime.strptime("2023-10-01", "%Y-%m-%d"),
+                    datetime.strptime("2023-10-02", "%Y-%m-%d"),
+                ],
+            ),
+            "MSFT": pd.DataFrame(
+                {
+                    "Close": [250, 255],
+                },
+                index=[
+                    datetime.strptime("2023-10-01", "%Y-%m-%d"),
+                    datetime.strptime("2023-10-02", "%Y-%m-%d"),
+                ],
+            ),
+        }
+        self.current_date = datetime.strptime("2023-10-01", "%Y-%m-%d")
+
+    def test_update_account_portfolio_values(self):
+        updated_account = update_account_portfolio_values(
+            self.account, self.ticker_price_history, self.current_date
+        )
+        expected_account = {
+            "holdings": {
+                "AAPL": {
+                    "strategy1": {
+                        "quantity": 10,
+                        "price": 100,
+                    }
+                },
+                "MSFT": {
+                    "strategy2": {
+                        "quantity": 5,
+                        "price": 200,
+                    }
+                },
+            },
+            "cash": 1000,
+            "total_portfolio_value": 1000 + (10 * 150) + (5 * 250),
+        }
+        self.assertEqual(updated_account, expected_account)
+
+    def test_update_account_portfolio_values_empty_holdings(self):
+        self.account["holdings"] = {}
+        updated_account = update_account_portfolio_values(
+            self.account, self.ticker_price_history, self.current_date
+        )
+        expected_account = {
+            "holdings": {},
+            "cash": 1000,
+            "total_portfolio_value": 1000,
+        }
+        self.assertEqual(updated_account, expected_account)
+
+    @unittest.skip("Skipping. how to handle this case?")
+    def test_update_account_portfolio_values_no_price_data(self):
+        self.current_date = datetime.strptime("2023-10-03", "%Y-%m-%d")
+        updated_account = update_account_portfolio_values(
+            self.account, self.ticker_price_history, self.current_date
+        )
+        expected_account = {
+            "holdings": {
+                "AAPL": {
+                    "strategy1": {
+                        "quantity": 10,
+                        "price": 100,  # 150
+                    }
+                },
+                "MSFT": {
+                    "strategy2": {
+                        "quantity": 5,
+                        "price": 200,  # 250
+                    }
+                },
+            },
+            "cash": 1000,
+            "total_portfolio_value": 3750,
+        }
+        self.assertEqual(updated_account, expected_account)
 
 
 if __name__ == "__main__":

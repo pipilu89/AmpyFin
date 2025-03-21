@@ -120,7 +120,15 @@ def check_stop_loss_take_profit(account, ticker, current_price):
     return account
 
 
-def execute_buy_orders(buy_heap, suggestion_heap, account, current_date):
+def execute_buy_orders(
+    buy_heap,
+    suggestion_heap,
+    account,
+    current_date,
+    train_trade_liquidity_limit,
+    train_stop_loss,
+    train_take_profit,
+):
     """
     Executes buy orders from the buy and suggestion heaps.
     Creates stop-loss and take-profit prices.
@@ -172,11 +180,11 @@ def execute_buy_orders(buy_heap, suggestion_heap, account, current_date):
 
         account["holdings"][ticker][strategy_name]["quantity"] += round(quantity, 2)
         account["holdings"][ticker][strategy_name]["price"] = current_price
-        account["holdings"][ticker][strategy_name]["stop_loss"] = current_price * (
-            1 - train_stop_loss
+        account["holdings"][ticker][strategy_name]["stop_loss"] = round(
+            current_price * (1 - train_stop_loss), 2
         )
-        account["holdings"][ticker][strategy_name]["take_profit"] = current_price * (
-            1 + train_take_profit
+        account["holdings"][ticker][strategy_name]["take_profit"] = round(
+            current_price * (1 + train_take_profit), 2
         )
 
     return account
@@ -250,7 +258,7 @@ def test_random_forest(
     # need to store classifiers as pickle .pkl file separately from metadata because it is not json serializable.
     # store_dict_as_json(trained_classifiers, f"{config_dict['experiment_name']}_trained_classifiers.json", results_dir, logger)
 
-    # Get rank coefficients from database
+    # Get rank coefficients from database. needed?
     db = mongo_client.trading_simulator
     r_t_c = db.rank_to_coefficient
     rank_to_coefficient = {doc["rank"]: doc["coefficient"] for doc in r_t_c.find({})}
@@ -511,7 +519,7 @@ def test_random_forest(
         # Execute buy orders, create sl and tp prices
         account = execute_buy_orders(buy_heap, suggestion_heap, account, current_date)
 
-        # Simulate ranking updates
+        # Simulate ranking updates. Updates list of trades.
         trading_simulator, points = simulate_trading_day(
             current_date,
             strategies,
@@ -765,6 +773,20 @@ def create_buy_heap(buy_df):
     return buy_heap
 
 
+def update_account_portfolio_values(account, ticker_price_history, current_date):
+    # Calculate and update total portfolio value
+    total_value = account["cash"]
+    for ticker, account_strategies in account["holdings"].items():
+        for strategy, holding in account_strategies.items():
+            current_price = ticker_price_history[ticker].loc[
+                current_date.strftime("%Y-%m-%d")
+            ]["Close"]
+            total_value += holding["quantity"] * current_price
+    account["total_portfolio_value"] = total_value
+
+    return account
+
+
 if __name__ == "__main__":
     # account = initialize_test_account()
     current_date = datetime.strptime("2021-01-01", "%Y-%m-%d")
@@ -812,6 +834,7 @@ if __name__ == "__main__":
     # asset_limit = train_trade_asset_limit
     asset_limit = 0.25
     strategy_limit = train_trade_strategy_limit
+    train_trade_liquidity_limit = 10
 
     buy_df = strategy_and_ticker_cash_allocation(
         prediction_results_df,
@@ -829,9 +852,57 @@ if __name__ == "__main__":
 
     suggestion_heap = []
 
-    account = execute_buy_orders(buy_heap, suggestion_heap, account, current_date)
+    account = execute_buy_orders(
+        buy_heap,
+        suggestion_heap,
+        account,
+        current_date,
+        train_trade_liquidity_limit,
+        train_stop_loss,
+        train_take_profit,
+    )
 
     print(account)
+
+    # Create ticker_price_history_df
+    # Example data for AAPL
+    data_aapl = {
+        "Date": ["2025-03-20", "2025-03-21"],
+        "Open": [148.00, 150.00],
+        "High": [151.00, 153.00],
+        "Low": [147.00, 149.00],
+        "Close": [150.00, 152.00],
+        "Volume": [1000000, 1100000],
+    }
+
+    # Example data for MSFT
+    data_msft = {
+        "Date": ["2025-03-20", "2025-03-21"],
+        "Open": [248.00, 250.00],
+        "High": [251.00, 255.00],
+        "Low": [247.00, 249.00],
+        "Close": [250.00, 255.00],
+        "Volume": [2000000, 2100000],
+    }
+
+    # Convert to DataFrame and set the Date as the index
+    df_aapl = pd.DataFrame(data_aapl)
+    df_aapl["Date"] = pd.to_datetime(df_aapl["Date"])
+    df_aapl.set_index("Date", inplace=True)
+
+    df_msft = pd.DataFrame(data_msft)
+    df_msft["Date"] = pd.to_datetime(df_msft["Date"])
+    df_msft.set_index("Date", inplace=True)
+
+    # Create ticker_price_history dictionary
+    ticker_price_history = {
+        "AAPL": df_aapl,
+        "MSFT": df_msft,
+    }
+
+    # account = update_account_portfolio_values(
+    #     account, ticker_price_history, current_date
+    # )
 
     account = {
         "holdings": {
