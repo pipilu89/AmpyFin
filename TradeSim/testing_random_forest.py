@@ -32,10 +32,11 @@ from control import (
     train_take_profit,
     train_tickers,
     train_time_delta_mode,
-    train_trade_asset_limit,
     train_trade_liquidity_limit,
     regime_tickers,
+    train_trade_asset_limit,
     train_trade_strategy_limit,
+    prediction_threshold,
 )
 
 train_tickers
@@ -61,8 +62,9 @@ ca = certifi.where()
 
 
 # Check if the module is being run as part of a unit test
-if "unittest" not in sys.modules:
-    mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
+# if "unittest" not in sys.modules:
+#     mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
+mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
 
 
 def initialize_test_account():
@@ -79,34 +81,58 @@ def initialize_test_account():
 
 def check_stop_loss_take_profit(account, ticker, current_price):
     """
-    Checks and executes stop loss and take profit orders
+    Checks and executes stop loss and take profit orders for a given ticker.
+
+    Parameters:
+    - account (dict): The current account state, including holdings, cash, and trades.
+    - ticker (str): The ticker symbol of the asset to check.
+    - current_price (float): The current price of the asset.
+
+    Returns:
+    - dict: The updated account state after executing stop loss and take profit orders.
     """
     if ticker in account["holdings"]:
-        if account["holdings"][ticker]["quantity"] > 0:
-            if (
-                current_price < account["holdings"][ticker]["stop_loss"]
-                or current_price > account["holdings"][ticker]["take_profit"]
-            ):
-                account["trades"].append(
-                    {
-                        "symbol": ticker,
-                        "quantity": account["holdings"][ticker]["quantity"],
-                        "price": current_price,
-                        "action": "sell",
-                    }
-                )
-                account["cash"] += (
-                    account["holdings"][ticker]["quantity"] * current_price
-                )
-                del account["holdings"][ticker]
+        strategies_to_remove = []
+        for strategy, holding in account["holdings"][ticker].items():
+            if holding["quantity"] > 0:
+                if (
+                    current_price < holding["stop_loss"]
+                    or current_price > holding["take_profit"]
+                ):
+                    account["trades"].append(
+                        {
+                            "symbol": ticker,
+                            "quantity": holding["quantity"],
+                            "price": current_price,
+                            "action": "sell",
+                            "strategy": strategy,
+                        }
+                    )
+                    account["cash"] += holding["quantity"] * current_price
+                    strategies_to_remove.append(strategy)
+
+        for strategy in strategies_to_remove:
+            del account["holdings"][ticker][strategy]
+
+        if not account["holdings"][ticker]:
+            del account["holdings"][ticker]
+
     return account
 
 
-def execute_buy_orders(
-    buy_heap, suggestion_heap, account, ticker_price_history, current_date
-):
+def execute_buy_orders(buy_heap, suggestion_heap, account, current_date):
     """
-    Executes buy orders from the buy and suggestion heaps
+    Executes buy orders from the buy and suggestion heaps.
+    Creates stop-loss and take-profit prices.
+
+    Parameters:
+    - buy_heap (list): A heap of buy orders to execute.
+    - suggestion_heap (list): A heap of suggested buy orders to execute.
+    - account (dict): The current account state, including holdings, cash, and trades.
+    - current_date (datetime): The current date for executing the buy orders.
+
+    Returns:
+    - dict: The updated account state after executing the buy orders.
     """
     while (buy_heap or suggestion_heap) and float(
         account["cash"]
@@ -118,11 +144,8 @@ def execute_buy_orders(
         else:
             break
 
-        _, quantity, ticker, strategy_name = heapq.heappop(heap)
-        # print(f"Executing BUY order for {ticker} of quantity {quantity}")
-        current_price = ticker_price_history[ticker].loc[
-            current_date.strftime("%Y-%m-%d")
-        ]["Close"]
+        _, quantity, ticker, current_price, strategy_name = heapq.heappop(heap)
+        print(f"Executing BUY order for {ticker} of quantity {quantity}")
 
         account["trades"].append(
             {
@@ -136,13 +159,25 @@ def execute_buy_orders(
         )
 
         account["cash"] -= quantity * current_price
-        account["holdings"][ticker] = {
-            "quantity": quantity,
-            "price": current_price,
-            "stop_loss": current_price * (1 - train_stop_loss),
-            "take_profit": current_price * (1 + train_take_profit),
-            "strategy": strategy_name,
-        }
+        if ticker not in account["holdings"]:
+            account["holdings"][ticker] = {}
+
+        if strategy_name not in account["holdings"][ticker]:
+            account["holdings"][ticker][strategy_name] = {
+                "quantity": 0,
+                "price": 0,
+                "stop_loss": 0,
+                "take_profit": 0,
+            }
+
+        account["holdings"][ticker][strategy_name]["quantity"] += round(quantity, 2)
+        account["holdings"][ticker][strategy_name]["price"] = current_price
+        account["holdings"][ticker][strategy_name]["stop_loss"] = current_price * (
+            1 - train_stop_loss
+        )
+        account["holdings"][ticker][strategy_name]["take_profit"] = current_price * (
+            1 + train_take_profit
+        )
 
     return account
 
@@ -183,7 +218,12 @@ def update_strategy_ranks(strategies, points, trading_simulator):
 
 
 def test_random_forest(
-    ticker_price_history, ideal_period, mongo_client, precomputed_decisions, logger
+    ticker_price_history,
+    ideal_period,
+    mongo_client,
+    precomputed_decisions,
+    # strategies,
+    logger,
 ):
     """
     Runs the testing phase of the trading simulator.
@@ -268,7 +308,7 @@ def test_random_forest(
             strategy_to_coefficient[strategy.__name__] = rank_to_coefficient[
                 rank[strategy.__name__]
             ]
-        # logger.info(f"Strategy coefficients updated: {strategy_to_coefficient}")
+        logger.info(f"Strategy coefficients updated: {strategy_to_coefficient}")
 
         # Process trading day
         buy_heap, suggestion_heap = [], []
@@ -339,7 +379,7 @@ def test_random_forest(
                                 "action": action,
                                 "prediction": prediction,
                                 "accuracy": accuracy,
-                                "current_price": current_price,
+                                "current_price": round(current_price, 2),
                             }
                         )
 
@@ -462,14 +502,14 @@ def test_random_forest(
             account,
             holdings_value_by_strategy,
             prediction_threshold,
-            asset_limit,
-            strategy_limit,
+            train_trade_asset_limit,
+            train_trade_strategy_limit,
         )
 
-        # Execute buy orders
-        account = execute_buy_orders(
-            buy_heap, suggestion_heap, account, ticker_price_history, current_date
-        )
+        buy_heap = create_buy_heap(buy_df)
+
+        # Execute buy orders, create sl and tp prices
+        account = execute_buy_orders(buy_heap, suggestion_heap, account, current_date)
 
         # Simulate ranking updates
         trading_simulator, points = simulate_trading_day(
@@ -492,22 +532,32 @@ def test_random_forest(
             current_date, strategies, trading_simulator, ticker_price_history, logger
         )
 
-        # Update time delta
+        # Update time delta needed?
         # time_delta = update_time_delta(time_delta, train_time_delta_mode)
 
-        # Calculate and update total portfolio value
+        # # Calculate and update total portfolio value
         total_value = account["cash"]
-        for ticker in account["holdings"]:
-            current_price = ticker_price_history[ticker].loc[
-                current_date.strftime("%Y-%m-%d")
-            ]["Close"]
-            total_value += account["holdings"][ticker]["quantity"] * current_price
+        for ticker, account_strategies in account["holdings"].items():
+            for strategy, holding in account_strategies.items():
+                current_price = ticker_price_history[ticker].loc[
+                    current_date.strftime("%Y-%m-%d")
+                ]["Close"]
+                total_value += holding["quantity"] * current_price
         account["total_portfolio_value"] = total_value
+
+        # Calculate and update total portfolio value
+        # total_value = account["cash"]
+        # for ticker in account["holdings"]:
+        #     current_price = ticker_price_history[ticker].loc[
+        #         current_date.strftime("%Y-%m-%d")
+        #     ]["Close"]
+        #     total_value += account["holdings"][ticker]["quantity"] * current_price
+        # account["total_portfolio_value"] = total_value
 
         # Update account values for metrics
         account_values[current_date] = total_value
 
-        # Update rankings
+        # Update rankings #needed?
         rank = update_strategy_ranks(strategies, points, trading_simulator)
 
         # Log daily results
@@ -541,51 +591,6 @@ def test_random_forest(
     logger.info(f"Account Cash: ${account['cash']: ,.2f}")
     logger.info(f"Total Portfolio Value: ${account['total_portfolio_value']: ,.2f}")
     logger.info("-------------------------------------------------")
-
-
-def strategy_weights(prediction_results_df):
-    """
-    Calculates the weights for each strategy based on the prediction results
-    """
-    high_threshold_bonus = 100
-    low_threshold_bonus = 1
-    strategy_weights = {}
-    for strategy_name in prediction_results_df["strategy_name"].unique():
-        strategy_df = prediction_results_df[
-            prediction_results_df["strategy_name"] == strategy_name
-        ]
-        strategy_df = strategy_df.dropna()
-        strategy_df = strategy_df[strategy_df["action"] == "Buy"]
-        strategy_df = strategy_df[strategy_df["prediction"] == 1]
-        strategy_df = strategy_df[strategy_df["accuracy"] > 0.75]
-
-        strategy_weights[strategy_name] = len(strategy_df) * high_threshold_bonus
-
-    for strategy_name in prediction_results_df["strategy_name"].unique():
-        strategy_df = prediction_results_df[
-            prediction_results_df["strategy_name"] == strategy_name
-        ]
-        strategy_df = strategy_df.dropna()
-        strategy_df = strategy_df[strategy_df["action"] == "Buy"]
-        strategy_df = strategy_df[strategy_df["prediction"] == 1]
-        strategy_df = strategy_df[strategy_df["accuracy"] > 0.51]
-
-        strategy_weights[strategy_name] += len(strategy_df) * low_threshold_bonus
-
-    return strategy_weights
-
-
-def strategy_and_tickers_weights(prediction_results_df):
-    prediction_results_df["score"] = (
-        prediction_results_df["accuracy"] * prediction_results_df["prediction"]
-    )
-
-    return prediction_results_df.sort_values(by=["score"], ascending=False)
-    return (
-        prediction_results_df.groupby(["strategy_name", "ticker"])
-        .sum()
-        .sort_values(by=["score", "strategy_name"], ascending=[False, True])
-    )
 
 
 def get_holdings_value_by_strategy(account, ticker_price_history, current_date):
@@ -712,24 +717,48 @@ def strategy_and_ticker_cash_allocation(
             if remaining_cash <= 0:
                 break
             allocation = min(row["accuracy_adj_investment"], remaining_cash)
-            qualifying_strategies_df.at[index, "allocated_cash"] = float(allocation)
+            qualifying_strategies_df.at[index, "allocated_cash"] = round(
+                (allocation), 2
+            )
             remaining_cash -= allocation
             available_cash -= allocation
 
+    qualifying_strategies_df["quantity"] = (
+        qualifying_strategies_df["allocated_cash"]
+        / qualifying_strategies_df["current_price"]
+    ).round(2)
+
     return qualifying_strategies_df[
-        ["strategy_name", "ticker", "current_price", "score", "allocated_cash"]
+        [
+            "strategy_name",
+            "ticker",
+            "current_price",
+            "score",
+            "allocated_cash",
+            "quantity",
+        ]
     ][qualifying_strategies_df["allocated_cash"] > 0]
 
 
 def create_buy_heap(buy_df):
+    """
+    Creates a heap of buy orders from the given DataFrame.
+
+    Parameters:
+    - buy_df (pd.DataFrame): DataFrame containing buy orders with columns 'score', 'quantity', 'ticker', 'current_price', and 'strategy_name'.
+
+    Returns:
+    - list: A heap of buy orders sorted by score.
+    """
     buy_heap = []
     for index, row in buy_df.iterrows():
         heapq.heappush(
             buy_heap,
             (
                 -row["score"],
-                row["allocated_cash"] // row["current_price"],  # qty
+                row["quantity"],
                 row["ticker"],
+                row["current_price"],
                 row["strategy_name"],
             ),
         )
@@ -738,6 +767,7 @@ def create_buy_heap(buy_df):
 
 if __name__ == "__main__":
     # account = initialize_test_account()
+    current_date = datetime.strptime("2021-01-01", "%Y-%m-%d")
     account = {
         "holdings": {
             # "AAPL": {
@@ -796,6 +826,137 @@ if __name__ == "__main__":
     buy_heap = create_buy_heap(buy_df)
 
     print(buy_heap)
+
+    suggestion_heap = []
+
+    account = execute_buy_orders(buy_heap, suggestion_heap, account, current_date)
+
+    print(account)
+
+    account = {
+        "holdings": {
+            "AAPL": {
+                "MEDPRICE_indicator": {
+                    "quantity": 45.06,
+                    "price": 242.4334412,
+                    "stop_loss": 235.160437964,
+                    "take_profit": 254.55511326,
+                },
+                "TYPPRICE_indicator": {
+                    "quantity": 6.5,
+                    "price": 242.4334412,
+                    "stop_loss": 235.160437964,
+                    "take_profit": 254.55511326,
+                },
+            },
+            "MSFT": {
+                "WCLPRICE_indicator": {
+                    "quantity": 18.259999999999998,
+                    "price": 423.7104187,
+                    "stop_loss": 410.999106139,
+                    "take_profit": 444.895939635,
+                },
+                "TYPPRICE_indicator": {
+                    "quantity": 11.21,
+                    "price": 423.7104187,
+                    "stop_loss": 410.999106139,
+                    "take_profit": 444.895939635,
+                },
+            },
+        },
+        "cash": 31917.257772839002,
+        "trades": [
+            {
+                "symbol": "MSFT",
+                "quantity": 8.26,
+                "price": 423.7104187,
+                "action": "buy",
+                "date": "2021-01-01",
+                "strategy": "WCLPRICE_indicator",
+            },
+            {
+                "symbol": "MSFT",
+                "quantity": 11.21,
+                "price": 423.7104187,
+                "action": "buy",
+                "date": "2021-01-01",
+                "strategy": "TYPPRICE_indicator",
+            },
+            {
+                "symbol": "AAPL",
+                "quantity": 35.06,
+                "price": 242.4334412,
+                "action": "buy",
+                "date": "2021-01-01",
+                "strategy": "MEDPRICE_indicator",
+            },
+            {
+                "symbol": "AAPL",
+                "quantity": 5.5,
+                "price": 242.4334412,
+                "action": "buy",
+                "date": "2021-01-01",
+                "strategy": "TYPPRICE_indicator",
+            },
+        ],
+        "total_portfolio_value": 50000.0,
+    }
+
+    Holdings = {
+        "MSFT": {
+            "STOCHRSI_indicator": {
+                "quantity": 11.97,
+                "price": 417.74,
+                "stop_loss": 405.2078,
+                "take_profit": 438.627,
+            }
+        },
+        "AAPL": {
+            "STOCHRSI_indicator": {
+                "quantity": 20.53,
+                "price": 243.58,
+                "stop_loss": 236.2726,
+                "take_profit": 255.75900000000001,
+            },
+            "HT_PHASOR_indicator": {
+                "quantity": 0.24,
+                "price": 243.09,
+                "stop_loss": 235.7973,
+                "take_profit": 255.24450000000002,
+            },
+        },
+    }
+
+    Trades = [
+        {
+            "symbol": "MSFT",
+            "quantity": 11.97,
+            "price": 417.74,
+            "action": "buy",
+            "date": "2025-01-02",
+            "strategy": "STOCHRSI_indicator",
+        },
+        {
+            "symbol": "AAPL",
+            "quantity": 20.53,
+            "price": 243.58,
+            "action": "buy",
+            "date": "2025-01-02",
+            "strategy": "STOCHRSI_indicator",
+        },
+        {
+            "symbol": "AAPL",
+            "quantity": 0.24,
+            "price": 243.09,
+            "action": "buy",
+            "date": "2025-01-03",
+            "strategy": "HT_PHASOR_indicator",
+        },
+    ]
+    # account = execute_buy_orders(
+    #     buy_heap, suggestion_heap, account, ticker_price_history, current_date
+    # )
+
     # todo:
     # tests
     # need to update functions to handle modified account structure

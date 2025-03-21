@@ -18,15 +18,17 @@ class TestCreateBuyHeap(unittest.TestCase):
             "current_price": [100, 80, 60],
             "ticker": ["AAPL", "MSFT", "GOOGL"],
             "strategy_name": ["strategy1", "strategy2", "strategy3"],
+            "quantity": [10, 10, 10],
         }
         self.buy_df = pd.DataFrame(data)
 
     def test_create_buy_heap(self):
         buy_heap = create_buy_heap(self.buy_df)
+        # Update the expected_heap according to the new structure
         expected_heap = [
-            (-0.9, 10, "AAPL", "strategy1"),
-            (-0.8, 10, "MSFT", "strategy2"),
-            (-0.7, 10, "GOOGL", "strategy3"),
+            (-0.9, 10, "AAPL", 100, "strategy1"),
+            (-0.8, 10, "MSFT", 80, "strategy2"),
+            (-0.7, 10, "GOOGL", 60, "strategy3"),
         ]
         self.assertEqual(buy_heap, expected_heap)
 
@@ -38,6 +40,7 @@ class TestCreateBuyHeap(unittest.TestCase):
                 "current_price",
                 "ticker",
                 "strategy_name",
+                "quantity",
             ]
         )
         buy_heap = create_buy_heap(empty_df)

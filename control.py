@@ -63,6 +63,7 @@ so please understand the time it takes to train.
 # Random forest variables
 regime_tickers = ["^VIX", "^GSPC"]
 prediction_modifier = 1
+prediction_threshold = 0.5
 
 
 # train_period_start = "2001-01-01"
