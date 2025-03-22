@@ -31,6 +31,7 @@ from helper_files.client_helper import (
     get_ndaq_tickers,
     load_json_to_dict,
     store_dict_as_json,
+    save_df_to_csv,
     strategies,
 )
 from TradeSim.utils import (
@@ -108,7 +109,7 @@ if __name__ == "__main__":
     # === prepare REGIME ma calcs eg 1-day spy return. Use pandas dataframe.
     ticker_price_history = prepare_regime_data(ticker_price_history, logger)
 
-    precomputed_decisions_filename = f"precomputed_decisions_{today_date_str}.json"
+    precomputed_decisions_filename = f"precomputed_decisions_{today_date_str}.csv"
     precomputed_decisions_filepath = os.path.join(
         results_dir, precomputed_decisions_filename
     )
@@ -124,15 +125,19 @@ if __name__ == "__main__":
             test_period_end,
             logger,
         )
-        store_dict_as_json(
+        # store_dict_as_json(
+        #     precomputed_decisions, precomputed_decisions_filename, results_dir, logger
+        # )
+        save_df_to_csv(
             precomputed_decisions, precomputed_decisions_filename, results_dir, logger
         )
 
     else:
         # load from local file
-        precomputed_decisions, _ = load_json_to_dict(
-            results_dir, precomputed_decisions_filename
-        )
+        precomputed_decisions = pd.read_csv(precomputed_decisions_filepath)
+        # precomputed_decisions, _ = load_json_to_dict(
+        #     results_dir, precomputed_decisions_filename
+        # )
 
     if mode == "train":
         train(

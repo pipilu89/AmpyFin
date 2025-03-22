@@ -86,7 +86,7 @@ def initialize_simulation(
     # Determine the historical data start date (2 years before period_start)
     start_date = datetime.strptime(period_start, "%Y-%m-%d")
 
-    # adjust start date to 1 day previous to avoid look-ahead bias. 2 days for 1day pct change for sp500
+    # adjust start date to 1 day previous to avoid lookahead bias. 2 days for 1day pct change for sp500
     start_date -= timedelta(days=2)
 
     data_start_date = (start_date - timedelta(days=730)).strftime("%Y-%m-%d")
@@ -434,9 +434,9 @@ def simulate_trading_day(
     """
     date_str = current_date.strftime("%Y-%m-%d")
 
-    # calc previous day to retrieve action from precomuted decisions date to 1 day previous to avoid look-ahead bias.
+    # calc previous day to retrieve action from precomuted decisions date to 1 day previous to avoid lookahead bias.
     previous_date = current_date - timedelta(days=1)
-    date_str_prev = previous_date.strftime("%Y-%m-%d")
+    date_str_prev = previous_date.strftime("%Y-%m-%d")  # lookahead
 
     logger.info(f"Simulating trading for {date_str}.")
 
@@ -465,15 +465,33 @@ def simulate_trading_day(
 
                 # Get precomputed strategy decision
                 # action = precomputed_decisions[strategy_name][ticker].get(date_str)
-                # adjust start date to 1 day previous to avoid look-ahead bias.
-                action = precomputed_decisions[strategy_name][ticker].get(date_str_prev)
+                # # adjust start date to 1 day previous to avoid look-ahead bias.
+                # # action = precomputed_decisions[strategy_name][ticker].get(
+                # #     date_str_prev
+                # # )  # lookahead
 
-                if action is None:
+                # if action is None:
+                #     # Skip if no precomputed decision (should not happen if properly precomputed)
+                #     logger.warning(
+                #         f"No precomputed decision for {ticker}, {strategy_name}, {date_str}"
+                #     )
+                #     continue
+
+                # Get precomputed strategy decision from DataFrame
+                action = precomputed_decisions[
+                    (precomputed_decisions["Strategy"] == strategy_name)
+                    & (precomputed_decisions["Ticker"] == ticker)
+                    & (precomputed_decisions["Date"] == date_str)
+                ]["Action"].values
+
+                if len(action) == 0:
                     # Skip if no precomputed decision (should not happen if properly precomputed)
                     logger.warning(
                         f"No precomputed decision for {ticker}, {strategy_name}, {date_str}"
                     )
                     continue
+
+                action = action[0]
 
                 # Get account details for trade size calculation
                 account_cash = trading_simulator[strategy_name]["amount_cash"]
@@ -586,7 +604,73 @@ def precompute_strategy_decisions(
     # Convert string dates to datetime objects if needed
     if isinstance(start_date, str):
         start_date = datetime.strptime(start_date, "%Y-%m-%d")
-        start_date -= timedelta(days=1)
+        start_date -= timedelta(days=1)  # lookahead
+    if isinstance(end_date, str):
+        end_date = datetime.strptime(end_date, "%Y-%m-%d")
+
+    # Gather all valid trading days first
+    trading_days = []
+    current_date = start_date
+    while current_date <= end_date:
+        if current_date.weekday() < 5:  # Skip weekends
+            trading_days.append(current_date)
+        current_date += timedelta(days=1)
+
+    # Prepare parameters for parallel processing
+    # We'll process by date to allow better sharing of historical data
+    worker_func = functools.partial(
+        _process_single_day,
+        strategies=strategies,
+        ticker_price_history=ticker_price_history,
+        train_tickers=train_tickers,
+        ideal_period=ideal_period,
+    )
+
+    # Use a process pool to parallel process dates
+    num_workers = min(cpu_count(), len(trading_days))
+    logger.info(f"Using {num_workers} worker processes")
+
+    with Pool(processes=num_workers) as pool:
+        results = pool.map(worker_func, trading_days)
+
+        # Combine results from all processed days into a DataFrame
+    data = []
+    for day_results in results:
+        if day_results:  # Skip empty results
+            date_str = day_results["date"]
+            for strategy_name, strategy_data in day_results["strategies"].items():
+                for ticker, action in strategy_data.items():
+                    data.append([strategy_name, ticker, date_str, action])
+
+    df_precomputed_decisions = pd.DataFrame(
+        data, columns=["Strategy", "Ticker", "Date", "Action"]
+    )
+
+    logger.info(
+        f"Strategy decision precomputation complete. Processed {len(results)} trading days."
+    )
+
+    return df_precomputed_decisions
+
+
+def precompute_strategy_decisions_json(
+    strategies,
+    ticker_price_history,
+    train_tickers,
+    ideal_period,
+    start_date,
+    end_date,
+    logger,
+):
+    """
+    Precomputes strategy decisions using parallel processing.
+    """
+    logger.info("Precomputing strategy decisions with parallel processing...")
+
+    # Convert string dates to datetime objects if needed
+    if isinstance(start_date, str):
+        start_date = datetime.strptime(start_date, "%Y-%m-%d")
+        start_date -= timedelta(days=1)  # lookahead
     if isinstance(end_date, str):
         end_date = datetime.strptime(end_date, "%Y-%m-%d")
 

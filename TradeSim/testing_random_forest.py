@@ -316,7 +316,7 @@ def test_random_forest(
             strategy_to_coefficient[strategy.__name__] = rank_to_coefficient[
                 rank[strategy.__name__]
             ]
-        logger.info(f"Strategy coefficients updated: {strategy_to_coefficient}")
+        # logger.info(f"Strategy coefficients updated: {strategy_to_coefficient}")
 
         # Process trading day
         buy_heap, suggestion_heap = [], []
@@ -340,14 +340,30 @@ def test_random_forest(
                     strategy_name = strategy.__name__
 
                     # Get precomputed strategy decision
-                    action = precomputed_decisions[strategy_name][ticker].get(date_str)
+                    # action = precomputed_decisions[strategy_name][ticker].get(date_str)
 
-                    if action is None:
+                    # if action is None:
+                    #     # Skip if no precomputed decision (should not happen if properly precomputed)
+                    #     logger.warning(
+                    #         f"No precomputed decision for {ticker}, {strategy_name}, {date_str}"
+                    #     )
+                    #     continue
+
+                    # Get precomputed strategy decision from DataFrame
+                    action = precomputed_decisions[
+                        (precomputed_decisions["Strategy"] == strategy_name)
+                        & (precomputed_decisions["Ticker"] == ticker)
+                        & (precomputed_decisions["Date"] == date_str)
+                    ]["Action"].values
+
+                    if len(action) == 0:
                         # Skip if no precomputed decision (should not happen if properly precomputed)
                         logger.warning(
                             f"No precomputed decision for {ticker}, {strategy_name}, {date_str}"
                         )
                         continue
+
+                    action = action[0]
 
                     account_cash = account["cash"]
                     total_portfolio_value = account["total_portfolio_value"]
@@ -517,7 +533,15 @@ def test_random_forest(
         buy_heap = create_buy_heap(buy_df)
 
         # Execute buy orders, create sl and tp prices
-        account = execute_buy_orders(buy_heap, suggestion_heap, account, current_date)
+        account = execute_buy_orders(
+            buy_heap,
+            suggestion_heap,
+            account,
+            current_date,
+            train_trade_liquidity_limit,
+            train_stop_loss,
+            train_take_profit,
+        )
 
         # Simulate ranking updates. Updates list of trades.
         trading_simulator, points = simulate_trading_day(
