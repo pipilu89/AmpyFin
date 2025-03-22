@@ -74,7 +74,7 @@ prediction_threshold = 0.5
 # short test period
 train_period_start = "2024-11-01"
 train_period_end = "2024-12-31"
-test_period_start = "2025-01-01"
+test_period_start = "2024-11-01"
 test_period_end = "2025-01-10"
 
 # train_tickers = []

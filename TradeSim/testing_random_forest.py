@@ -190,6 +190,48 @@ def execute_buy_orders(
     return account
 
 
+def execute_sell_orders(
+    action, ticker, strategy_name, account, current_price, current_date, logger
+):
+    """
+    Executes sell orders for a given ticker and strategy.
+
+    Parameters:
+    - action (str): The action to be executed, should be "sell".
+    - ticker (str): The ticker symbol of the asset to be sold.
+    - strategy_name (str): The name of the strategy under which the asset is held.
+    - account (dict): The current account state, including holdings, cash, and trades.
+    - current_price (float): The current price of the asset.
+    - logger (Logger): The logger instance for logging information.
+
+    Returns:
+    - dict: The updated account state after executing the sell orders.
+    """
+    if (
+        action == "sell"
+        and ticker in account["holdings"]
+        and strategy_name in account["holdings"][ticker]
+    ):
+        # quantity = max(quantity, 1)
+        quantity = account["holdings"][ticker][strategy_name]["quantity"]
+        account["trades"].append(
+            {
+                "symbol": ticker,
+                "quantity": quantity,
+                "price": round(current_price, 2),
+                "action": "sell",
+                "strategy": strategy_name,
+                "date": current_date.strftime("%Y-%m-%d"),
+            }
+        )
+        account["cash"] += quantity * current_price
+        del account["holdings"][ticker][strategy_name]
+        logger.info(
+            f"{ticker} - Sold {quantity} shares at ${current_price} for {strategy_name}"
+        )
+    return account
+
+
 def update_strategy_ranks(strategies, points, trading_simulator):
     """
     Updates strategy rankings based on performance
@@ -420,6 +462,17 @@ def test_random_forest(
                     else:
                         weight = 0
 
+                    # execute sell orders
+                    if action == "sell":
+                        account = execute_sell_orders(
+                            action,
+                            ticker,
+                            strategy_name,
+                            account,
+                            current_price,
+                            current_date,
+                            logger,
+                        )
                     # logger.info(f"{prediction_results = }")
 
                 #     # Compute trade decision and quantity based on precomputed action and prediction
@@ -927,6 +980,7 @@ if __name__ == "__main__":
     # account = update_account_portfolio_values(
     #     account, ticker_price_history, current_date
     # )
+    # print(account)
 
     account = {
         "holdings": {

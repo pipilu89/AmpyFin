@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import MagicMock
 import sys
 import os
 import pandas as pd
@@ -11,6 +12,7 @@ from TradeSim.testing_random_forest import (
     create_buy_heap,
     execute_buy_orders,
     update_account_portfolio_values,
+    execute_sell_orders,
 )
 
 
@@ -271,6 +273,136 @@ class TestUpdateAccountPortfolioValues(unittest.TestCase):
             "total_portfolio_value": 3750,
         }
         self.assertEqual(updated_account, expected_account)
+
+
+class TestExecuteSellOrders(unittest.TestCase):
+    def setUp(self):
+        self.logger = MagicMock()
+        self.current_date = datetime.strptime("2025-03-22", "%Y-%m-%d")
+
+    def test_execute_sell_orders_success(self):
+        account = {
+            "holdings": {
+                "AAPL": {
+                    "strategy1": {
+                        "quantity": 10,
+                        "price": 150,
+                    }
+                }
+            },
+            "cash": 1000,
+            "trades": [],
+        }
+        ticker = "AAPL"
+        strategy_name = "strategy1"
+        current_price = 200
+
+        updated_account = execute_sell_orders(
+            "sell",
+            ticker,
+            strategy_name,
+            account,
+            current_price,
+            self.current_date,
+            self.logger,
+        )
+
+        self.assertEqual(updated_account["cash"], 3000)
+        self.assertEqual(len(updated_account["trades"]), 1)
+        self.assertNotIn(strategy_name, updated_account["holdings"][ticker])
+
+    def test_execute_sell_orders_no_action(self):
+        account = {
+            "holdings": {
+                "AAPL": {
+                    "strategy1": {
+                        "quantity": 10,
+                        "price": 150,
+                    }
+                }
+            },
+            "cash": 1000,
+            "trades": [],
+        }
+        ticker = "AAPL"
+        strategy_name = "strategy1"
+        current_price = 200
+
+        updated_account = execute_sell_orders(
+            "hold",
+            ticker,
+            strategy_name,
+            account,
+            current_price,
+            self.current_date,
+            self.logger,
+        )
+
+        self.assertEqual(updated_account["cash"], 1000)
+        self.assertEqual(len(updated_account["trades"]), 0)
+        self.assertIn(strategy_name, updated_account["holdings"][ticker])
+
+    def test_execute_sell_orders_ticker_not_in_holdings(self):
+        account = {
+            "holdings": {
+                "MSFT": {
+                    "strategy1": {
+                        "quantity": 10,
+                        "price": 150,
+                    }
+                }
+            },
+            "cash": 1000,
+            "trades": [],
+        }
+        ticker = "AAPL"
+        strategy_name = "strategy1"
+        current_price = 200
+
+        updated_account = execute_sell_orders(
+            "sell",
+            ticker,
+            strategy_name,
+            account,
+            current_price,
+            self.current_date,
+            self.logger,
+        )
+
+        self.assertEqual(updated_account["cash"], 1000)
+        self.assertEqual(len(updated_account["trades"]), 0)
+        self.assertNotIn(ticker, updated_account["holdings"])
+
+    def test_execute_sell_orders_strategy_not_in_holdings(self):
+        account = {
+            "holdings": {
+                "AAPL": {
+                    "strategy2": {
+                        "quantity": 10,
+                        "price": 150,
+                    }
+                }
+            },
+            "cash": 1000,
+            "trades": [],
+        }
+        ticker = "AAPL"
+        strategy_name = "strategy1"
+        current_price = 200
+
+        updated_account = execute_sell_orders(
+            "sell",
+            ticker,
+            strategy_name,
+            account,
+            current_price,
+            self.current_date,
+            self.logger,
+        )
+
+        self.assertEqual(updated_account["cash"], 1000)
+        self.assertEqual(len(updated_account["trades"]), 0)
+        self.assertIn("strategy2", updated_account["holdings"][ticker])
 
 
 if __name__ == "__main__":
