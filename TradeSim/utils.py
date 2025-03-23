@@ -1,9 +1,14 @@
 import functools
 from datetime import datetime, timedelta
 from multiprocessing import Pool, cpu_count
+import os
+import sys
 
 import pandas as pd
 import yfinance as yf
+
+# Ensure sys.path manipulation is at the top, before other local imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from control import (
     trade_asset_limit,
@@ -29,6 +34,7 @@ from helper_files.client_helper import (
     strategies,
     store_dict_as_json,
     save_df_to_csv,
+    load_json_to_dict,
 )
 from helper_files.train_client_helper import get_historical_data
 
@@ -81,7 +87,15 @@ def initialize_simulation(
                 )
         return ideal_period
 
-    ideal_period = get_ideal_period()
+    # save local copy of ideal_period
+    ideal_period_dir = "results"
+    ideal_period_filename = f"ideal_period.json"
+    ideal_period_filepath = os.path.join(ideal_period_dir, ideal_period_filename)
+    if not os.path.exists(ideal_period_filepath):
+        ideal_period = get_ideal_period()
+        store_dict_as_json(ideal_period, "ideal_period_filename", "results", logger)
+    else:
+        ideal_period = load_json_to_dict(ideal_period_dir, ideal_period_filename)
 
     # If no tickers provided, fetch Nasdaq tickers
     if not train_tickers:
@@ -940,3 +954,54 @@ def prepare_regime_data(ticker_price_history, logger):
     except Exception as e:
         logger.error(f"Error procesing regime data {e}")
     return ticker_price_history
+
+
+if __name__ == "__main__":
+    import logging
+    from pymongo import MongoClient
+    import certifi
+    import sys
+
+    # Ensure sys.path manipulation is at the top, before other local imports
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from config import FINANCIAL_PREP_API_KEY, mongo_url
+
+    ca = certifi.where()
+
+    # Set up logging
+    logs_dir = "logs"
+    # Create the directory if it doesn't exist
+    if not os.path.exists(logs_dir):
+        os.makedirs(logs_dir)
+
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    # logger.setLevel(logging.WARNING)
+
+    formatter = logging.Formatter(
+        "%(asctime)s - %(levelname)s - %(funcName)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    file_handler = logging.FileHandler(os.path.join(logs_dir, "train_test.log"))
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
+
+    period_start = "2019-01-01"
+    period_end = "2021-01-01"
+    train_tickers = ["AAPL", "MSFT", "GOOGL", "AMZN"]
+    # FINANCIAL_PREP_API_KEY,
+    logger,
+
+    ticker_price_history, ideal_period = initialize_simulation(
+        period_start,
+        period_end,
+        train_tickers,
+        mongo_client,
+        FINANCIAL_PREP_API_KEY,
+        logger,
+    )
+
+    print(ideal_period)

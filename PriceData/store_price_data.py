@@ -641,17 +641,17 @@ if __name__ == "__main__":
         "backtest_offset_yf_period": "max",
     }
     pie_name = "ampy"
-    # download_and_store(df_tickers, options, pie_name)
+    download_and_store(df_tickers, options, pie_name)
 
+    # create ticker price history from db.
     table_name = "AAPL"
     begin_date = "2021-01-04"
     end_date = "2021-01-29"
-    # df = sql_to_df_with_date_range(table_name, begin_date, end_date)
-    # print(df)
-    ticker_price_history = {}
-    for ticker in df_tickers:
-        ticker_price_history[ticker] = sql_to_df_with_date_range(
-            ticker, begin_date, end_date
-        )
 
-    print(ticker_price_history)
+    # ticker_price_history = {}
+    # for ticker in df_tickers:
+    #     ticker_price_history[ticker] = sql_to_df_with_date_range(
+    #         ticker, begin_date, end_date
+    #     )
+
+    # print(ticker_price_history)
