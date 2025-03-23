@@ -11,3 +11,4 @@ ftp_downloads/
 wandb/
 tearsheets/
 *.xlsx
+*.db

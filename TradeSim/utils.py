@@ -628,10 +628,10 @@ def simulate_trading_day(
                 #     continue
 
                 # Get precomputed strategy decision from DataFrame
-                action = precomputed_decisions[
-                    (precomputed_decisions["Strategy"] == strategy_name)
-                    & (precomputed_decisions["Ticker"] == ticker)
-                    & (precomputed_decisions["Date"] == date_str)
+                action = precomputed_decisions[strategy_name][
+                    (precomputed_decisions[strategy_name]["Strategy"] == strategy_name)
+                    & (precomputed_decisions[strategy_name]["Ticker"] == ticker)
+                    & (precomputed_decisions[strategy_name]["Date"] == date_str)
                 ]["Action"].values
 
                 if len(action) == 0:

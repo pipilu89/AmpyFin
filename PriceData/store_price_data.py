@@ -42,6 +42,10 @@ formatter = logging.Formatter(
 file_handler = logging.FileHandler(os.path.join(logs_dir, "price_data.log"))
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
+# Console handler
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
 
 # database connection
 # database_name = "price_data.db"
@@ -82,7 +86,20 @@ def sql_to_df(table_name):
     return df
 
 
-def sql_to_df_with_date_range(table_name, begin_date, end_date):
+def sql_to_df_with_date_range_no_index(table_name, begin_date, end_date, con=con):
+    with con:
+        # with sqlite3.connect(database_name) as con:
+        df = pd.read_sql_query(
+            "select * from `{tab}` WHERE `Date` >= '{begin}' AND `Date` <= '{end}'".format(
+                tab=table_name, begin=begin_date, end=end_date
+            ),
+            con,
+            # index_col="Date",
+        )
+    return df
+
+
+def sql_to_df_with_date_range(table_name, begin_date, end_date, con=con):
     with con:
         # with sqlite3.connect(database_name) as con:
         df = pd.read_sql_query(
@@ -141,6 +158,9 @@ def get_table_names():
 
 
 def create_table_schema(table_name):
+    """
+    Create a table schema for storing price data.
+    """
     try:
         # logger.info(f'try to create table: {table_name}...')
         with con:
@@ -159,6 +179,62 @@ def create_table_schema(table_name):
             )
             # print ("Table created successfully")
             con.commit()
+            return table_name
+    except sqlite3.Error as e:
+        logger.info(e)
+        return None
+
+
+def create_table_schema_strategy_decisions(table_name, con_sd):
+    """
+    Create a table schema for strategy decisions.
+    """
+    try:
+        logger.info(f"try to create table: {table_name}...")
+        with con_sd:
+            # with sqlite3.connect(database_name) as con:
+            cur = con_sd.cursor()
+            cur.execute(
+                """CREATE TABLE IF NOT EXISTS `{tab}`
+        (Ticker  REAL,
+        Date  REAL,
+        Action REAL);""".format(
+                    tab=table_name
+                )
+            )
+            # print ("Table created successfully")
+            con_sd.commit()
+            return table_name
+    except sqlite3.Error as e:
+        logger.info(e)
+        return None
+
+
+def create_table_schema_trades_list(table_name, con_sd):
+    """
+    Create a table schema for strategy decisions.
+    """
+    try:
+        logger.info(f"try to create table: {table_name}...")
+        with con_sd:
+            # with sqlite3.connect(database_name) as con:
+            cur = con_sd.cursor()
+            cur.execute(
+                """CREATE TABLE IF NOT EXISTS `{tab}`
+        (ticker  REAL,
+        current_price  REAL,
+        buy_price  REAL,
+        qty  REAL,
+        ratio  REAL,
+        current_vix  REAL,
+        sp500  REAL,
+        buy_date  REAL,
+        sell_date REAL);""".format(
+                    tab=table_name
+                )
+            )
+            # print ("Table created successfully")
+            con_sd.commit()
             return table_name
     except sqlite3.Error as e:
         logger.info(e)
@@ -244,6 +320,64 @@ def upsert(table_name, data):
         return None
 
 
+def upsert_strategy_decisons(table_name, data, con):
+    try:
+        # logger.info(f'try upsert: {table_name}...')
+        with con:
+            # with sqlite3.connect(database_name) as con:
+            cur = con.cursor()
+            cur.executemany(
+                """INSERT INTO `{tab}`
+                  VALUES(?, ?, ?)
+                  ON CONFLICT
+                  DO 
+                  UPDATE SET 
+                      Ticker=excluded.Ticker,
+                      Date=excluded.Date,
+                      Action=excluded.Action;""".format(
+                    tab=table_name
+                ),
+                data,
+            )
+            con.commit()
+            # return table_name
+    except sqlite3.Error as e:
+        logger.error(e)
+        return None
+
+
+def upsert_trades_list(table_name, data, con):
+    try:
+        # logger.info(f'try upsert: {table_name}...')
+        with con:
+            # with sqlite3.connect(database_name) as con:
+            cur = con.cursor()
+            cur.executemany(
+                """INSERT INTO `{tab}`
+                  VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  ON CONFLICT
+                  DO 
+                  UPDATE SET 
+                      ticker=excluded.ticker,
+                      current_price=excluded.current_price,
+                      buy_price=excluded.buy_price,
+                      qty=excluded.qty,
+                      ratio=excluded.ratio,
+                      current_vix=excluded.current_vix,
+                      sp500=excluded.sp500,
+                      buy_date=excluded.buy_date,
+                      sell_date=excluded.sell_date;""".format(
+                    tab=table_name
+                ),
+                data,
+            )
+            con.commit()
+            # return table_name
+    except sqlite3.Error as e:
+        logger.error(e)
+        return None
+
+
 def upsert_date_today(table_name, data):
     try:
         logger.info(f"try upsert: {table_name}, {data=}...")
@@ -293,9 +427,9 @@ def readSingleRow(table_name, pie_name):
         return None
 
 
-def convert_df_to_sql_values(df):
+def convert_df_to_sql_values(df, index_boolean=True):
     df.index = df.index.astype(str)
-    sql_values = list(df.itertuples(index=True, name=None))
+    sql_values = list(df.itertuples(index=index_boolean, name=None))
     # sql_values = df.to_records(index=True).tolist()
     # sql_values = [tuple(x) for x in df.to_records(index=True)]
     # sql_values = list(df.to_records())

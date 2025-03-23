@@ -306,6 +306,17 @@ strategies = (
     + statistical_functions
 )
 
+strategies_test = (
+    overlap_studies
+    # + momentum_indicators
+    # + volume_indicators
+    # + cycle_indicators
+    # + price_transforms
+    # + volatility_indicators
+    # + pattern_recognition
+    # + statistical_functions
+)
+
 
 # MongoDB connection helper
 def connect_to_mongo(mongo_url):
