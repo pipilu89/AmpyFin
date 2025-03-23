@@ -87,13 +87,15 @@ def initialize_simulation(
                 )
         return ideal_period
 
-    # save local copy of ideal_period
+    # load/save local copy of ideal_period
     ideal_period_dir = "results"
     ideal_period_filename = f"ideal_period.json"
     ideal_period_filepath = os.path.join(ideal_period_dir, ideal_period_filename)
     if not os.path.exists(ideal_period_filepath):
         ideal_period = get_ideal_period()
-        store_dict_as_json(ideal_period, "ideal_period_filename", "results", logger)
+        store_dict_as_json(
+            ideal_period, ideal_period_filename, ideal_period_dir, logger
+        )
     else:
         ideal_period = load_json_to_dict(ideal_period_dir, ideal_period_filename)
 

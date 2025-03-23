@@ -516,7 +516,7 @@ def store_dict_as_json(data_dict, filename, folder_name, logger):
     Args:
         data_dict (dict): The dictionary to store.
         filename (str): The name of the JSON file (e.g., "my_data.json").
-        folder_name (str, optional): The name of the folder to store the file in. 
+        folder_name (str, optional): The name of the folder to store the file in.
                                     Defaults to "results_folder".
     """
 
@@ -529,7 +529,7 @@ def store_dict_as_json(data_dict, filename, folder_name, logger):
     filepath = os.path.join(folder_name, filename)
 
     try:
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(data_dict, f, indent=4)  # Use indent for pretty-printing
         logger.info(f"Dictionary successfully stored as JSON in: {filepath}")
     except Exception as e:
@@ -583,9 +583,7 @@ def save_df_to_csv(df, filename, folder, logger=None):
         if logger:
             logger.error(f"Error saving DataFrame to {filepath}: {e}")
         raise Exception(f"Error saving DataFrame to {filepath}") from e
-    
-import json
-import os
+
 
 def load_json_to_dict(folder_path, filename):
     """
@@ -608,7 +606,7 @@ def load_json_to_dict(folder_path, filename):
         return None, None
 
     try:
-        with open(filepath, 'r') as f:
+        with open(filepath, "r") as f:
             data = json.load(f)
         print(f"Loaded {filepath}")
         return data, abs_filepath
@@ -618,3 +616,40 @@ def load_json_to_dict(folder_path, filename):
     except Exception as e:
         print(f"Error: An unexpected error occurred while loading {filepath}: {e}")
         return None, None
+
+
+def setup_logging(logs_dir, filename, level=logging.INFO):
+    """
+    Sets up logging to both a file and the console.
+
+    Args:
+        logs_dir (str): The directory where the log file will be stored.
+        filename (str): The name of the log file.
+        level (int, optional): The logging level. Defaults to logging.INFO.
+
+    Returns:
+        logging.Logger: Configured logger instance.
+    """
+    # Create the directory if it doesn't exist
+    if not os.path.exists(logs_dir):
+        os.makedirs(logs_dir)
+
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+
+    formatter = logging.Formatter(
+        "%(asctime)s - %(levelname)s - %(funcName)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    # File handler
+    file_handler = logging.FileHandler(os.path.join(logs_dir, filename))
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+    return logger
