@@ -22,40 +22,16 @@ import logging
 # Add parent directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from helper_files.client_helper import setup_logging
+from config import PRICE_DB_PATH
 from control import train_tickers, regime_tickers
 
-# Set up logging
-logs_dir = "logs"
-# Create the directory if it doesn't exist
-if not os.path.exists(logs_dir):
-    os.makedirs(logs_dir)
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-# logger.setLevel(logging.WARNING)
-
-formatter = logging.Formatter(
-    "%(asctime)s - %(levelname)s - %(funcName)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-
-file_handler = logging.FileHandler(os.path.join(logs_dir, "price_data.log"))
-file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
-# Console handler
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(formatter)
-logger.addHandler(console_handler)
+# logger = setup_logging("logs", "store_price_data.log", level=logging.INFO)
 
 # database connection
 # database_name = "price_data.db"
 last_dl_date_table_name = "last_dl_date"
-db_path = r"c:\Users\pi\code\python-t212\price_data.db"
-con = sqlite3.connect(db_path)
-# BASE_PATH = os.getenv("BASE_PATH")
-# last_dl_date_table_name = os.getenv("last_dl_date_table_name")
-# database_name = os.getenv("database_name")
-# con = sqlite3.connect(database_name)
+con = sqlite3.connect(PRICE_DB_PATH)
 
 
 # index vs primary key for sql to avoid duplicates?
@@ -623,7 +599,7 @@ def df_to_sql_merge_tables_on_date_if_exist(df_new, strategy_name, con):
             index=True,
             dtype={"Date": "DATE PRIMARY KEY"},
         )
-    logger.info(f"Data for {strategy_name} saved to database.")
+        logger.info(f"Data for {strategy_name} merged and saved to database.")
 
 
 """
@@ -828,6 +804,8 @@ def check_data_if_missing_dl(df_tickers, period):
 
 
 if __name__ == "__main__":
+    logger = setup_logging("logs", "store_price_data.log", level=logging.INFO)
+
     df_tickers = train_tickers + regime_tickers
     options = {
         # "asset_class": "us_equities",

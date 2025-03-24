@@ -569,7 +569,7 @@ def execute_trade_only_buy_one(
 
 def simulate_trading_day(
     current_date,
-    strategies,
+    strategy,
     trading_simulator,
     points,
     time_delta,
@@ -610,97 +610,101 @@ def simulate_trading_day(
             daily_data = ticker_price_history[ticker].loc[date_str]
             current_price = daily_data["Close"]
 
-            for strategy in strategies:
-                strategy_name = strategy.__name__
+            # for strategy in strategies:
+            strategy_name = strategy.__name__
 
-                # Get precomputed strategy decision
-                # action = precomputed_decisions[strategy_name][ticker].get(date_str)
-                # # adjust start date to 1 day previous to avoid look-ahead bias.
-                # # action = precomputed_decisions[strategy_name][ticker].get(
-                # #     date_str_prev
-                # # )  # lookahead
+            # Get precomputed strategy decision
+            # action = precomputed_decisions[strategy_name][ticker].get(date_str)
+            # # adjust start date to 1 day previous to avoid look-ahead bias.
+            # # action = precomputed_decisions[strategy_name][ticker].get(
+            # #     date_str_prev
+            # # )  # lookahead
 
-                # if action is None:
-                #     # Skip if no precomputed decision (should not happen if properly precomputed)
-                #     logger.warning(
-                #         f"No precomputed decision for {ticker}, {strategy_name}, {date_str}"
-                #     )
-                #     continue
+            # if action is None:
+            #     # Skip if no precomputed decision (should not happen if properly precomputed)
+            #     logger.warning(
+            #         f"No precomputed decision for {ticker}, {strategy_name}, {date_str}"
+            #     )
+            #     continue
 
-                # Get precomputed strategy decision from DataFrame
-                action = precomputed_decisions[strategy_name][
-                    (precomputed_decisions[strategy_name]["Strategy"] == strategy_name)
-                    & (precomputed_decisions[strategy_name]["Ticker"] == ticker)
-                    & (precomputed_decisions[strategy_name]["Date"] == date_str)
-                ]["Action"].values
+            # Get precomputed strategy decision from DataFrame
+            # action = precomputed_decisions[strategy_name][
+            #     (precomputed_decisions[strategy_name]["Strategy"] == strategy_name)
+            #     & (precomputed_decisions[strategy_name]["Ticker"] == ticker)
+            #     & (precomputed_decisions[strategy_name]["Date"] == date_str)
+            # ]["Action"].values
 
-                if len(action) == 0:
-                    # Skip if no precomputed decision (should not happen if properly precomputed)
-                    logger.warning(
-                        f"No precomputed decision for {ticker}, {strategy_name}, {date_str}"
-                    )
-                    continue
+            action = precomputed_decisions[
+                (precomputed_decisions["Ticker"] == ticker)
+                & (precomputed_decisions["Date"] == date_str)
+            ]["Action"].values
 
-                action = action[0]
-
-                # Get account details for trade size calculation
-                account_cash = trading_simulator[strategy_name]["amount_cash"]
-                portfolio_qty = (
-                    trading_simulator[strategy_name]["holdings"]
-                    .get(ticker, {})
-                    .get("quantity", 0)
+            if len(action) == 0:
+                # Skip if no precomputed decision (should not happen if properly precomputed)
+                logger.warning(
+                    f"No precomputed decision for {ticker}, {strategy_name}, {date_str}"
                 )
-                total_portfolio_value = trading_simulator[strategy_name][
-                    "portfolio_value"
-                ]
+                continue
 
-                # Compute trade decision and quantity based on precomputed action
-                # if mode == "train":
-                if mode == "train" or mode == "test":
-                    decision, qty = compute_trade_quantities_only_buy_one(
-                        action, portfolio_qty
-                    )
-                    # Execute trade
-                    trading_simulator, points = execute_trade_only_buy_one(
-                        decision,
-                        qty,
-                        ticker,
-                        current_price,
-                        strategy,
-                        trading_simulator,
-                        points,
-                        time_delta,
-                        portfolio_qty,
-                        total_portfolio_value,
-                        current_regime_data,
-                        current_date,
-                        logger,
-                    )
+            action = action[0]
+            logger.debug(f"{strategy_name} {ticker} {date_str} {action = }")
 
-                else:
-                    decision, qty = compute_trade_quantities(
-                        action,
-                        current_price,
-                        account_cash,
-                        portfolio_qty,
-                        total_portfolio_value,
-                    )
-                    # Execute trade
-                    trading_simulator, points = execute_trade(
-                        decision,
-                        qty,
-                        ticker,
-                        current_price,
-                        strategy,
-                        trading_simulator,
-                        points,
-                        time_delta,
-                        portfolio_qty,
-                        total_portfolio_value,
-                        current_regime_data,
-                        current_date,
-                        logger,
-                    )
+            # Get account details for trade size calculation
+            account_cash = trading_simulator[strategy_name]["amount_cash"]
+            portfolio_qty = (
+                trading_simulator[strategy_name]["holdings"]
+                .get(ticker, {})
+                .get("quantity", 0)
+            )
+            total_portfolio_value = trading_simulator[strategy_name]["portfolio_value"]
+
+            # Compute trade decision and quantity based on precomputed action
+            # if mode == "train":
+            if mode == "train" or mode == "test":
+                decision, qty = compute_trade_quantities_only_buy_one(
+                    action, portfolio_qty
+                )
+                # Execute trade
+                trading_simulator, points = execute_trade_only_buy_one(
+                    decision,
+                    qty,
+                    ticker,
+                    current_price,
+                    strategy,
+                    trading_simulator,
+                    points,
+                    time_delta,
+                    portfolio_qty,
+                    total_portfolio_value,
+                    current_regime_data,
+                    current_date,
+                    logger,
+                )
+
+            else:
+                decision, qty = compute_trade_quantities(
+                    action,
+                    current_price,
+                    account_cash,
+                    portfolio_qty,
+                    total_portfolio_value,
+                )
+                # Execute trade
+                trading_simulator, points = execute_trade(
+                    decision,
+                    qty,
+                    ticker,
+                    current_price,
+                    strategy,
+                    trading_simulator,
+                    points,
+                    time_delta,
+                    portfolio_qty,
+                    total_portfolio_value,
+                    current_regime_data,
+                    current_date,
+                    logger,
+                )
 
     return trading_simulator, points
 

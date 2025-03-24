@@ -12,6 +12,7 @@ from PriceData.store_price_data import sql_to_df_with_date_range
 from store_price_data import (
     create_table_schema_strategy_decisions,
     convert_df_to_sql_values,
+    sql_to_df_with_date_range_no_index,
     upsert_strategy_decisons,
 )
 
@@ -32,39 +33,21 @@ con_sd = sqlite3.connect(strategy_decisions_db_name)
 
 if __name__ == "__main__":
     logger = setup_logging("logs", "store_data.log", level=logging.INFO)
+    tickers_list = train_tickers + regime_tickers
+    strategies = strategies_test
+    # 1. load strategy_decisions from db
+    precomputed_decisions = {}
+    for strategy in strategies:
+        strategy_name = strategy.__name__
 
-    existing_data_query = f"SELECT * FROM 'MIDPRICE_indicator'"
-    df1 = pd.read_sql(existing_data_query, con_sd, index_col="Date")
-    print(df1)
-    # result = df1.to_dict(orient="split")
-    # print(result)
+        existing_data_query = f"SELECT * FROM {strategy_name}"
+        df_existing = pd.read_sql(existing_data_query, con_sd, index_col="Date")
 
-    # Example data dictionary
-    data_dict = {
-        "Date": ["2024-12-23", "2024-12-24", "2024-12-26"],
-        "GOOGL": ["Buy", "Buy", "Buy"],
-        "MSFT": ["Buy", "Sell", "Hold"],
-    }
-    df2 = pd.DataFrame.from_dict(data_dict)
-    df2.set_index("Date", inplace=True)
-    print(df2)
+        logger.info(f"{df_existing = }")
 
-# Merge new data with existing data on index (Date)
-df_merged = pd.merge(
-    df1,
-    df2,
-    left_index=True,
-    right_index=True,
-    how="outer",
-    suffixes=("_left", "_right"),
-)
-
-# Resolve conflicts for all columns
-for column in df2.columns:
-    if column in df1.columns:
-        df_merged[column] = df_merged[f"{column}_right"].combine_first(
-            df_merged[f"{column}_left"]
+        # Melt df_existing to stack ticker columns to rows
+        precomputed_decisions = df_existing.reset_index().melt(
+            id_vars=["Date"], var_name="Ticker", value_name="Action"
         )
-        df_merged.drop(columns=[f"{column}_left", f"{column}_right"], inplace=True)
 
-print(df_merged)
+        logger.info(f"{precomputed_decisions = }")
