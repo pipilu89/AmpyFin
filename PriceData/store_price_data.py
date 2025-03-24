@@ -533,7 +533,7 @@ def download_and_store(df_tickers, options, pie_name):
         download_data_from_yf(df_benchmark, yf_period, options["benchmark"])
 
 
-def df_to_sql_merge_tables_on_date_if_exist(df_new, strategy_name, con):
+def df_to_sql_merge_tables_on_date_if_exist(df_new, strategy_name, con, logger):
     """
     Merge a new DataFrame with an existing table in an SQLite database on the 'Date' index.
 
@@ -807,6 +807,7 @@ if __name__ == "__main__":
     logger = setup_logging("logs", "store_price_data.log", level=logging.INFO)
 
     df_tickers = train_tickers + regime_tickers
+    # df_tickers = ["APP"]
     options = {
         # "asset_class": "us_equities",
         # "period": "105d",  # yf download period
