@@ -3,10 +3,13 @@ import os
 import sys
 import sqlite3
 import pandas as pd
+import certifi
+from pymongo import MongoClient
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from helper_files.client_helper import setup_logging, strategies_test
+from config import FINANCIAL_PREP_API_KEY, mongo_url
+from helper_files.client_helper import get_ndaq_tickers, setup_logging, strategies_test
 from TradeSim.utils import precompute_strategy_decisions, load_json_to_dict
 from PriceData.store_price_data import sql_to_df_with_date_range
 from store_price_data import (
@@ -23,6 +26,8 @@ from control import (
     regime_tickers,
 )
 
+ca = certifi.where()
+
 # Ensure the PriceData directory exists
 price_data_dir = "PriceData"
 os.makedirs(price_data_dir, exist_ok=True)
@@ -32,22 +37,6 @@ strategy_decisions_db_name = os.path.join(price_data_dir, "strategy_decisions.db
 con_sd = sqlite3.connect(strategy_decisions_db_name)
 
 if __name__ == "__main__":
-    logger = setup_logging("logs", "store_data.log", level=logging.INFO)
-    tickers_list = train_tickers + regime_tickers
-    strategies = strategies_test
-    # 1. load strategy_decisions from db
-    precomputed_decisions = {}
-    for strategy in strategies:
-        strategy_name = strategy.__name__
-
-        existing_data_query = f"SELECT * FROM {strategy_name}"
-        df_existing = pd.read_sql(existing_data_query, con_sd, index_col="Date")
-
-        logger.info(f"{df_existing = }")
-
-        # Melt df_existing to stack ticker columns to rows
-        precomputed_decisions = df_existing.reset_index().melt(
-            id_vars=["Date"], var_name="Ticker", value_name="Action"
-        )
-
-        logger.info(f"{precomputed_decisions = }")
+    mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
+    list = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
+    print(list)
