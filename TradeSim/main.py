@@ -29,8 +29,6 @@ from control import (
 )
 from helper_files.client_helper import (
     get_ndaq_tickers,
-    load_json_to_dict,
-    store_dict_as_json,
     save_df_to_csv,
     strategies,
 )
@@ -135,9 +133,6 @@ if __name__ == "__main__":
     else:
         # load from local file
         precomputed_decisions = pd.read_csv(precomputed_decisions_filepath)
-        # precomputed_decisions, _ = load_json_to_dict(
-        #     results_dir, precomputed_decisions_filename
-        # )
 
     if mode == "train":
         train(

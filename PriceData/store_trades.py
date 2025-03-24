@@ -149,11 +149,18 @@ if __name__ == "__main__":
 
         # put into db
         try:
-            table_name = create_table_schema_trades_list(strategy_name, con_tl)
-            sql_values = convert_df_to_sql_values(
-                trades_list_single_strategy_df, index_boolean=False
+            trades_list_single_strategy_df.to_sql(
+                # strategy_name, con_sd, if_exists="replace", index=False
+                strategy_name,
+                con_tl,
+                if_exists="append",
+                index=False,
             )
-            logger.info(f"{sql_values = }")
-            upsert_trades_list(strategy_name, sql_values, con_tl)
+            # table_name = create_table_schema_trades_list(strategy_name, con_tl)
+            # sql_values = convert_df_to_sql_values(
+            #     trades_list_single_strategy_df, index_boolean=False
+            # )
+            # logger.info(f"{sql_values = }")
+            # upsert_trades_list(strategy_name, sql_values, con_tl)
         except sqlite3.Error as e:
             logger.error(f"database error: {e}")
