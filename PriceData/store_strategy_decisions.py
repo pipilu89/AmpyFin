@@ -7,7 +7,7 @@ import pandas as pd
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from helper_files.client_helper import setup_logging, strategies_test
+from helper_files.client_helper import setup_logging, strategies_test2
 from TradeSim.utils import (
     precompute_strategy_decisions,
     load_json_to_dict,
@@ -56,7 +56,7 @@ def main():
     strategy_decisions_db_name = os.path.join(price_data_dir, "strategy_decisions.db")
     con_sd = sqlite3.connect(strategy_decisions_db_name)
 
-    strategies = strategies_test
+    strategies = strategies_test2
 
     # to reduce problem of large file sizes and memory, we calculate and store each strategy decisions one by one.
     # This way can better handle many tickers and dates. Also can update specific strategy decisions.

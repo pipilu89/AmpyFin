@@ -316,6 +316,16 @@ strategies_test = (
     # + pattern_recognition
     # + statistical_functions
 )
+strategies_test2 = (
+    # overlap_studies
+    momentum_indicators
+    + volume_indicators
+    + cycle_indicators
+    + price_transforms
+    + volatility_indicators
+    + pattern_recognition
+    + statistical_functions
+)
 
 
 # MongoDB connection helper
