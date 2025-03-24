@@ -86,6 +86,8 @@ def main():
         df_to_sql_merge_tables_on_date_if_exist(
             df_pivoted, strategy_name, con_sd, logger
         )
+    # summary
+    logger.info(f"finished")
 
 
 if __name__ == "__main__":
