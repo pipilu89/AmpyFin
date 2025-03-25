@@ -126,11 +126,21 @@ if __name__ == "__main__":
     """
     create trades list from strategy decisions
     """
-    strategies = strategies_test
-    # strategies = [strategies_test[3]]
+    # strategies = strategies_test
+    strategies = [strategies_test[3]]
     tickers_list = train_tickers + regime_tickers
     logger.info(f"=== START COMPUTE TRADES LIST ===")
     logger.info(f"{len(train_tickers) = } {len(regime_tickers) = }\n")
+    start_date = datetime.strptime(train_period_start, "%Y-%m-%d")
+    end_date = datetime.strptime(train_period_end, "%Y-%m-%d")
+
+    # Subtract one day - needed for sp500 1 day return
+    train_period_start_minus_one_day = start_date - timedelta(days=1)
+
+    # Convert back to string
+    train_period_start_minus_one_day_str = train_period_start_minus_one_day.strftime(
+        "%Y-%m-%d"
+    )
 
     # setup db connections
     price_data_dir = "PriceData"
@@ -146,16 +156,14 @@ if __name__ == "__main__":
     ticker_price_history = {}
     for ticker in tickers_list:
         ticker_price_history[ticker] = sql_to_df_with_date_range(
-            ticker, train_period_start, test_period_end, con_pd
+            ticker, train_period_start_minus_one_day_str, test_period_end, con_pd
         )
     # === prepare REGIME ma calcs eg 1-day spy return. Use pandas dataframe.
     logger.info(f"prepare regime data")
     ticker_price_history = prepare_regime_data(ticker_price_history, logger)
+    logger.info(f"{ticker_price_history = }")
 
     # 3. run training
-    start_date = datetime.strptime(train_period_start, "%Y-%m-%d")
-    end_date = datetime.strptime(train_period_end, "%Y-%m-%d")
-
     logger.info(f"Training period: {start_date} to {end_date}")
 
     number_of_trades_by_strategy = {}
