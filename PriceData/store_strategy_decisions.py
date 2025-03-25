@@ -61,8 +61,11 @@ def main():
 
     # to reduce problem of large file sizes and memory, we calculate and store each strategy decisions one by one.
     # This way can better handle many tickers and dates. Also can update specific strategy decisions.
-    for strategy in strategies:
+    for idx, strategy in enumerate(strategies):
         strategy_name = strategy.__name__
+        logger.info(
+            f"\n\n=== COMPUTING DECISIONS FOR: {strategy_name} ({idx + 1}/{len(strategies)}) ===\n"
+        )
         df_precomputed_decisions = precompute_strategy_decisions(
             strategies,
             ticker_price_history,
