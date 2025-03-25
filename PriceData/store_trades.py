@@ -11,15 +11,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from helper_files.client_helper import setup_logging, strategies_test
 from TradeSim.utils import (
     prepare_regime_data,
-    load_json_to_dict,
     simulate_trading_day,
 )
 from PriceData.store_price_data import (
-    create_table_schema_trades_list,
-    convert_df_to_sql_values,
     sql_to_df_with_date_range,
-    sql_to_df_with_date_range_no_index,
-    upsert_trades_list,
 )
 from config import PRICE_DB_PATH
 from control import (
