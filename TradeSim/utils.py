@@ -588,7 +588,7 @@ def simulate_trading_day(
     previous_date = current_date - timedelta(days=1)
     date_str_prev = previous_date.strftime("%Y-%m-%d")  # lookahead
 
-    logger.info(f"Simulating trading for {date_str}.")
+    logger.debug(f"Simulating trading for {date_str}.")
 
     # new get daily regime data
     # daily_regime_data = ticker_price_history[regime_tickers[0]].loc[date_str]
