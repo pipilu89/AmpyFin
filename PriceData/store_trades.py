@@ -4,6 +4,7 @@ import sys
 import sqlite3
 from datetime import datetime, timedelta
 import pandas as pd
+import numpy as np
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -32,8 +33,11 @@ from control import (
 
 
 def df_to_sql_merge_tables_on_date_and_ticker_if_exist(
-    df_new, strategy_name, con, logger
-):
+    df_new: pd.DataFrame,
+    strategy_name: str,
+    con: sqlite3.Connection,
+    logger: logging.Logger,
+) -> None:
     """
     Merge a new DataFrame with an existing table in an SQLite database on the 'ticker' and 'buy_date' columns.
 
@@ -62,33 +66,26 @@ def df_to_sql_merge_tables_on_date_and_ticker_if_exist(
         "sell_date": "DATE",
     }
 
-    # Check if the table exists
-    table_exists_query = (
-        f"SELECT name FROM sqlite_master WHERE type='table' AND name='{strategy_name}'"
-    )
-    table_exists = pd.read_sql(table_exists_query, con)
-
-    if table_exists.empty:
-        # Create the table if it doesn't exist
-        df_new.to_sql(
-            strategy_name,
-            con,
-            if_exists="replace",
-            index=False,
-            dtype=dtype_mapping,
+    def table_exists(con: sqlite3.Connection, table_name: str) -> bool:
+        query = (
+            f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'"
         )
-        logger.info(f"Table {strategy_name} created in the database.")
+        return not pd.read_sql(query, con).empty
 
-        # Create an index on the primary key columns
+    def create_table(
+        df: pd.DataFrame, table_name: str, con: sqlite3.Connection, dtype_mapping: dict
+    ) -> None:
+        df.to_sql(
+            table_name, con, if_exists="replace", index=False, dtype=dtype_mapping
+        )
         con.execute(
-            f"CREATE UNIQUE INDEX IF NOT EXISTS idx_{strategy_name}_ticker_buy_date ON {strategy_name} (ticker, buy_date)"
+            f"CREATE UNIQUE INDEX IF NOT EXISTS idx_{table_name}_ticker_buy_date ON {table_name} (ticker, buy_date)"
         )
-    else:
-        # Load existing data from the database
-        existing_data_query = f"SELECT * FROM {strategy_name}"
-        df_existing = pd.read_sql(existing_data_query, con)
+        logger.info(f"Table {table_name} created in the database.")
 
-        # Merge new data with existing data on 'ticker' and 'buy_date'
+    def merge_dataframes(
+        df_existing: pd.DataFrame, df_new: pd.DataFrame
+    ) -> pd.DataFrame:
         df_merged = pd.merge(
             df_existing,
             df_new,
@@ -96,29 +93,34 @@ def df_to_sql_merge_tables_on_date_and_ticker_if_exist(
             how="outer",
             suffixes=("_left", "_right"),
         )
-
-        # Resolve conflicts for all columns except 'ticker' and 'buy_date'
         for column in df_new.columns:
             if column in df_existing.columns and column not in ["ticker", "buy_date"]:
                 df_merged[column] = df_merged[f"{column}_right"].combine_first(
                     df_merged[f"{column}_left"]
                 )
                 df_merged.drop(
-                    columns=[f"{column}_left", f"{column}_right"],
-                    inplace=True,
+                    columns=[f"{column}_left", f"{column}_right"], inplace=True
                 )
-
-        # Drop the suffixes from 'ticker' and 'buy_date' columns
-        df_merged = df_merged.rename(
+        return df_merged.rename(
             columns={"ticker_left": "ticker", "buy_date_left": "buy_date"}
         )
 
-        logger.debug(f"{df_merged = }")
-        # Save merged DataFrame to SQLite database
-        df_merged.to_sql(
-            strategy_name, con, if_exists="replace", index=False, dtype=dtype_mapping
-        )
-        logger.info(f"Data for {strategy_name} merged and saved to database.")
+    try:
+        if not table_exists(con, strategy_name):
+            create_table(df_new, strategy_name, con, dtype_mapping)
+        else:
+            df_existing = pd.read_sql(f"SELECT * FROM {strategy_name}", con)
+            df_merged = merge_dataframes(df_existing, df_new)
+            df_merged.to_sql(
+                strategy_name,
+                con,
+                if_exists="replace",
+                index=False,
+                dtype=dtype_mapping,
+            )
+            logger.info(f"Data for {strategy_name} merged and saved to database.")
+    except Exception as e:
+        logger.error(f"Error while merging data for {strategy_name}: {e}")
 
 
 if __name__ == "__main__":
@@ -131,15 +133,25 @@ if __name__ == "__main__":
     tickers_list = train_tickers + regime_tickers
     logger.info(f"=== START COMPUTE TRADES LIST ===")
     logger.info(f"{len(train_tickers) = } {len(regime_tickers) = }\n")
+
     start_date = datetime.strptime(train_period_start, "%Y-%m-%d")
     end_date = datetime.strptime(train_period_end, "%Y-%m-%d")
 
-    # Subtract one day - needed for sp500 1 day return
-    train_period_start_minus_one_day = start_date - timedelta(days=1)
+    # Subtract 3 day3 - needed for sp500 1 day return. 3 days because wkends
+    # train_period_start_minus_three_days = start_date - timedelta(days=3)
 
-    # Convert back to string
-    train_period_start_minus_one_day_str = train_period_start_minus_one_day.strftime(
-        "%Y-%m-%d"
+    # Subtract 1 business day from start_date
+    start_date_np = np.datetime64(start_date).astype("datetime64[D]")
+    start_date_minus_one_business_day = np.busday_offset(
+        start_date_np, -1, roll="backward"
+    )
+    start_date_minus_one_business_day_str = start_date_minus_one_business_day.astype(
+        str
+    )
+
+    logger.info(f"Training period: {start_date} to {end_date}")
+    logger.info(
+        f"Start date minus one business day: {start_date_minus_one_business_day_str}"
     )
 
     # setup db connections
@@ -156,12 +168,12 @@ if __name__ == "__main__":
     ticker_price_history = {}
     for ticker in tickers_list:
         ticker_price_history[ticker] = sql_to_df_with_date_range(
-            ticker, train_period_start_minus_one_day_str, test_period_end, con_pd
+            ticker, start_date_minus_one_business_day_str, test_period_end, con_pd
         )
     # === prepare REGIME ma calcs eg 1-day spy return. Use pandas dataframe.
     logger.info(f"prepare regime data")
     ticker_price_history = prepare_regime_data(ticker_price_history, logger)
-    logger.info(f"{ticker_price_history = }")
+    # logger.info(f"{ticker_price_history = }")
 
     # 3. run training
     logger.info(f"Training period: {start_date} to {end_date}")
