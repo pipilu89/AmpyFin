@@ -28,7 +28,7 @@ def train_random_forest_classifier(trades_data):
     trades_data["return"] = np.where(trades_data["ratio"] > 1, 1, 0)
 
     # Features and target variable
-    X = trades_data[["current_vix"]]  # Using only 'current_vix' as a feature
+    X = trades_data[["current_vix", "sp500"]]  # Using only 'current_vix' as a feature
     y = trades_data["return"]
 
     # Split data into training and testing sets
@@ -122,13 +122,14 @@ def train_and_store_classifiers(trades_data_df, logger):
 
 
 if __name__ == "__main__":
+    # logger = setup_logging("logs", "rf_models.log", level=logging.info)
     # Load the trades data
     trades_data_df = pd.read_csv("./results/10year_sp500_trades.csv")
 
     # Train and store classifiers
     trained_classifiers = train_and_store_classifiers(trades_data_df)
 
-    print(f"{trained_classifiers}")
+    # logger.info(f"{trained_classifiers}")
 
     # Example usage: Make a prediction for a specific strategy
     sample_data = {"current_vix": [34.27]}
@@ -141,6 +142,6 @@ if __name__ == "__main__":
         recall = classifier_data["recall"]
 
         prediction = predict_random_forest_classifier(rf_classifier, sample_df)
-        print(
-            f"\nFinal Prediction for {strategy_name}: {prediction}, accuracy = {accuracy:.2f}, precision = {precision:.2f}, recall = {recall:.2f}"
-        )
+        # logger.info(
+        #     f"\nFinal Prediction for {strategy_name}: {prediction}, accuracy = {accuracy:.2f}, precision = {precision:.2f}, recall = {recall:.2f}"
+        # )

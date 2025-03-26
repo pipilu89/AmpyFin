@@ -12,3 +12,4 @@ wandb/
 tearsheets/
 *.xlsx
 *.db
+*.pkl
