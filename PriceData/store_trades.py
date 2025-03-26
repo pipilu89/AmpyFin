@@ -123,8 +123,8 @@ if __name__ == "__main__":
     """
     create trades list from strategy decisions
     """
-    # strategies = strategies_test
-    strategies = [strategies_test[3]]
+    strategies = strategies_test
+    # strategies = [strategies_test[3]]
     tickers_list = train_tickers + regime_tickers
     logger.info(f"=== START COMPUTE TRADES LIST ===")
     logger.info(f"{len(train_tickers) = } {len(regime_tickers) = }\n")
