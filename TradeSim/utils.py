@@ -904,9 +904,11 @@ def _process_single_day(
 
             try:
                 # Get historical data
-                historical_data = get_historical_data(
-                    ticker, date, ideal_period[strategy_name], ticker_price_history
-                )
+                # historical_data = get_historical_data(
+                #     ticker, date, ideal_period[strategy_name], ticker_price_history
+                # )
+
+                historical_data = ticker_price_history[ticker].loc[:date_str]
 
                 if historical_data is None or historical_data.empty:
                     continue
