@@ -745,7 +745,6 @@ def precompute_strategy_decisions(
     strategies,
     ticker_price_history,
     train_tickers,
-    ideal_period,
     start_date,
     end_date,
     logger,
@@ -777,7 +776,7 @@ def precompute_strategy_decisions(
         strategies=strategies,
         ticker_price_history=ticker_price_history,
         train_tickers=train_tickers,
-        ideal_period=ideal_period,
+        # ideal_period=ideal_period,
     )
 
     # Use a process pool to parallel process dates
@@ -874,9 +873,7 @@ def precompute_strategy_decisions_json(
     return precomputed_decisions
 
 
-def _process_single_day(
-    date, strategies, ticker_price_history, train_tickers, ideal_period
-):
+def _process_single_day(date, strategies, ticker_price_history, train_tickers):
     """
     Process a single day for all tickers and strategies.
     This function will be executed in a separate process.
@@ -908,6 +905,7 @@ def _process_single_day(
                 #     ticker, date, ideal_period[strategy_name], ticker_price_history
                 # )
 
+                # historical_data = ticker_price_history[ticker].loc[:date]
                 historical_data = ticker_price_history[ticker].loc[:date_str]
 
                 if historical_data is None or historical_data.empty:

@@ -1,9 +1,12 @@
+from datetime import datetime
 import logging
 import os
 import sys
 import logging
 import sqlite3
 import pandas as pd
+import numpy as np
+import time
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -99,38 +102,40 @@ def df_to_sql_merge_tables_on_date_if_exist(df_new, strategy_name, con, logger):
 
 
 def main():
+    start_time = time.time()  # Record the start time
+
     tickers_list = train_tickers + regime_tickers
+    # tickers_list = ["AAPL"]  # test
+    # train_tickers = ["AAPL"]  # test
 
     # create ticker price history from price db.
     con_pd = sqlite3.connect(PRICE_DB_PATH)
+
+    start_date = datetime.strptime(train_period_start, "%Y-%m-%d")
+    start_date_np = np.datetime64(start_date).astype("datetime64[D]")
+    train_period_start_with_offset = np.busday_offset(
+        start_date_np, -(365 * 2), roll="backward"
+    )
     ticker_price_history = {}
     for ticker in tickers_list:
         ticker_price_history[ticker] = sql_to_df_with_date_range(
-            ticker, train_period_start, test_period_end, con_pd
+            ticker, train_period_start_with_offset, test_period_end, con_pd
         )
     # logger.info(f"ticker_price_history: {ticker_price_history}")
-
-    # load/save local copy of ideal_period
-    ideal_period_dir = "results"
-    ideal_period_filename = f"ideal_period.json"
-    try:
-        ideal_period, _ = load_json_to_dict(ideal_period_dir, ideal_period_filename)
-    except Exception as e:
-        logger.error(f"Error loading {ideal_period_filename} {e}")
-
-    if not ideal_period:
-        return
+    logger.info(f"ticker_price_history: {ticker_price_history[ticker]}")
 
     # Ensure the PriceData directory exists
     price_data_dir = "PriceData"
     os.makedirs(price_data_dir, exist_ok=True)
 
     # Database connection
-    strategy_decisions_db_name = os.path.join(price_data_dir, "strategy_decisions.db")
+    strategy_decisions_db_name = os.path.join(
+        price_data_dir, "strategy_decisions_old.db"
+    )
     con_sd = sqlite3.connect(strategy_decisions_db_name)
 
     # strategies = strategies_test2
-    # strategies = strategies_test
+    strategies = [strategies_test[1]]
 
     # to reduce problem of large file sizes and memory, we calculate and store each strategy decisions one by one.
     # This way can better handle many tickers and dates. Also can update specific strategy decisions.
@@ -143,7 +148,6 @@ def main():
             strategies,
             ticker_price_history,
             train_tickers,
-            ideal_period,
             train_period_start,
             test_period_end,
             logger,
@@ -153,6 +157,8 @@ def main():
         df_single_strategy = df_precomputed_decisions[["Ticker", "Date", "Action"]].loc[
             df_precomputed_decisions["Strategy"] == strategy_name
         ]
+
+        logger.info(f"{df_single_strategy}")
 
         # pivot df to fit sql table format
         df_pivoted = df_single_strategy.pivot(
@@ -165,6 +171,10 @@ def main():
         )
     # summary
     logger.info(f"finished")
+
+    end_time = time.time()  # Record the end time
+    elapsed_time = end_time - start_time  # Calculate elapsed time
+    logger.info(f"Execution time for main(): {elapsed_time:.2f} seconds")
 
 
 if __name__ == "__main__":
