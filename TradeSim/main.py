@@ -118,7 +118,6 @@ if __name__ == "__main__":
             strategies,
             ticker_price_history,
             train_tickers,
-            ideal_period,
             train_period_start,
             test_period_end,
             logger,
