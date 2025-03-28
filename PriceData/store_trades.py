@@ -5,10 +5,11 @@ import sqlite3
 from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
+import time
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from helper_files.client_helper import setup_logging, strategies_test
+from helper_files.client_helper import setup_logging, strategies_test, strategies
 from TradeSim.utils import (
     prepare_regime_data,
     simulate_trading_day,
@@ -123,8 +124,8 @@ if __name__ == "__main__":
     """
     create trades list from strategy decisions
     """
-    strategies = strategies_test
-    # strategies = [strategies_test[3]]
+    # strategies = strategies_test
+    strategies = [strategies_test[3]]
     tickers_list = train_tickers + regime_tickers
     logger.info(f"=== START COMPUTE TRADES LIST ===")
     logger.info(f"{len(train_tickers) = } {len(regime_tickers) = }\n")
@@ -175,6 +176,7 @@ if __name__ == "__main__":
 
     number_of_trades_by_strategy = {}
     for idx, strategy in enumerate(strategies):
+        start_time = time.time()  # Record the start time
         current_date = start_date
         strategy_name = strategy.__name__
         logger.info(
@@ -184,13 +186,20 @@ if __name__ == "__main__":
 
         # 1. load strategy_decisions from db
         existing_data_query = f"SELECT * FROM {strategy_name}"
-        df_existing = pd.read_sql(existing_data_query, con_sd, index_col="Date")
+        precomputed_decisions = pd.read_sql(
+            existing_data_query, con_sd, index_col="Date"
+        )
+
+        assert (
+            precomputed_decisions.index.name == "Date"
+        ), "Index of precomputed_decisions is not set to 'Date'"
+
+        # logger.info(f"{precomputed_decisions = }")
 
         # Melt df_existing to stack ticker columns to rows
-        precomputed_decisions = df_existing.reset_index().melt(
-            id_vars=["Date"], var_name="Ticker", value_name="Action"
-        )
-        logger.debug(f"{precomputed_decisions = }")
+        # precomputed_decisions = df_existing.reset_index().melt(
+        #     id_vars=["Date"], var_name="Ticker", value_name="Action"
+        # )
 
         trading_simulator = {
             strategy_name: {
@@ -278,6 +287,9 @@ if __name__ == "__main__":
 
         # summary
         number_of_trades_by_strategy[strategy_name] = {number_of_trades}
+        end_time = time.time()  # Record the end time
+        elapsed_time = end_time - start_time  # Calculate elapsed time
+        logger.info(f"Execution time for main(): {elapsed_time:.2f} seconds")
 
     logger.info(f"\n\n=== SUMMARY ===\n")
     logger.info(f"{number_of_trades_by_strategy = }")

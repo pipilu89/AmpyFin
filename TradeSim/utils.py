@@ -634,19 +634,35 @@ def simulate_trading_day(
             #     & (precomputed_decisions[strategy_name]["Date"] == date_str)
             # ]["Action"].values
 
-            action = precomputed_decisions[
-                (precomputed_decisions["Ticker"] == ticker)
-                & (precomputed_decisions["Date"] == date_str)
-            ]["Action"].values
+            # Calculate the previous business day
+            # previous_business_day = (
+            #     pd.to_datetime(date_str) - pd.offsets.BDay(1)
+            # ).strftime("%Y-%m-%d")
 
-            if len(action) == 0:
-                # Skip if no precomputed decision (should not happen if properly precomputed)
+            # Get the current row index
+            # current_index = "2014-01-03"
+
+            # Find the position of the current index in the DataFrame
+            current_position = precomputed_decisions.index.get_loc(date_str)
+
+            # Get the previous row index
+            if current_position > 0:  # Ensure it's not the first row
+                previous_index = precomputed_decisions.index[current_position - 1]
+                # Access the value in the previous row for the same column (ticker)
+                action = precomputed_decisions.at[previous_index, ticker]
+            else:
+                action = None  # Handle the case where there's no previous row
+                continue
+
+            # Skip if no precomputed decision (should not happen if properly precomputed)
+            if action is None:
                 logger.warning(
                     f"No precomputed decision for {ticker}, {strategy_name}, {date_str}"
                 )
                 continue
 
-            action = action[0]
+            logger.debug(f"{action = } {date_str = } {previous_index = }")
+
             logger.debug(f"{strategy_name} {ticker} {date_str} {action = }")
 
             # Get account details for trade size calculation
