@@ -130,13 +130,18 @@ if __name__ == "__main__":
     logger.info(f"=== START COMPUTE TRADES LIST ===")
     logger.info(f"{len(train_tickers) = } {len(regime_tickers) = }\n")
 
+    # setup db connections
+    price_data_dir = "PriceData"
+    strategy_decisions_db_name = os.path.join(price_data_dir, "strategy_decisions.db")
+    con_sd = sqlite3.connect(strategy_decisions_db_name)
+    trades_list_db_name = os.path.join(price_data_dir, "trades_list.db")
+    con_tl = sqlite3.connect(trades_list_db_name)
+    con_pd = sqlite3.connect(PRICE_DB_PATH)
+
     start_date = datetime.strptime(train_period_start, "%Y-%m-%d")
     end_date = datetime.strptime(train_period_end, "%Y-%m-%d")
 
-    # Subtract 3 day3 - needed for sp500 1 day return. 3 days because wkends
-    # train_period_start_minus_three_days = start_date - timedelta(days=3)
-
-    # Subtract 1 business day from start_date
+    # Subtract 1 business day from start_date - needed for sp500 1 day return.
     start_date_np = np.datetime64(start_date).astype("datetime64[D]")
     start_date_minus_one_business_day = np.busday_offset(
         start_date_np, -1, roll="backward"
@@ -149,16 +154,6 @@ if __name__ == "__main__":
     logger.info(
         f"Start date minus one business day: {start_date_minus_one_business_day_str}"
     )
-
-    # setup db connections
-    price_data_dir = "PriceData"
-    strategy_decisions_db_name = os.path.join(price_data_dir, "strategy_decisions.db")
-    con_sd = sqlite3.connect(strategy_decisions_db_name)
-
-    trades_list_db_name = os.path.join(price_data_dir, "trades_list.db")
-    con_tl = sqlite3.connect(trades_list_db_name)
-
-    con_pd = sqlite3.connect(PRICE_DB_PATH)
 
     # 2. load ticker price history from db.
     ticker_price_history = {}
