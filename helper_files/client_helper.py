@@ -13,7 +13,9 @@ from alpaca.trading.requests import MarketOrderRequest
 from pymongo import MongoClient
 
 from control import stop_loss, take_profit
-from strategies.talib_indicators import (
+
+# from strategies.talib_indicators import (
+from strategies.refactored_strategies import (
     AD_indicator,
     ADOSC_indicator,
     ADX_indicator,
