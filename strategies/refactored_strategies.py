@@ -3,6 +3,44 @@ import pandas as pd
 import talib as ta
 import numpy as np
 import inspect
+import logging
+import os, sys
+
+
+# Move the sys.path modification to the top
+# Ensure the parent directory is in the path before importing from it
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
+
+# Configure logging directly in this file
+def setup_logging(log_dir, log_file, level=logging.INFO):
+    """Sets up logging to a file and console."""
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, log_file)
+
+    logger = logging.getLogger(__name__)
+    logger.setLevel(level)
+
+    formatter = logging.Formatter(
+        "%(asctime)s - %(levelname)s - %(funcName)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    file_handler = logging.FileHandler(log_path)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
+
+    return logger
+
+
+logger = setup_logging("logs", "store_data.log", level=logging.INFO)
+
 
 """
 Key Changes and Considerations:
@@ -115,7 +153,7 @@ def MAMA_indicator(data, fastlimit=0.5, slowlimit=0.05):
 
 def MAVP_indicator(data, minperiod=2, maxperiod=30, matype=0):
     if "periods" not in data.columns:
-        print(
+        logger.warning(
             "Warning: 'periods' column not found for MAVP_indicator. Creating a constant period Series (30.0)."
         )
         periods_series = pd.Series(30.0, index=data.index)
@@ -309,7 +347,7 @@ def ADXR_indicator_v2(data, timeperiod=14, adx_threshold=20):
     choices = ["Buy", "Sell"]
     data["ADXR_Signal"] = np.select(conditions, choices, default="Hold")
 
-    print(
+    logger.warning(
         "Warning: Filtering signals based on ADXR > threshold is less common than using ADX."
     )
     return data["ADXR_Signal"]
@@ -569,7 +607,7 @@ def MINUS_DM_indicator(data, timeperiod=14):
         condition_buy=minus_dm < 0,
         condition_sell=minus_dm > 0,
     )
-    print(
+    logger.warning(
         "Warning: The implemented logic for MINUS_DM_indicator based on the original function seems potentially incorrect."
     )
     return data["MINUS_DM_Signal"]
@@ -591,7 +629,7 @@ def PLUS_DM_indicator(data, timeperiod=14):
         condition_buy=plus_dm > 0,
         condition_sell=plus_dm < 0,
     )
-    print(
+    logger.warning(
         "Warning: The implemented logic for PLUS_DM_indicator based on the original function seems potentially incorrect."
     )
     return data["PLUS_DM_Signal"]
@@ -757,7 +795,7 @@ def AD_indicator_v2(data, ma_period=20):
         condition_buy=ad > ad_ma,
         condition_sell=ad < ad_ma,
     )
-    print("Note: AD_indicator revised logic uses AD crossing its SMA.")
+    logger.warning("Note: AD_indicator revised logic uses AD crossing its SMA.")
     return data["AD_Signal"]
 
 
@@ -775,7 +813,7 @@ def OBV_indicator_v2(data, ma_period=20):
         condition_buy=obv > obv_ma,
         condition_sell=obv < obv_ma,
     )
-    print("Note: OBV_indicator revised logic uses OBV crossing its SMA.")
+    logger.warning("Note: OBV_indicator revised logic uses OBV crossing its SMA.")
     return data["OBV_Signal"]
 
 
@@ -788,7 +826,7 @@ def AD_indicator(data):
         raise ValueError("AD_indicator requires 'Volume' column in data")
     ad = ta.AD(data["High"], data["Low"], data["Close"], data["Volume"])
     data["AD_Signal"] = _generate_signals(condition_buy=ad > 0, condition_sell=ad < 0)
-    print(
+    logger.warning(
         "Warning: The implemented logic for AD_indicator based on the original function might be unconventional."
     )
     return data["AD_Signal"]
@@ -820,7 +858,7 @@ def OBV_indicator(data):
     data["OBV_Signal"] = _generate_signals(
         condition_buy=obv > 0, condition_sell=obv < 0
     )
-    print(
+    logger.warning(
         "Warning: The implemented logic for OBV_indicator based on the original function might be unconventional."
     )
     return data["OBV_Signal"]
@@ -840,7 +878,7 @@ def HT_TRENDMODE_indicator_v2(data):
         condition_buy=ht_trendmode == 1,
         condition_sell=ht_trendmode == 0,
     )
-    print(
+    logger.warning(
         "Note: HT_TRENDMODE_indicator revised logic: Buy on Trend(1), Sell on Cycle(0)."
     )
     return data["HT_TRENDMODE_Signal"]
@@ -894,7 +932,7 @@ def HT_TRENDMODE_indicator(data):
         condition_buy=ht_trendmode > 0,
         condition_sell=ht_trendmode < 0,
     )
-    print(
+    logger.warning(
         "Warning: Original HT_TRENDMODE_indicator logic might be flawed (Sell condition never met)."
     )
     return data["HT_TRENDMODE_Signal"]
@@ -955,7 +993,7 @@ def ATR_indicator_v2(data, timeperiod=14, ma_period=14):
         condition_buy=atr > atr_ma,
         condition_sell=atr < atr_ma,
     )
-    print(
+    logger.warning(
         "Warning: ATR_indicator revised logic (ATR vs MA) is unconventional for Buy/Sell signals."
     )
     return data["ATR_Signal"]
@@ -974,7 +1012,7 @@ def NATR_indicator_v2(data, timeperiod=14, ma_period=14):
         condition_buy=natr > natr_ma,
         condition_sell=natr < natr_ma,
     )
-    print(
+    logger.warning(
         "Warning: NATR_indicator revised logic (NATR vs MA) is unconventional for Buy/Sell signals."
     )
     return data["NATR_Signal"]
@@ -993,7 +1031,7 @@ def TRANGE_indicator_v2(data, ma_period=14):
         condition_buy=trange > trange_ma,
         condition_sell=trange < trange_ma,
     )
-    print(
+    logger.warning(
         "Warning: TRANGE_indicator revised logic (TRANGE vs MA) is unconventional for Buy/Sell signals."
     )
     return data["TRANGE_Signal"]
@@ -1008,7 +1046,7 @@ def ATR_indicator(data, timeperiod=14):
     data["ATR_Signal"] = _generate_signals(
         condition_buy=atr > 20, condition_sell=atr < 10
     )
-    print(
+    logger.warning(
         "Warning: Using fixed ATR levels (10, 20) for Buy/Sell signals in ATR_indicator is unconventional."
     )
     return data["ATR_Signal"]
@@ -1020,7 +1058,7 @@ def NATR_indicator(data, timeperiod=14):
     data["NATR_Signal"] = _generate_signals(
         condition_buy=natr > 20, condition_sell=natr < 10
     )
-    print(
+    logger.warning(
         "Warning: Using fixed NATR levels (10, 20) for Buy/Sell signals in NATR_indicator is unconventional."
     )
     return data["NATR_Signal"]
@@ -1032,7 +1070,7 @@ def TRANGE_indicator(data):
     data["TRANGE_Signal"] = _generate_signals(
         condition_buy=trange > 20, condition_sell=trange < 10
     )
-    print(
+    logger.warning(
         "Warning: Using fixed TRANGE levels (10, 20) for Buy/Sell signals in TRANGE_indicator is unconventional."
     )
     return data["TRANGE_Signal"]
@@ -1540,7 +1578,7 @@ def BETA_indicator_v2(data, timeperiod=5):
     data["BETA_Signal"] = _generate_signals(
         condition_buy=beta > 1, condition_sell=beta < 1
     )
-    print(
+    logger.warning(
         "Warning: BETA_indicator Buy/Sell signals based on Beta > 1 or < 1 are highly context-dependent and may not be meaningful."
     )
     return data["BETA_Signal"]
@@ -1557,7 +1595,7 @@ def CORREL_indicator_v2(data, timeperiod=30):
     data["CORREL_Signal"] = _generate_signals(
         condition_buy=correl > 0.5, condition_sell=correl < -0.5
     )
-    print(
+    logger.warning(
         "Warning: CORREL_indicator Buy/Sell signals based on fixed correlation levels are arbitrary and context-dependent."
     )
     return data["CORREL_Signal"]
@@ -1575,7 +1613,7 @@ def LINEARREG_INTERCEPT_indicator_v2(data, timeperiod=14):
         condition_buy=data["Close"] > linearreg,
         condition_sell=data["Close"] < linearreg,
     )
-    print(
+    logger.warning(
         "Note: LINEARREG_INTERCEPT_indicator logic revised to compare Close vs LINEARREG (forecast), making it equivalent to LINEARREG_indicator."
     )
     return data["LINEARREG_INTERCEPT_Signal"]
@@ -1594,7 +1632,7 @@ def STDDEV_indicator_v2(data, timeperiod=20, nbdev=1, ma_period=20):
         condition_buy=stddev > stddev_ma,
         condition_sell=stddev < stddev_ma,
     )
-    print(
+    logger.warning(
         "Warning: STDDEV_indicator revised logic (STDDEV vs MA) is unconventional for Buy/Sell signals."
     )
     return data["STDDEV_Signal"]
@@ -1613,7 +1651,7 @@ def VAR_indicator_v2(data, timeperiod=5, nbdev=1, ma_period=5):
         condition_buy=var > var_ma,
         condition_sell=var < var_ma,
     )
-    print(
+    logger.warning(
         "Warning: VAR_indicator revised logic (VAR vs MA) is unconventional for Buy/Sell signals."
     )
     return data["VAR_Signal"]
@@ -1667,7 +1705,7 @@ def LINEARREG_INTERCEPT_indicator(data, timeperiod=14):
         condition_buy=data["Close"] > linearreg_intercept,
         condition_sell=data["Close"] < linearreg_intercept,
     )
-    print(
+    logger.warning(
         "Warning: Comparing Close to LINEARREG_INTERCEPT for signals in LINEARREG_INTERCEPT_indicator might be unconventional."
     )
     return data["LINEARREG_INTERCEPT_Signal"]
@@ -1689,7 +1727,7 @@ def STDDEV_indicator(data, timeperiod=20, nbdev=1):
     data["STDDEV_Signal"] = _generate_signals(
         condition_buy=stddev > 20, condition_sell=stddev < 10
     )
-    print(
+    logger.warning(
         "Warning: Using fixed STDDEV levels (10, 20) for Buy/Sell signals in STDDEV_indicator is unconventional."
     )
     return data["STDDEV_Signal"]
@@ -1710,7 +1748,7 @@ def VAR_indicator(data, timeperiod=5, nbdev=1):
     data["VAR_Signal"] = _generate_signals(
         condition_buy=var > 20, condition_sell=var < 10
     )
-    print(
+    logger.warning(
         "Warning: Using fixed VAR levels (10, 20) for Buy/Sell signals in VAR_indicator is unconventional."
     )
     return data["VAR_Signal"]
@@ -1833,7 +1871,7 @@ def vwap_indicator(data, window=14):
     if not all(col in data.columns for col in required_cols):
         raise ValueError(f"Data must include columns: {required_cols}")
     if data["Volume"].isnull().any() or (data["Volume"] < 0).any():
-        print(
+        logger.warning(
             "Warning: VWAP calculation encountered missing or negative Volume data. Results may be inaccurate."
         )
 
@@ -1860,93 +1898,4 @@ def vwap_indicator(data, window=14):
 
 # --- Example Usage ---
 if __name__ == "__main__":
-    num_rows = 200
-    data = {
-        "Open": np.random.rand(num_rows) * 10 + 100,
-        "High": np.random.rand(num_rows) * 5 + 105,
-        "Low": 100 - np.random.rand(num_rows) * 5,
-        "Close": np.random.rand(num_rows) * 10 + 100,
-        "Volume": np.random.rand(num_rows) * 10000 + 50000,
-    }
-    index = pd.date_range(start="2023-01-01", periods=num_rows, freq="B")
-    df = pd.DataFrame(data, index=index)
-
-    df["High"] = df[["High", "Open", "Close"]].max(axis=1)
-    df["Low"] = df[["Low", "Open", "Close"]].min(axis=1)
-    trend = np.sin(np.linspace(0, 15, len(df))) * 5 + np.linspace(0, 20, len(df))
-    df["Close"] = df["Close"] * 0.3 + (100 + trend) * 0.7
-    df["Open"] = df["Close"].shift(1).fillna(df["Close"].iloc[0]) * (
-        1 + np.random.randn(len(df)) * 0.005
-    )
-    df["High"] = df[["Open", "Close"]].max(axis=1) + np.random.rand(len(df)) * 2
-    df["Low"] = df[["Open", "Close"]].min(axis=1) - np.random.rand(len(df)) * 2
-    df["Volume"] = (
-        df["Volume"] * (1 + df["Close"].pct_change().fillna(0).abs() * 2)
-    ).abs()
-
-    print("Original DataFrame tail:")
-    print(df.tail())
-
-    df_ichi = ichimoku_cloud_indicator(df.copy())
-    df_kc = keltner_channels_indicator(df.copy())
-    df_vwap = vwap_indicator(df.copy(), window=20)
-
-    print("\n--- Ichimoku Cloud Results (Tail) ---")
-    ichi_cols = [
-        "Close",
-        "Ichi_Tenkan",
-        "Ichi_Kijun",
-        "Ichi_SenkouA",
-        "Ichi_SenkouB",
-        "Ichi_Chikou",
-        "Ichimoku_Signal",
-    ]
-    print(df_ichi[ichi_cols].tail(10))
-
-    print("\n--- Keltner Channels Results (Tail) ---")
-    kc_cols = ["Close", "KC_Lower", "KC_Middle", "KC_Upper", "Keltner_Signal"]
-    print(df_kc[kc_cols].tail(10))
-
-    print("\n--- Rolling VWAP Results (Tail) ---")
-    vwap_cols = ["Close", "Volume", "VWAP", "VWAP_Signal"]
-    print(df_vwap[vwap_cols].tail(10))
-
-
-if __name__ == "__main__":
-    data = {
-        "Open": np.random.rand(100) * 10 + 100,
-        "High": np.random.rand(100) * 5 + 105,
-        "Low": 100 - np.random.rand(100) * 5,
-        "Close": np.random.rand(100) * 10 + 100,
-        "Volume": np.random.rand(100) * 10000 + 5000,
-    }
-    df = pd.DataFrame(data)
-    df["High"] = df[["High", "Open", "Close"]].max(axis=1)
-    df["Low"] = df[["Low", "Open", "Close"]].min(axis=1)
-    df["Close"] = df["Close"] + np.linspace(0, 15, len(df))
-
-    df = BBANDS_indicator(df.copy())
-    df = MACD_indicator(df.copy())
-    df = RSI_indicator(df.copy())
-    df = CDLHAMMER_indicator(df.copy())
-
-    print("DataFrame with vectorized signals:")
-    signal_cols = [col for col in df.columns if "_Signal" in col]
-    print(df[["Close"] + signal_cols].tail(10))
-
-    print("\nLast row signals:")
-    print(df.iloc[-1][signal_cols])
-
-    df_mavp = df.copy()
-    atr_temp = ta.ATR(df_mavp["High"], df_mavp["Low"], df_mavp["Close"], timeperiod=10)
-    df_mavp["periods"] = pd.Series(
-        np.where(atr_temp > atr_temp.median(), 10.0, 30.0), index=df_mavp.index
-    )
-    df_mavp["periods"] = df_mavp["periods"].fillna(30.0)
-
-    try:
-        df_mavp = MAVP_indicator(df_mavp)
-        print("\nMAVP Example:")
-        print(df_mavp[["Close", "periods", "MAVP_Signal"]].tail())
-    except Exception as e:
-        print(f"\nError calculating MAVP example: {e}")
+    ...
