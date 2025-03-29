@@ -591,6 +591,10 @@ def simulate_trading_day(
     logger.debug(f"Simulating trading for {date_str}.")
 
     # new get daily regime data
+    """
+    Regime data from previous index?
+    try using .shift?
+    """
     # daily_regime_data = ticker_price_history[regime_tickers[0]].loc[date_str]
     # current_vix_data = daily_regime_data["Close"].values[0]
     current_vix_data = ticker_price_history[regime_tickers[0]].at[date_str, "Close"]
