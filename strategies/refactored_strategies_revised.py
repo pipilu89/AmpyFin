@@ -35,7 +35,7 @@ def _generate_signals(condition_buy, condition_sell, default="Hold"):
 # --- Revised Momentum Indicators ---
 
 
-def ADX_indicator(data, timeperiod=14, adx_threshold=20):
+def ADX_indicator_v2(data, timeperiod=14, adx_threshold=20):
     """
     Vectorized ADX indicator signals based on DI+/DI- crossover,
     filtered by ADX strength.
@@ -58,8 +58,10 @@ def ADX_indicator(data, timeperiod=14, adx_threshold=20):
     # Generate signals: Buy on DI+ cross up IF trending, Sell on DI- cross up IF trending
     # Using np.select for clarity on conditions
     conditions = [
-        (plus_di > minus_di) & is_trending,  # DI+ is dominant and trend is strong
-        (minus_di > plus_di) & is_trending,  # DI- is dominant and trend is strong
+        (di_cross_up) & is_trending,  # DI+ is dominant and trend is strong
+        (di_cross_down) & is_trending,  # DI- is dominant and trend is strong
+        # (plus_di > minus_di) & is_trending,  # DI+ is dominant and trend is strong
+        # (minus_di > plus_di) & is_trending,  # DI- is dominant and trend is strong
     ]
     choices = ["Buy", "Sell"]
     data["ADX_Signal"] = np.select(conditions, choices, default="Hold")
@@ -73,7 +75,7 @@ def ADX_indicator(data, timeperiod=14, adx_threshold=20):
     return data
 
 
-def ADXR_indicator(data, timeperiod=14, adx_threshold=20):
+def ADXR_indicator_v2(data, timeperiod=14, adx_threshold=20):
     """
     Vectorized ADXR indicator signals. ADXR smooths ADX.
     Using similar DI crossover logic, filtered by ADXR strength.
@@ -107,7 +109,7 @@ def ADXR_indicator(data, timeperiod=14, adx_threshold=20):
     return data
 
 
-def CCI_indicator(data, timeperiod=14, buy_level=-100, sell_level=100):
+def CCI_indicator_v2(data, timeperiod=14, buy_level=-100, sell_level=100):
     """
     Vectorized Commodity Channel Index (CCI) indicator signals.
     Standard interpretation: Buy when crossing UP from oversold (< buy_level),
@@ -125,7 +127,7 @@ def CCI_indicator(data, timeperiod=14, buy_level=-100, sell_level=100):
     return data
 
 
-def CMO_indicator(data, timeperiod=14, buy_level=-50, sell_level=50):
+def CMO_indicator_v2(data, timeperiod=14, buy_level=-50, sell_level=50):
     """
     Vectorized Chande Momentum Oscillator (CMO) indicator signals.
     Standard interpretation: Buy when oversold (< buy_level),
@@ -142,7 +144,7 @@ def CMO_indicator(data, timeperiod=14, buy_level=-50, sell_level=50):
     return data
 
 
-def DX_indicator(data, timeperiod=14, dx_threshold=20):
+def DX_indicator_v2(data, timeperiod=14, dx_threshold=20):
     """
     Vectorized Directional Movement Index (DX) indicator signals.
     DX measures spread between DI+ and DI-. High DX = Strong trend.
@@ -174,7 +176,7 @@ def DX_indicator(data, timeperiod=14, dx_threshold=20):
 
 
 # MINUS_DI and PLUS_DI indicators based on simple dominance (crossover implied)
-def MINUS_DI_indicator(data, timeperiod=14):
+def PLUS_MINUS_DI_indicator(data, timeperiod=14):
     """
     Vectorized Minus Directional Indicator (MINUS_DI) signals.
     Revised Logic: Sell if DI- is dominant (DI- > DI+).
@@ -195,25 +197,25 @@ def MINUS_DI_indicator(data, timeperiod=14):
     return data
 
 
-def PLUS_DI_indicator(data, timeperiod=14):
-    """
-    Vectorized Plus Directional Indicator (PLUS_DI) signals.
-    Revised Logic: Buy if DI+ is dominant (DI+ > DI-).
-    """
-    plus_di = ta.PLUS_DI(
-        data["High"], data["Low"], data["Close"], timeperiod=timeperiod
-    )
-    minus_di = ta.MINUS_DI(
-        data["High"], data["Low"], data["Close"], timeperiod=timeperiod
-    )
+# def PLUS_DI_indicator(data, timeperiod=14):
+#     """
+#     Vectorized Plus Directional Indicator (PLUS_DI) signals.
+#     Revised Logic: Buy if DI+ is dominant (DI+ > DI-).
+#     """
+#     plus_di = ta.PLUS_DI(
+#         data["High"], data["Low"], data["Close"], timeperiod=timeperiod
+#     )
+#     minus_di = ta.MINUS_DI(
+#         data["High"], data["Low"], data["Close"], timeperiod=timeperiod
+#     )
 
-    data["PLUS_DI_Signal"] = _generate_signals(
-        condition_buy=plus_di > minus_di,  # DI+ is dominant
-        condition_sell=minus_di > plus_di,  # DI- is dominant
-    )
-    # data['PLUS_DI'] = plus_di
-    # data['MINUS_DI'] = minus_di
-    return data
+#     data["PLUS_DI_Signal"] = _generate_signals(
+#         condition_buy=plus_di > minus_di,  # DI+ is dominant
+#         condition_sell=minus_di > plus_di,  # DI- is dominant
+#     )
+#     # data['PLUS_DI'] = plus_di
+#     # data['MINUS_DI'] = minus_di
+#     return data
 
 
 # Remove MINUS_DM_indicator and PLUS_DM_indicator as standalone signals
@@ -221,7 +223,7 @@ def PLUS_DI_indicator(data, timeperiod=14):
 # --- Revised Volume Indicators ---
 
 
-def AD_indicator(data, ma_period=20):
+def AD_indicator_v2(data, ma_period=20):
     """
     Vectorized Chaikin A/D Line (AD) indicator signals.
     Revised logic: Compare AD line to its moving average.
@@ -241,7 +243,7 @@ def AD_indicator(data, ma_period=20):
     return data
 
 
-def OBV_indicator(data, ma_period=20):
+def OBV_indicator_v2(data, ma_period=20):
     """
     Vectorized On Balance Volume (OBV) indicator signals.
     Revised logic: Compare OBV to its moving average.
@@ -264,7 +266,7 @@ def OBV_indicator(data, ma_period=20):
 # --- Revised Cycle Indicators ---
 
 
-def HT_TRENDMODE_indicator(data):
+def HT_TRENDMODE_indicator_v2(data):
     """
     Vectorized Hilbert Transform - Trend vs Cycle Mode (HT_TRENDMODE) signals.
     Revised logic: Buy in Trend Mode (1), Sell in Cycle Mode (0).
@@ -290,7 +292,7 @@ def HT_TRENDMODE_indicator(data):
 # The MA crossover logic provided is a *possible* interpretation but lacks strong theoretical backing as a primary signal.
 
 
-def ATR_indicator(data, timeperiod=14, ma_period=14):
+def ATR_indicator_v2(data, timeperiod=14, ma_period=14):
     """
     Vectorized Average True Range (ATR) indicator signals.
     Revised logic: Compare ATR to its moving average.
@@ -311,7 +313,7 @@ def ATR_indicator(data, timeperiod=14, ma_period=14):
     return data
 
 
-def NATR_indicator(data, timeperiod=14, ma_period=14):
+def NATR_indicator_v2(data, timeperiod=14, ma_period=14):
     """
     Vectorized Normalized Average True Range (NATR) indicator signals.
     Revised logic: Compare NATR to its moving average.
@@ -332,7 +334,7 @@ def NATR_indicator(data, timeperiod=14, ma_period=14):
     return data
 
 
-def TRANGE_indicator(data, ma_period=14):
+def TRANGE_indicator_v2(data, ma_period=14):
     """
     Vectorized True Range (TRANGE) indicator signals.
     Revised logic: Compare TRANGE to its moving average.
@@ -354,9 +356,10 @@ def TRANGE_indicator(data, ma_period=14):
 
 
 # --- Revised Statistic Functions ---
+# flawed usage
 
 
-def BETA_indicator(data, timeperiod=5):
+def BETA_indicator_v2(data, timeperiod=5):
     """
     Vectorized Beta (BETA) indicator signals.
     Logic: Beta > 1 implies higher volatility than benchmark (Low price here).
@@ -374,7 +377,7 @@ def BETA_indicator(data, timeperiod=5):
     return data
 
 
-def CORREL_indicator(data, timeperiod=30):
+def CORREL_indicator_v2(data, timeperiod=30):
     """
     Vectorized Pearson's Correlation Coefficient (CORREL) indicator signals.
     Logic: Measures correlation between High and Low.
@@ -392,7 +395,7 @@ def CORREL_indicator(data, timeperiod=30):
     return data
 
 
-def LINEARREG_INTERCEPT_indicator(data, timeperiod=14):
+def LINEARREG_INTERCEPT_indicator_v2(data, timeperiod=14):
     """
     Vectorized Linear Regression Intercept (LINEARREG_INTERCEPT) indicator signals.
     Revised logic: Compares Close to the forecast value (LINEARREG), not the intercept.
@@ -414,7 +417,7 @@ def LINEARREG_INTERCEPT_indicator(data, timeperiod=14):
     return data
 
 
-def STDDEV_indicator(data, timeperiod=20, nbdev=1, ma_period=20):
+def STDDEV_indicator_v2(data, timeperiod=20, nbdev=1, ma_period=20):
     """
     Vectorized Standard Deviation (STDDEV) indicator signals.
     Revised logic: Compare STDDEV to its moving average.
@@ -435,7 +438,7 @@ def STDDEV_indicator(data, timeperiod=20, nbdev=1, ma_period=20):
     return data
 
 
-def VAR_indicator(data, timeperiod=5, nbdev=1, ma_period=5):
+def VAR_indicator_v2(data, timeperiod=5, nbdev=1, ma_period=5):
     """
     Vectorized Variance (VAR) indicator signals.
     Revised logic: Compare VAR to its moving average.
@@ -484,32 +487,32 @@ if __name__ == "__main__":
     df_revised = df.copy()
 
     print("\n--- Applying ADX ---")
-    df_revised = ADX_indicator(df_revised)
+    df_revised = ADX_indicator_v2(df_revised)
 
     print("\n--- Applying CCI ---")
-    df_revised = CCI_indicator(df_revised)
+    df_revised = CCI_indicator_v2(df_revised)
 
     print("\n--- Applying AD (Volume) ---")
-    df_revised = AD_indicator(df_revised)
+    df_revised = AD_indicator_v2(df_revised)
 
     print("\n--- Applying HT_TRENDMODE ---")
-    df_revised = HT_TRENDMODE_indicator(df_revised)
+    df_revised = HT_TRENDMODE_indicator_v2(df_revised)
 
     print("\n--- Applying ATR (Volatility) ---")
-    df_revised = ATR_indicator(df_revised)
+    df_revised = ATR_indicator_v2(df_revised)
 
     print("\n--- Applying LINEARREG_INTERCEPT ---")
-    df_revised = LINEARREG_INTERCEPT_indicator(df_revised)
-    df_revised = LINEARREG_indicator(df_revised)  # For comparison
+    df_revised = LINEARREG_INTERCEPT_indicator_v2(df_revised)
+    # df_revised = LINEARREG_indicator(df_revised)  # For comparison
 
     print("\nDataFrame with REVISED signals (Tail):")
     signal_cols = [col for col in df_revised.columns if "_Signal" in col]
     print(df_revised[["Close"] + signal_cols].tail(15))
 
     # Compare LINREG signals
-    print(
-        "\nComparison of LINREG and LINREG_INTERCEPT signals (should be identical with revised logic):"
-    )
-    print(
-        df_revised[["Close", "LINEARREG_Signal", "LINEARREG_INTERCEPT_Signal"]].tail(10)
-    )
+    # print(
+    #     "\nComparison of LINREG and LINREG_INTERCEPT signals (should be identical with revised logic):"
+    # )
+    # print(
+    #     df_revised[["Close", "LINEARREG_Signal", "LINEARREG_INTERCEPT_Signal"]].tail(10)
+    # )

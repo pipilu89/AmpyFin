@@ -16,19 +16,39 @@ from control import stop_loss, take_profit
 
 # from strategies.talib_indicators import (
 from strategies.refactored_strategies import (
-    AD_indicator,
+    ADX_indicator_v2,
+    ADXR_indicator_v2,
+    CCI_indicator_v2,
+    CMO_indicator_v2,
+    DX_indicator_v2,
+    PLUS_MINUS_DI_indicator,
+    AD_indicator_v2,
+    OBV_indicator_v2,
+    HT_TRENDMODE_indicator_v2,
+    ATR_indicator_v2,  # WARNING: Using volatility indicators directly for Buy/Sell is generally not recommended.
+    NATR_indicator_v2,  # WARNING: Using volatility indicators directly for Buy/Sell is generally not recommended.
+    TRANGE_indicator_v2,  # WARNING: Using volatility indicators directly for Buy/Sell is generally not recommended.
+    BETA_indicator_v2,  # flawed usage
+    CORREL_indicator_v2,  # flawed usage
+    LINEARREG_INTERCEPT_indicator_v2,  # flawed usage
+    STDDEV_indicator_v2,  # flawed usage
+    VAR_indicator_v2,  # flawed usage
+    ichimoku_cloud_indicator,  # new
+    keltner_channels_indicator,  # new
+    vwap_indicator,  # new
+    # AD_indicator,
     ADOSC_indicator,
-    ADX_indicator,
-    ADXR_indicator,
+    # ADX_indicator,
+    # ADXR_indicator,
     APO_indicator,
     AROON_indicator,
     AROONOSC_indicator,
-    ATR_indicator,
+    # ATR_indicator,
     AVGPRICE_indicator,
     BBANDS_indicator,
-    BETA_indicator,
+    # BETA_indicator,
     BOP_indicator,
-    CCI_indicator,
+    # CCI_indicator,
     CDL2CROWS_indicator,
     CDL3BLACKCROWS_indicator,
     CDL3INSIDE_indicator,
@@ -90,21 +110,21 @@ from strategies.refactored_strategies import (
     CDLUNIQUE3RIVER_indicator,
     CDLUPSIDEGAP2CROWS_indicator,
     CDLXSIDEGAP3METHODS_indicator,
-    CMO_indicator,
-    CORREL_indicator,
+    # CMO_indicator,
+    # CORREL_indicator,
     DEMA_indicator,
-    DX_indicator,
+    # DX_indicator,
     EMA_indicator,
     HT_DCPERIOD_indicator,
     HT_DCPHASE_indicator,
     HT_PHASOR_indicator,
     HT_SINE_indicator,
     HT_TRENDLINE_indicator,
-    HT_TRENDMODE_indicator,
+    # HT_TRENDMODE_indicator,
     KAMA_indicator,
     LINEARREG_ANGLE_indicator,
-    LINEARREG_indicator,
-    LINEARREG_INTERCEPT_indicator,
+    # LINEARREG_indicator,
+    # LINEARREG_INTERCEPT_indicator,
     LINEARREG_SLOPE_indicator,
     MA_indicator,
     MACD_indicator,
@@ -116,12 +136,12 @@ from strategies.refactored_strategies import (
     MFI_indicator,
     MIDPOINT_indicator,
     MIDPRICE_indicator,
-    MINUS_DI_indicator,
+    # MINUS_DI_indicator,
     MINUS_DM_indicator,
     MOM_indicator,
-    NATR_indicator,
-    OBV_indicator,
-    PLUS_DI_indicator,
+    # NATR_indicator,
+    # OBV_indicator,
+    # PLUS_DI_indicator,
     PLUS_DM_indicator,
     PPO_indicator,
     ROC_indicator,
@@ -132,13 +152,13 @@ from strategies.refactored_strategies import (
     SAR_indicator,
     SAREXT_indicator,
     SMA_indicator,
-    STDDEV_indicator,
+    # STDDEV_indicator,
     STOCH_indicator,
     STOCHF_indicator,
     STOCHRSI_indicator,
     T3_indicator,
     TEMA_indicator,
-    TRANGE_indicator,
+    # TRANGE_indicator,
     TRIMA_indicator,
     TRIX_indicator,
     TSF_indicator,
@@ -157,6 +177,8 @@ sys.path.append(str(parent_dir))
 
 
 overlap_studies = [
+    ichimoku_cloud_indicator,
+    keltner_channels_indicator,
     BBANDS_indicator,
     DEMA_indicator,
     EMA_indicator,
@@ -176,23 +198,24 @@ overlap_studies = [
     WMA_indicator,
 ]
 momentum_indicators = [
-    ADX_indicator,
-    ADXR_indicator,
+    ADX_indicator_v2,
+    ADXR_indicator_v2,
     APO_indicator,
     AROON_indicator,
     AROONOSC_indicator,
     BOP_indicator,
-    CCI_indicator,
-    CMO_indicator,
-    DX_indicator,
+    CCI_indicator_v2,
+    CMO_indicator_v2,
+    DX_indicator_v2,
     MACD_indicator,
     MACDEXT_indicator,
     MACDFIX_indicator,
     MFI_indicator,
-    MINUS_DI_indicator,
+    # MINUS_DI_indicator,
+    PLUS_MINUS_DI_indicator,
     MINUS_DM_indicator,
     MOM_indicator,
-    PLUS_DI_indicator,
+    # PLUS_DI_indicator,
     PLUS_DM_indicator,
     PPO_indicator,
     ROC_indicator,
@@ -207,13 +230,13 @@ momentum_indicators = [
     ULTOSC_indicator,
     WILLR_indicator,
 ]
-volume_indicators = [AD_indicator, ADOSC_indicator, OBV_indicator]
+volume_indicators = [AD_indicator_v2, ADOSC_indicator, OBV_indicator_v2, vwap_indicator]
 cycle_indicators = [
     HT_DCPERIOD_indicator,
     HT_DCPHASE_indicator,
     HT_PHASOR_indicator,
     HT_SINE_indicator,
-    HT_TRENDMODE_indicator,
+    HT_TRENDMODE_indicator_v2,
 ]
 price_transforms = [
     AVGPRICE_indicator,
@@ -221,7 +244,7 @@ price_transforms = [
     TYPPRICE_indicator,
     WCLPRICE_indicator,
 ]
-volatility_indicators = [ATR_indicator, NATR_indicator, TRANGE_indicator]
+volatility_indicators = [ATR_indicator_v2, NATR_indicator_v2, TRANGE_indicator_v2]
 pattern_recognition = [
     CDL2CROWS_indicator,
     CDL3BLACKCROWS_indicator,
@@ -286,13 +309,13 @@ pattern_recognition = [
     CDLXSIDEGAP3METHODS_indicator,
 ]
 statistical_functions = [
-    BETA_indicator,
-    CORREL_indicator,
-    LINEARREG_indicator,
+    BETA_indicator_v2,
+    CORREL_indicator_v2,
+    # LINEARREG_indicator,
     LINEARREG_ANGLE_indicator,
-    LINEARREG_INTERCEPT_indicator,
+    LINEARREG_INTERCEPT_indicator_v2,
     LINEARREG_SLOPE_indicator,
-    STDDEV_indicator,
+    STDDEV_indicator_v2,
     TSF_indicator,
     VAR_indicator,
 ]

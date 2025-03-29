@@ -16,6 +16,7 @@ from helper_files.client_helper import (
     strategies_test2,
     strategies_test,
     strategies,
+    volume_indicators,
 )
 from TradeSim.utils import (
     precompute_strategy_decisions,
@@ -81,15 +82,34 @@ def df_to_sql_merge_tables_on_date_if_exist(df_new, strategy_name, con, logger):
         )
 
         # Resolve conflicts for all columns
+        resolved_columns = {}
         for column in df_new.columns:
             if column in df_existing.columns:
-                df_merged[column] = df_merged[f"{column}_right"].combine_first(
+                # Combine the columns and store in a dictionary
+                resolved_columns[column] = df_merged[f"{column}_right"].combine_first(
                     df_merged[f"{column}_left"]
                 )
+                # Drop the original conflicting columns
                 df_merged.drop(
-                    columns=[f"{column}_left", f"{column}_right"],
-                    inplace=True,
+                    columns=[f"{column}_left", f"{column}_right"], inplace=True
                 )
+
+        # Create a new DataFrame with the resolved columns
+        resolved_df = pd.DataFrame(resolved_columns, index=df_merged.index)
+
+        # Concatenate the resolved columns back into the DataFrame
+        df_merged = pd.concat([df_merged, resolved_df], axis=1)
+
+        # Resolve conflicts for all columns
+        # for column in df_new.columns:
+        #     if column in df_existing.columns:
+        #         df_merged[column] = df_merged[f"{column}_right"].combine_first(
+        #             df_merged[f"{column}_left"]
+        #         )
+        #         df_merged.drop(
+        #             columns=[f"{column}_left", f"{column}_right"],
+        #             inplace=True,
+        #         )
 
         # Save merged DataFrame to SQLite database
         df_merged.to_sql(
@@ -105,6 +125,7 @@ def df_to_sql_merge_tables_on_date_if_exist(df_new, strategy_name, con, logger):
 def main():
     start_time = time.time()  # Record the start time
 
+    # tickers_list = train_tickers
     # tickers_list = train_tickers + regime_tickers
     tickers_list = ["AAPL"]  # test
     train_tickers = ["AAPL"]  # test
@@ -128,44 +149,56 @@ def main():
     )
     con_sd = sqlite3.connect(strategy_decisions_db_name)
 
-    # strategies = strategies_test2
-    strategies = strategies_test
+    # strategies = volume_indicators
+    # strategies = strategies_test
 
     # to reduce problem of large file sizes and memory, we calculate and store each strategy decisions one by one.
     # This way can better handle many tickers and dates. Also can update specific strategy decisions.
 
-    for ticker in tickers_list:
+    for idx, ticker in enumerate(tickers_list):
+        logger.info(
+            f"\n=== COMPUTING DECISIONS FOR: {ticker} ({idx + 1}/{len(tickers_list)}) ==="
+        )
+
+        strategy_results = []  # Collect results for all strategies
         # slice ticker_price_history for train dates
         ticker_price_history = sql_to_df_with_date_range(
             ticker, train_period_start_with_offset, test_period_end, con_pd
         )
+
         for idx, strategy in enumerate(strategies):
             strategy_name = strategy.__name__
-            logger.info(
-                f"\n\n=== COMPUTING DECISIONS FOR: {strategy_name} ({idx + 1}/{len(strategies)}) ===\n"
-            )
+            logger.info(f"{strategy_name} ({idx + 1}/{len(strategies)})")
 
             # Compute strategy signal
-            ticker_price_history = strategy(ticker_price_history)
+            # c:\Users\pi\code\AmpyFin\strategies\refactored_strategies.py:1926: PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
+            # ticker_price_history = strategy(ticker_price_history)
 
-            print(ticker_price_history)
+            # Compute strategy signal and store the result
+            # strategy_result = strategy(ticker_price_history)
+            strategy_result = strategy(ticker_price_history.copy())
+            strategy_results.append(strategy_result)
 
-        df_to_sql_merge_tables_on_date_if_exist(
-            ticker_price_history, ticker, con_sd, logger
+        # Concatenate all strategy results into a single DataFrame
+        combined_strategy_results = pd.concat(strategy_results, axis=1)
+
+        # Merge ticker_price_history with combined_strategy_results
+        # Assuming both have a common 'Date' column
+        df_merged = pd.merge(
+            ticker_price_history.copy(),
+            combined_strategy_results,
+            left_index=True,
+            right_index=True,
         )
 
-        # # format for single strategy
-        # df_single_strategy = df_precomputed_decisions[["Ticker", "Date", "Action"]].loc[
-        #     df_precomputed_decisions["Strategy"] == strategy_name
-        # ]
+        # Reorder columns in ticker_price_history
+        desired_order = ["Open", "High", "Low", "Close", "Volume"]
+        remaining_columns = [
+            col for col in df_merged.columns if col not in desired_order
+        ]
+        df_merged = df_merged[desired_order + remaining_columns]
 
-        # logger.info(f"{df_single_strategy}")
-
-        # # pivot df to fit sql table format
-        # df_pivoted = df_single_strategy.pivot(
-        #     index="Date", columns="Ticker", values="Action"
-        # )
-        # # print(df_pivoted)
+        df_to_sql_merge_tables_on_date_if_exist(df_merged, ticker, con_sd, logger)
 
     # summary
     logger.info(f"finished")
