@@ -122,6 +122,9 @@ def df_to_sql_merge_tables_on_date_if_exist(df_new, strategy_name, con, logger):
         logger.info(f"Data for {strategy_name} merged and saved to database.")
 
 
+def convert_decisions_from_by_ticker_to_by_strategy(): ...
+
+
 def main():
     start_time = time.time()  # Record the start time
 

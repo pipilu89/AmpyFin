@@ -82,56 +82,56 @@ def _generate_signals(condition_buy, condition_sell, default="Hold"):
 def BBANDS_indicator(data, timeperiod=20):
     """Vectorized Bollinger Bands (BBANDS) indicator signals."""
     upper, middle, lower = ta.BBANDS(data["Close"], timeperiod=timeperiod)
-    data["BBANDS_Signal"] = _generate_signals(
+    data["BBANDS_indicator"] = _generate_signals(
         condition_buy=data["Close"] < lower, condition_sell=data["Close"] > upper
     )
-    return data["BBANDS_Signal"]
+    return data["BBANDS_indicator"]
 
 
 def DEMA_indicator(data, timeperiod=30):
     """Vectorized Double Exponential Moving Average (DEMA) indicator signals."""
     dema = ta.DEMA(data["Close"], timeperiod=timeperiod)
-    data["DEMA_Signal"] = _generate_signals(
+    data["DEMA_indicator"] = _generate_signals(
         condition_buy=data["Close"] > dema, condition_sell=data["Close"] < dema
     )
-    return data["DEMA_Signal"]
+    return data["DEMA_indicator"]
 
 
 def EMA_indicator(data, timeperiod=30):
     """Vectorized Exponential Moving Average (EMA) indicator signals."""
     ema = ta.EMA(data["Close"], timeperiod=timeperiod)
-    data["EMA_Signal"] = _generate_signals(
+    data["EMA_indicator"] = _generate_signals(
         condition_buy=data["Close"] > ema, condition_sell=data["Close"] < ema
     )
-    return data["EMA_Signal"]
+    return data["EMA_indicator"]
 
 
 def HT_TRENDLINE_indicator(data):
     """Vectorized Hilbert Transform - Instantaneous Trendline (HT_TRENDLINE) signals."""
     ht_trendline = ta.HT_TRENDLINE(data["Close"])
-    data["HT_TRENDLINE_Signal"] = _generate_signals(
+    data["HT_TRENDLINE_indicator"] = _generate_signals(
         condition_buy=data["Close"] > ht_trendline,
         condition_sell=data["Close"] < ht_trendline,
     )
-    return data["HT_TRENDLINE_Signal"]
+    return data["HT_TRENDLINE_indicator"]
 
 
 def KAMA_indicator(data, timeperiod=30):
     """Vectorized Kaufman Adaptive Moving Average (KAMA) indicator signals."""
     kama = ta.KAMA(data["Close"], timeperiod=timeperiod)
-    data["KAMA_Signal"] = _generate_signals(
+    data["KAMA_indicator"] = _generate_signals(
         condition_buy=data["Close"] > kama, condition_sell=data["Close"] < kama
     )
-    return data["KAMA_Signal"]
+    return data["KAMA_indicator"]
 
 
 def MA_indicator(data, timeperiod=30, matype=0):
     """Vectorized Moving average (MA) indicator signals."""
     ma = ta.MA(data["Close"], timeperiod=timeperiod, matype=matype)
-    data["MA_Signal"] = _generate_signals(
+    data["MA_indicator"] = _generate_signals(
         condition_buy=data["Close"] > ma, condition_sell=data["Close"] < ma
     )
-    return data["MA_Signal"]
+    return data["MA_indicator"]
 
 
 def MAMA_indicator(data, fastlimit=0.5, slowlimit=0.05):
@@ -145,10 +145,10 @@ def MAMA_indicator(data, fastlimit=0.5, slowlimit=0.05):
         mama = pd.Series(mama_vals, index=data.index)
         fama = pd.Series(fama_vals, index=data.index)
 
-    data["MAMA_Signal"] = _generate_signals(
+    data["MAMA_indicator"] = _generate_signals(
         condition_buy=data["Close"] > mama, condition_sell=data["Close"] < mama
     )
-    return data["MAMA_Signal"]
+    return data["MAMA_indicator"]
 
 
 def MAVP_indicator(data, minperiod=2, maxperiod=30, matype=0):
@@ -185,37 +185,37 @@ def MAVP_indicator(data, minperiod=2, maxperiod=30, matype=0):
         )
         mavp = pd.Series(mavp_vals, index=data.index)
 
-    data["MAVP_Signal"] = _generate_signals(
+    data["MAVP_indicator"] = _generate_signals(
         condition_buy=data["Close"] > mavp, condition_sell=data["Close"] < mavp
     )
-    return data["MAVP_Signal"]
+    return data["MAVP_indicator"]
 
 
 def MIDPOINT_indicator(data, timeperiod=14):
     """Vectorized MidPoint over period (MIDPOINT) indicator signals."""
     midpoint = ta.MIDPOINT(data["Close"], timeperiod=timeperiod)
-    data["MIDPOINT_Signal"] = _generate_signals(
+    data["MIDPOINT_indicator"] = _generate_signals(
         condition_buy=data["Close"] > midpoint, condition_sell=data["Close"] < midpoint
     )
-    return data["MIDPOINT_Signal"]
+    return data["MIDPOINT_indicator"]
 
 
 def MIDPRICE_indicator(data, timeperiod=14):
     """Vectorized Midpoint Price over period (MIDPRICE) indicator signals."""
     midprice = ta.MIDPRICE(data["High"], data["Low"], timeperiod=timeperiod)
-    data["MIDPRICE_Signal"] = _generate_signals(
+    data["MIDPRICE_indicator"] = _generate_signals(
         condition_buy=data["Close"] > midprice, condition_sell=data["Close"] < midprice
     )
-    return data["MIDPRICE_Signal"]
+    return data["MIDPRICE_indicator"]
 
 
 def SAR_indicator(data, acceleration=0.02, maximum=0.2):
     """Vectorized Parabolic SAR (SAR) indicator signals."""
     sar = ta.SAR(data["High"], data["Low"], acceleration=acceleration, maximum=maximum)
-    data["SAR_Signal"] = _generate_signals(
+    data["SAR_indicator"] = _generate_signals(
         condition_buy=data["Close"] > sar, condition_sell=data["Close"] < sar
     )
-    return data["SAR_Signal"]
+    return data["SAR_indicator"]
 
 
 def SAREXT_indicator(
@@ -242,55 +242,55 @@ def SAREXT_indicator(
         accelerationshort=accelerationshort,
         accelerationmaxshort=accelerationmaxshort,
     )
-    data["SAREXT_Signal"] = _generate_signals(
+    data["SAREXT_indicator"] = _generate_signals(
         condition_buy=data["Close"] > sarext, condition_sell=data["Close"] < sarext
     )
-    return data["SAREXT_Signal"]
+    return data["SAREXT_indicator"]
 
 
 def SMA_indicator(data, timeperiod=30):
     """Vectorized Simple Moving Average (SMA) indicator signals."""
     sma = ta.SMA(data["Close"], timeperiod=timeperiod)
-    data["SMA_Signal"] = _generate_signals(
+    data["SMA_indicator"] = _generate_signals(
         condition_buy=data["Close"] > sma, condition_sell=data["Close"] < sma
     )
-    return data["SMA_Signal"]
+    return data["SMA_indicator"]
 
 
 def T3_indicator(data, timeperiod=5, vfactor=0.7):
     """Vectorized Triple Exponential Moving Average (T3) indicator signals."""
     t3 = ta.T3(data["Close"], timeperiod=timeperiod, vfactor=vfactor)
-    data["T3_Signal"] = _generate_signals(
+    data["T3_indicator"] = _generate_signals(
         condition_buy=data["Close"] > t3, condition_sell=data["Close"] < t3
     )
-    return data["T3_Signal"]
+    return data["T3_indicator"]
 
 
 def TEMA_indicator(data, timeperiod=30):
     """Vectorized Triple Exponential Moving Average (TEMA) indicator signals."""
     tema = ta.TEMA(data["Close"], timeperiod=timeperiod)
-    data["TEMA_Signal"] = _generate_signals(
+    data["TEMA_indicator"] = _generate_signals(
         condition_buy=data["Close"] > tema, condition_sell=data["Close"] < tema
     )
-    return data["TEMA_Signal"]
+    return data["TEMA_indicator"]
 
 
 def TRIMA_indicator(data, timeperiod=30):
     """Vectorized Triangular Moving Average (TRIMA) indicator signals."""
     trima = ta.TRIMA(data["Close"], timeperiod=timeperiod)
-    data["TRIMA_Signal"] = _generate_signals(
+    data["TRIMA_indicator"] = _generate_signals(
         condition_buy=data["Close"] > trima, condition_sell=data["Close"] < trima
     )
-    return data["TRIMA_Signal"]
+    return data["TRIMA_indicator"]
 
 
 def WMA_indicator(data, timeperiod=30):
     """Vectorized Weighted Moving Average (WMA) indicator signals."""
     wma = ta.WMA(data["Close"], timeperiod=timeperiod)
-    data["WMA_Signal"] = _generate_signals(
+    data["WMA_indicator"] = _generate_signals(
         condition_buy=data["Close"] > wma, condition_sell=data["Close"] < wma
     )
-    return data["WMA_Signal"]
+    return data["WMA_indicator"]
 
 
 # --- Revised Momentum Indicators ---
@@ -319,9 +319,9 @@ def ADX_indicator_v2(data, timeperiod=14, adx_threshold=20):
         (di_cross_down) & is_trending,
     ]
     choices = ["Buy", "Sell"]
-    data["ADX_Signal"] = np.select(conditions, choices, default="Hold")
+    data["ADX_indicator"] = np.select(conditions, choices, default="Hold")
 
-    return data["ADX_Signal"]
+    return data["ADX_indicator"]
 
 
 def ADXR_indicator_v2(data, timeperiod=14, adx_threshold=20):
@@ -345,12 +345,12 @@ def ADXR_indicator_v2(data, timeperiod=14, adx_threshold=20):
         (minus_di > plus_di) & is_trending,
     ]
     choices = ["Buy", "Sell"]
-    data["ADXR_Signal"] = np.select(conditions, choices, default="Hold")
+    data["ADXR_indicator"] = np.select(conditions, choices, default="Hold")
 
     logger.warning(
         "Warning: Filtering signals based on ADXR > threshold is less common than using ADX."
     )
-    return data["ADXR_Signal"]
+    return data["ADXR_indicator"]
 
 
 def CCI_indicator_v2(data, timeperiod=14, buy_level=-100, sell_level=100):
@@ -362,11 +362,11 @@ def CCI_indicator_v2(data, timeperiod=14, buy_level=-100, sell_level=100):
     """
     cci = ta.CCI(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
 
-    data["CCI_Signal"] = _generate_signals(
+    data["CCI_indicator"] = _generate_signals(
         condition_buy=cci < buy_level,
         condition_sell=cci > sell_level,
     )
-    return data["CCI_Signal"]
+    return data["CCI_indicator"]
 
 
 def CMO_indicator_v2(data, timeperiod=14, buy_level=-50, sell_level=50):
@@ -377,11 +377,11 @@ def CMO_indicator_v2(data, timeperiod=14, buy_level=-50, sell_level=50):
     """
     cmo = ta.CMO(data["Close"], timeperiod=timeperiod)
 
-    data["CMO_Signal"] = _generate_signals(
+    data["CMO_indicator"] = _generate_signals(
         condition_buy=cmo < buy_level,
         condition_sell=cmo > sell_level,
     )
-    return data["CMO_Signal"]
+    return data["CMO_indicator"]
 
 
 def DX_indicator_v2(data, timeperiod=14, dx_threshold=20):
@@ -405,9 +405,9 @@ def DX_indicator_v2(data, timeperiod=14, dx_threshold=20):
         (minus_di > plus_di) & is_trending,
     ]
     choices = ["Buy", "Sell"]
-    data["DX_Signal"] = np.select(conditions, choices, default="Hold")
+    data["DX_indicator"] = np.select(conditions, choices, default="Hold")
 
-    return data["DX_Signal"]
+    return data["DX_indicator"]
 
 
 def PLUS_MINUS_DI_indicator(data, timeperiod=14):
@@ -422,11 +422,11 @@ def PLUS_MINUS_DI_indicator(data, timeperiod=14):
         data["High"], data["Low"], data["Close"], timeperiod=timeperiod
     )
 
-    data["MINUS_DI_Signal"] = _generate_signals(
+    data["MINUS_DI_indicator"] = _generate_signals(
         condition_buy=plus_di > minus_di,
         condition_sell=minus_di > plus_di,
     )
-    return data["MINUS_DI_Signal"]
+    return data["MINUS_DI_indicator"]
 
 
 # --- Momentum Indicators ---
@@ -435,19 +435,19 @@ def PLUS_MINUS_DI_indicator(data, timeperiod=14):
 def ADX_indicator(data, timeperiod=14):
     """Vectorized Average Directional Movement Index (ADX) indicator signals."""
     adx = ta.ADX(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
-    data["ADX_Signal"] = _generate_signals(
+    data["ADX_indicator"] = _generate_signals(
         condition_buy=adx > 25, condition_sell=adx < 20
     )
-    return data["ADX_Signal"]
+    return data["ADX_indicator"]
 
 
 def ADXR_indicator(data, timeperiod=14):
     """Vectorized Average Directional Movement Index Rating (ADXR) indicator signals."""
     adxr = ta.ADXR(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
-    data["ADXR_Signal"] = _generate_signals(
+    data["ADXR_indicator"] = _generate_signals(
         condition_buy=adxr > 25, condition_sell=adxr < 20
     )
-    return data["ADXR_Signal"]
+    return data["ADXR_indicator"]
 
 
 def APO_indicator(data, fastperiod=12, slowperiod=26, matype=0):
@@ -455,62 +455,64 @@ def APO_indicator(data, fastperiod=12, slowperiod=26, matype=0):
     apo = ta.APO(
         data["Close"], fastperiod=fastperiod, slowperiod=slowperiod, matype=matype
     )
-    data["APO_Signal"] = _generate_signals(
+    data["APO_indicator"] = _generate_signals(
         condition_buy=apo > 0, condition_sell=apo < 0
     )
-    return data["APO_Signal"]
+    return data["APO_indicator"]
 
 
 def AROON_indicator(data, timeperiod=14):
     """Vectorized Aroon (AROON) indicator signals."""
     aroon_down, aroon_up = ta.AROON(data["High"], data["Low"], timeperiod=timeperiod)
-    data["AROON_Signal"] = _generate_signals(
+    data["AROON_indicator"] = _generate_signals(
         condition_buy=aroon_up > 70, condition_sell=aroon_down > 70
     )
-    return data["AROON_Signal"]
+    return data["AROON_indicator"]
 
 
 def AROONOSC_indicator(data, timeperiod=14):
     """Vectorized Aroon Oscillator (AROONOSC) indicator signals."""
     aroonosc = ta.AROONOSC(data["High"], data["Low"], timeperiod=timeperiod)
-    data["AROONOSC_Signal"] = _generate_signals(
+    data["AROONOSC_indicator"] = _generate_signals(
         condition_buy=aroonosc > 0, condition_sell=aroonosc < 0
     )
-    return data["AROONOSC_Signal"]
+    return data["AROONOSC_indicator"]
 
 
 def BOP_indicator(data):
     """Vectorized Balance Of Power (BOP) indicator signals."""
     bop = ta.BOP(data["Open"], data["High"], data["Low"], data["Close"])
-    data["BOP_Signal"] = _generate_signals(
+    data["BOP_indicator"] = _generate_signals(
         condition_buy=bop > 0, condition_sell=bop < 0
     )
-    return data["BOP_Signal"]
+    return data["BOP_indicator"]
 
 
 def CCI_indicator(data, timeperiod=14):
     """Vectorized Commodity Channel Index (CCI) indicator signals."""
     cci = ta.CCI(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
-    data["CCI_Signal"] = _generate_signals(
+    data["CCI_indicator"] = _generate_signals(
         condition_buy=cci > 100, condition_sell=cci < -100
     )
-    return data["CCI_Signal"]
+    return data["CCI_indicator"]
 
 
 def CMO_indicator(data, timeperiod=14):
     """Vectorized Chande Momentum Oscillator (CMO) indicator signals."""
     cmo = ta.CMO(data["Close"], timeperiod=timeperiod)
-    data["CMO_Signal"] = _generate_signals(
+    data["CMO_indicator"] = _generate_signals(
         condition_buy=cmo > 50, condition_sell=cmo < -50
     )
-    return data["CMO_Signal"]
+    return data["CMO_indicator"]
 
 
 def DX_indicator(data, timeperiod=14):
     """Vectorized Directional Movement Index (DX) indicator signals."""
     dx = ta.DX(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
-    data["DX_Signal"] = _generate_signals(condition_buy=dx > 25, condition_sell=dx < 20)
-    return data["DX_Signal"]
+    data["DX_indicator"] = _generate_signals(
+        condition_buy=dx > 25, condition_sell=dx < 20
+    )
+    return data["DX_indicator"]
 
 
 def MACD_indicator(data, fastperiod=12, slowperiod=26, signalperiod=9):
@@ -521,11 +523,11 @@ def MACD_indicator(data, fastperiod=12, slowperiod=26, signalperiod=9):
         slowperiod=slowperiod,
         signalperiod=signalperiod,
     )
-    data["MACD_Signal"] = _generate_signals(
+    data["MACD_indicator"] = _generate_signals(
         condition_buy=macdhist > 0,
         condition_sell=macdhist < 0,
     )
-    return data["MACD_Signal"]
+    return data["MACD_indicator"]
 
 
 def MACDEXT_indicator(
@@ -547,19 +549,19 @@ def MACDEXT_indicator(
         signalperiod=signalperiod,
         signalmatype=signalmatype,
     )
-    data["MACDEXT_Signal"] = _generate_signals(
+    data["MACDEXT_indicator"] = _generate_signals(
         condition_buy=macdhist > 0, condition_sell=macdhist < 0
     )
-    return data["MACDEXT_Signal"]
+    return data["MACDEXT_indicator"]
 
 
 def MACDFIX_indicator(data, signalperiod=9):
     """Vectorized Moving Average Convergence/Divergence Fix 12/26 (MACDFIX) signals."""
     macd, macdsignal, macdhist = ta.MACDFIX(data["Close"], signalperiod=signalperiod)
-    data["MACDFIX_Signal"] = _generate_signals(
+    data["MACDFIX_indicator"] = _generate_signals(
         condition_buy=macdhist > 0, condition_sell=macdhist < 0
     )
-    return data["MACDFIX_Signal"]
+    return data["MACDFIX_indicator"]
 
 
 def MFI_indicator(data, timeperiod=14):
@@ -570,10 +572,10 @@ def MFI_indicator(data, timeperiod=14):
     mfi = ta.MFI(
         data["High"], data["Low"], data["Close"], data["Volume"], timeperiod=timeperiod
     )
-    data["MFI_Signal"] = _generate_signals(
+    data["MFI_indicator"] = _generate_signals(
         condition_buy=mfi < 20, condition_sell=mfi > 80
     )
-    return data["MFI_Signal"]
+    return data["MFI_indicator"]
 
 
 def MINUS_DI_indicator(data, timeperiod=14):
@@ -581,11 +583,11 @@ def MINUS_DI_indicator(data, timeperiod=14):
     minus_di = ta.MINUS_DI(
         data["High"], data["Low"], data["Close"], timeperiod=timeperiod
     )
-    data["MINUS_DI_Signal"] = _generate_signals(
+    data["MINUS_DI_indicator"] = _generate_signals(
         condition_buy=minus_di < 20,
         condition_sell=minus_di > 25,
     )
-    return data["MINUS_DI_Signal"]
+    return data["MINUS_DI_indicator"]
 
 
 def PLUS_DI_indicator(data, timeperiod=14):
@@ -593,46 +595,46 @@ def PLUS_DI_indicator(data, timeperiod=14):
     plus_di = ta.PLUS_DI(
         data["High"], data["Low"], data["Close"], timeperiod=timeperiod
     )
-    data["PLUS_DI_Signal"] = _generate_signals(
+    data["PLUS_DI_indicator"] = _generate_signals(
         condition_buy=plus_di > 25,
         condition_sell=plus_di < 20,
     )
-    return data["PLUS_DI_Signal"]
+    return data["PLUS_DI_indicator"]
 
 
 def MINUS_DM_indicator(data, timeperiod=14):
     """Vectorized Minus Directional Movement (MINUS_DM) indicator signals."""
     minus_dm = ta.MINUS_DM(data["High"], data["Low"], timeperiod=timeperiod)
-    data["MINUS_DM_Signal"] = _generate_signals(
+    data["MINUS_DM_indicator"] = _generate_signals(
         condition_buy=minus_dm < 0,
         condition_sell=minus_dm > 0,
     )
     logger.warning(
         "Warning: The implemented logic for MINUS_DM_indicator based on the original function seems potentially incorrect."
     )
-    return data["MINUS_DM_Signal"]
+    return data["MINUS_DM_indicator"]
 
 
 def MOM_indicator(data, timeperiod=10):
     """Vectorized Momentum (MOM) indicator signals."""
     mom = ta.MOM(data["Close"], timeperiod=timeperiod)
-    data["MOM_Signal"] = _generate_signals(
+    data["MOM_indicator"] = _generate_signals(
         condition_buy=mom > 0, condition_sell=mom < 0
     )
-    return data["MOM_Signal"]
+    return data["MOM_indicator"]
 
 
 def PLUS_DM_indicator(data, timeperiod=14):
     """Vectorized Plus Directional Movement (PLUS_DM) indicator signals."""
     plus_dm = ta.PLUS_DM(data["High"], data["Low"], timeperiod=timeperiod)
-    data["PLUS_DM_Signal"] = _generate_signals(
+    data["PLUS_DM_indicator"] = _generate_signals(
         condition_buy=plus_dm > 0,
         condition_sell=plus_dm < 0,
     )
     logger.warning(
         "Warning: The implemented logic for PLUS_DM_indicator based on the original function seems potentially incorrect."
     )
-    return data["PLUS_DM_Signal"]
+    return data["PLUS_DM_indicator"]
 
 
 def PPO_indicator(data, fastperiod=12, slowperiod=26, matype=0):
@@ -640,55 +642,55 @@ def PPO_indicator(data, fastperiod=12, slowperiod=26, matype=0):
     ppo = ta.PPO(
         data["Close"], fastperiod=fastperiod, slowperiod=slowperiod, matype=matype
     )
-    data["PPO_Signal"] = _generate_signals(
+    data["PPO_indicator"] = _generate_signals(
         condition_buy=ppo > 0, condition_sell=ppo < 0
     )
-    return data["PPO_Signal"]
+    return data["PPO_indicator"]
 
 
 def ROC_indicator(data, timeperiod=10):
     """Vectorized Rate of change : ((price/prevPrice)-1)*100 (ROC) signals."""
     roc = ta.ROC(data["Close"], timeperiod=timeperiod)
-    data["ROC_Signal"] = _generate_signals(
+    data["ROC_indicator"] = _generate_signals(
         condition_buy=roc > 0, condition_sell=roc < 0
     )
-    return data["ROC_Signal"]
+    return data["ROC_indicator"]
 
 
 def ROCP_indicator(data, timeperiod=10):
     """Vectorized Rate of change Percentage: (price-prevPrice)/prevPrice signals."""
     rocp = ta.ROCP(data["Close"], timeperiod=timeperiod)
-    data["ROCP_Signal"] = _generate_signals(
+    data["ROCP_indicator"] = _generate_signals(
         condition_buy=rocp > 0, condition_sell=rocp < 0
     )
-    return data["ROCP_Signal"]
+    return data["ROCP_indicator"]
 
 
 def ROCR_indicator(data, timeperiod=10):
     """Vectorized Rate of change ratio: (price/prevPrice) signals."""
     rocr = ta.ROCR(data["Close"], timeperiod=timeperiod)
-    data["ROCR_Signal"] = _generate_signals(
+    data["ROCR_indicator"] = _generate_signals(
         condition_buy=rocr > 1, condition_sell=rocr < 1
     )
-    return data["ROCR_Signal"]
+    return data["ROCR_indicator"]
 
 
 def ROCR100_indicator(data, timeperiod=10):
     """Vectorized Rate of change ratio 100 scale: (price/prevPrice)*100 signals."""
     rocr100 = ta.ROCR100(data["Close"], timeperiod=timeperiod)
-    data["ROCR100_Signal"] = _generate_signals(
+    data["ROCR100_indicator"] = _generate_signals(
         condition_buy=rocr100 > 100, condition_sell=rocr100 < 100
     )
-    return data["ROCR100_Signal"]
+    return data["ROCR100_indicator"]
 
 
 def RSI_indicator(data, timeperiod=14):
     """Vectorized Relative Strength Index (RSI) indicator signals."""
     rsi = ta.RSI(data["Close"], timeperiod=timeperiod)
-    data["RSI_Signal"] = _generate_signals(
+    data["RSI_indicator"] = _generate_signals(
         condition_buy=rsi < 30, condition_sell=rsi > 70
     )
-    return data["RSI_Signal"]
+    return data["RSI_indicator"]
 
 
 def STOCH_indicator(
@@ -705,10 +707,10 @@ def STOCH_indicator(
         slowd_period=slowd_period,
         slowd_matype=slowd_matype,
     )
-    data["STOCH_Signal"] = _generate_signals(
+    data["STOCH_indicator"] = _generate_signals(
         condition_buy=slowk < 20, condition_sell=slowk > 80
     )
-    return data["STOCH_Signal"]
+    return data["STOCH_indicator"]
 
 
 def STOCHF_indicator(data, fastk_period=5, fastd_period=3, fastd_matype=0):
@@ -721,10 +723,10 @@ def STOCHF_indicator(data, fastk_period=5, fastd_period=3, fastd_matype=0):
         fastd_period=fastd_period,
         fastd_matype=fastd_matype,
     )
-    data["STOCHF_Signal"] = _generate_signals(
+    data["STOCHF_indicator"] = _generate_signals(
         condition_buy=fastk < 20, condition_sell=fastk > 80
     )
-    return data["STOCHF_Signal"]
+    return data["STOCHF_indicator"]
 
 
 def STOCHRSI_indicator(
@@ -738,19 +740,19 @@ def STOCHRSI_indicator(
         fastd_period=fastd_period,
         fastd_matype=fastd_matype,
     )
-    data["STOCHRSI_Signal"] = _generate_signals(
+    data["STOCHRSI_indicator"] = _generate_signals(
         condition_buy=fastk < 20, condition_sell=fastk > 80
     )
-    return data["STOCHRSI_Signal"]
+    return data["STOCHRSI_indicator"]
 
 
 def TRIX_indicator(data, timeperiod=30):
     """Vectorized 1-day ROC of a Triple Smooth EMA (TRIX) indicator signals."""
     trix = ta.TRIX(data["Close"], timeperiod=timeperiod)
-    data["TRIX_Signal"] = _generate_signals(
+    data["TRIX_indicator"] = _generate_signals(
         condition_buy=trix > 0, condition_sell=trix < 0
     )
-    return data["TRIX_Signal"]
+    return data["TRIX_indicator"]
 
 
 def ULTOSC_indicator(data, timeperiod1=7, timeperiod2=14, timeperiod3=28):
@@ -763,19 +765,19 @@ def ULTOSC_indicator(data, timeperiod1=7, timeperiod2=14, timeperiod3=28):
         timeperiod2=timeperiod2,
         timeperiod3=timeperiod3,
     )
-    data["ULTOSC_Signal"] = _generate_signals(
+    data["ULTOSC_indicator"] = _generate_signals(
         condition_buy=ultosc < 30, condition_sell=ultosc > 70
     )
-    return data["ULTOSC_Signal"]
+    return data["ULTOSC_indicator"]
 
 
 def WILLR_indicator(data, timeperiod=14):
     """Vectorized Williams' %R (WILLR) indicator signals."""
     willr = ta.WILLR(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
-    data["WILLR_Signal"] = _generate_signals(
+    data["WILLR_indicator"] = _generate_signals(
         condition_buy=willr < -80, condition_sell=willr > -20
     )
-    return data["WILLR_Signal"]
+    return data["WILLR_indicator"]
 
 
 # --- Revised Volume Indicators ---
@@ -791,12 +793,12 @@ def AD_indicator_v2(data, ma_period=20):
     ad = ta.AD(data["High"], data["Low"], data["Close"], data["Volume"])
     ad_ma = ta.SMA(ad, timeperiod=ma_period)
 
-    data["AD_Signal"] = _generate_signals(
+    data["AD_indicator"] = _generate_signals(
         condition_buy=ad > ad_ma,
         condition_sell=ad < ad_ma,
     )
     logger.warning("Note: AD_indicator revised logic uses AD crossing its SMA.")
-    return data["AD_Signal"]
+    return data["AD_indicator"]
 
 
 def OBV_indicator_v2(data, ma_period=20):
@@ -809,12 +811,12 @@ def OBV_indicator_v2(data, ma_period=20):
     obv = ta.OBV(data["Close"], data["Volume"])
     obv_ma = ta.SMA(obv, timeperiod=ma_period)
 
-    data["OBV_Signal"] = _generate_signals(
+    data["OBV_indicator"] = _generate_signals(
         condition_buy=obv > obv_ma,
         condition_sell=obv < obv_ma,
     )
     logger.warning("Note: OBV_indicator revised logic uses OBV crossing its SMA.")
-    return data["OBV_Signal"]
+    return data["OBV_indicator"]
 
 
 # --- Volume Indicators ---
@@ -825,11 +827,13 @@ def AD_indicator(data):
     if "Volume" not in data.columns:
         raise ValueError("AD_indicator requires 'Volume' column in data")
     ad = ta.AD(data["High"], data["Low"], data["Close"], data["Volume"])
-    data["AD_Signal"] = _generate_signals(condition_buy=ad > 0, condition_sell=ad < 0)
+    data["AD_indicator"] = _generate_signals(
+        condition_buy=ad > 0, condition_sell=ad < 0
+    )
     logger.warning(
         "Warning: The implemented logic for AD_indicator based on the original function might be unconventional."
     )
-    return data["AD_Signal"]
+    return data["AD_indicator"]
 
 
 def ADOSC_indicator(data, fastperiod=3, slowperiod=10):
@@ -844,10 +848,10 @@ def ADOSC_indicator(data, fastperiod=3, slowperiod=10):
         fastperiod=fastperiod,
         slowperiod=slowperiod,
     )
-    data["ADOSC_Signal"] = _generate_signals(
+    data["ADOSC_indicator"] = _generate_signals(
         condition_buy=adosc > 0, condition_sell=adosc < 0
     )
-    return data["ADOSC_Signal"]
+    return data["ADOSC_indicator"]
 
 
 def OBV_indicator(data):
@@ -855,13 +859,13 @@ def OBV_indicator(data):
     if "Volume" not in data.columns:
         raise ValueError("OBV_indicator requires 'Volume' column in data")
     obv = ta.OBV(data["Close"], data["Volume"])
-    data["OBV_Signal"] = _generate_signals(
+    data["OBV_indicator"] = _generate_signals(
         condition_buy=obv > 0, condition_sell=obv < 0
     )
     logger.warning(
         "Warning: The implemented logic for OBV_indicator based on the original function might be unconventional."
     )
-    return data["OBV_Signal"]
+    return data["OBV_indicator"]
 
 
 # --- Revised Cycle Indicators ---
@@ -874,14 +878,14 @@ def HT_TRENDMODE_indicator_v2(data):
     """
     ht_trendmode = ta.HT_TRENDMODE(data["Close"])
 
-    data["HT_TRENDMODE_Signal"] = _generate_signals(
+    data["HT_TRENDMODE_indicator"] = _generate_signals(
         condition_buy=ht_trendmode == 1,
         condition_sell=ht_trendmode == 0,
     )
     logger.warning(
         "Note: HT_TRENDMODE_indicator revised logic: Buy on Trend(1), Sell on Cycle(0)."
     )
-    return data["HT_TRENDMODE_Signal"]
+    return data["HT_TRENDMODE_indicator"]
 
 
 # --- Cycle Indicators ---
@@ -890,52 +894,52 @@ def HT_TRENDMODE_indicator_v2(data):
 def HT_DCPERIOD_indicator(data):
     """Vectorized Hilbert Transform - Dominant Cycle Period (HT_DCPERIOD) signals."""
     ht_dcperiod = ta.HT_DCPERIOD(data["Close"])
-    data["HT_DCPERIOD_Signal"] = _generate_signals(
+    data["HT_DCPERIOD_indicator"] = _generate_signals(
         condition_buy=ht_dcperiod > 20,
         condition_sell=ht_dcperiod < 10,
     )
-    return data["HT_DCPERIOD_Signal"]
+    return data["HT_DCPERIOD_indicator"]
 
 
 def HT_DCPHASE_indicator(data):
     """Vectorized Hilbert Transform - Dominant Cycle Phase (HT_DCPHASE) signals."""
     ht_dcphase = ta.HT_DCPHASE(data["Close"])
-    data["HT_DCPHASE_Signal"] = _generate_signals(
+    data["HT_DCPHASE_indicator"] = _generate_signals(
         condition_buy=ht_dcphase > 0, condition_sell=ht_dcphase < 0
     )
-    return data["HT_DCPHASE_Signal"]
+    return data["HT_DCPHASE_indicator"]
 
 
 def HT_PHASOR_indicator(data):
     """Vectorized Hilbert Transform - Phasor Components (HT_PHASOR) signals (using inphase)."""
     inphase, quadrature = ta.HT_PHASOR(data["Close"])
-    data["HT_PHASOR_Signal"] = _generate_signals(
+    data["HT_PHASOR_indicator"] = _generate_signals(
         condition_buy=inphase > 0, condition_sell=inphase < 0
     )
-    return data["HT_PHASOR_Signal"]
+    return data["HT_PHASOR_indicator"]
 
 
 def HT_SINE_indicator(data):
     """Vectorized Hilbert Transform - SineWave (HT_SINE) indicator signals (using sine)."""
     sine, leadsine = ta.HT_SINE(data["Close"])
-    data["HT_SINE_Signal"] = _generate_signals(
+    data["HT_SINE_indicator"] = _generate_signals(
         condition_buy=sine > 0,
         condition_sell=sine < 0,
     )
-    return data["HT_SINE_Signal"]
+    return data["HT_SINE_indicator"]
 
 
 def HT_TRENDMODE_indicator(data):
     """Vectorized Hilbert Transform - Trend vs Cycle Mode (HT_TRENDMODE) signals."""
     ht_trendmode = ta.HT_TRENDMODE(data["Close"])
-    data["HT_TRENDMODE_Signal"] = _generate_signals(
+    data["HT_TRENDMODE_indicator"] = _generate_signals(
         condition_buy=ht_trendmode > 0,
         condition_sell=ht_trendmode < 0,
     )
     logger.warning(
         "Warning: Original HT_TRENDMODE_indicator logic might be flawed (Sell condition never met)."
     )
-    return data["HT_TRENDMODE_Signal"]
+    return data["HT_TRENDMODE_indicator"]
 
 
 # --- Price Transform ---
@@ -944,37 +948,37 @@ def HT_TRENDMODE_indicator(data):
 def AVGPRICE_indicator(data):
     """Vectorized Average Price (AVGPRICE) indicator signals."""
     avgprice = ta.AVGPRICE(data["Open"], data["High"], data["Low"], data["Close"])
-    data["AVGPRICE_Signal"] = _generate_signals(
+    data["AVGPRICE_indicator"] = _generate_signals(
         condition_buy=data["Close"] > avgprice, condition_sell=data["Close"] < avgprice
     )
-    return data["AVGPRICE_Signal"]
+    return data["AVGPRICE_indicator"]
 
 
 def MEDPRICE_indicator(data):
     """Vectorized Median Price (MEDPRICE) indicator signals."""
     medprice = ta.MEDPRICE(data["High"], data["Low"])
-    data["MEDPRICE_Signal"] = _generate_signals(
+    data["MEDPRICE_indicator"] = _generate_signals(
         condition_buy=data["Close"] > medprice, condition_sell=data["Close"] < medprice
     )
-    return data["MEDPRICE_Signal"]
+    return data["MEDPRICE_indicator"]
 
 
 def TYPPRICE_indicator(data):
     """Vectorized Typical Price (TYPPRICE) indicator signals."""
     typprice = ta.TYPPRICE(data["High"], data["Low"], data["Close"])
-    data["TYPPRICE_Signal"] = _generate_signals(
+    data["TYPPRICE_indicator"] = _generate_signals(
         condition_buy=data["Close"] > typprice, condition_sell=data["Close"] < typprice
     )
-    return data["TYPPRICE_Signal"]
+    return data["TYPPRICE_indicator"]
 
 
 def WCLPRICE_indicator(data):
     """Vectorized Weighted Close Price (WCLPRICE) indicator signals."""
     wclprice = ta.WCLPRICE(data["High"], data["Low"], data["Close"])
-    data["WCLPRICE_Signal"] = _generate_signals(
+    data["WCLPRICE_indicator"] = _generate_signals(
         condition_buy=data["Close"] > wclprice, condition_sell=data["Close"] < wclprice
     )
-    return data["WCLPRICE_Signal"]
+    return data["WCLPRICE_indicator"]
 
 
 # --- Revised Volatility Indicators ---
@@ -989,14 +993,14 @@ def ATR_indicator_v2(data, timeperiod=14, ma_period=14):
     atr = ta.ATR(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
     atr_ma = ta.SMA(atr, timeperiod=ma_period)
 
-    data["ATR_Signal"] = _generate_signals(
+    data["ATR_indicator"] = _generate_signals(
         condition_buy=atr > atr_ma,
         condition_sell=atr < atr_ma,
     )
     logger.warning(
         "Warning: ATR_indicator revised logic (ATR vs MA) is unconventional for Buy/Sell signals."
     )
-    return data["ATR_Signal"]
+    return data["ATR_indicator"]
 
 
 def NATR_indicator_v2(data, timeperiod=14, ma_period=14):
@@ -1008,14 +1012,14 @@ def NATR_indicator_v2(data, timeperiod=14, ma_period=14):
     natr = ta.NATR(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
     natr_ma = ta.SMA(natr, timeperiod=ma_period)
 
-    data["NATR_Signal"] = _generate_signals(
+    data["NATR_indicator"] = _generate_signals(
         condition_buy=natr > natr_ma,
         condition_sell=natr < natr_ma,
     )
     logger.warning(
         "Warning: NATR_indicator revised logic (NATR vs MA) is unconventional for Buy/Sell signals."
     )
-    return data["NATR_Signal"]
+    return data["NATR_indicator"]
 
 
 def TRANGE_indicator_v2(data, ma_period=14):
@@ -1027,14 +1031,14 @@ def TRANGE_indicator_v2(data, ma_period=14):
     trange = ta.TRANGE(data["High"], data["Low"], data["Close"])
     trange_ma = ta.SMA(trange, timeperiod=ma_period)
 
-    data["TRANGE_Signal"] = _generate_signals(
+    data["TRANGE_indicator"] = _generate_signals(
         condition_buy=trange > trange_ma,
         condition_sell=trange < trange_ma,
     )
     logger.warning(
         "Warning: TRANGE_indicator revised logic (TRANGE vs MA) is unconventional for Buy/Sell signals."
     )
-    return data["TRANGE_Signal"]
+    return data["TRANGE_indicator"]
 
 
 # --- Volatility Indicators ---
@@ -1043,37 +1047,37 @@ def TRANGE_indicator_v2(data, ma_period=14):
 def ATR_indicator(data, timeperiod=14):
     """Vectorized Average True Range (ATR) indicator signals."""
     atr = ta.ATR(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
-    data["ATR_Signal"] = _generate_signals(
+    data["ATR_indicator"] = _generate_signals(
         condition_buy=atr > 20, condition_sell=atr < 10
     )
     logger.warning(
         "Warning: Using fixed ATR levels (10, 20) for Buy/Sell signals in ATR_indicator is unconventional."
     )
-    return data["ATR_Signal"]
+    return data["ATR_indicator"]
 
 
 def NATR_indicator(data, timeperiod=14):
     """Vectorized Normalized Average True Range (NATR) indicator signals."""
     natr = ta.NATR(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
-    data["NATR_Signal"] = _generate_signals(
+    data["NATR_indicator"] = _generate_signals(
         condition_buy=natr > 20, condition_sell=natr < 10
     )
     logger.warning(
         "Warning: Using fixed NATR levels (10, 20) for Buy/Sell signals in NATR_indicator is unconventional."
     )
-    return data["NATR_Signal"]
+    return data["NATR_indicator"]
 
 
 def TRANGE_indicator(data):
     """Vectorized True Range (TRANGE) indicator signals."""
     trange = ta.TRANGE(data["High"], data["Low"], data["Close"])
-    data["TRANGE_Signal"] = _generate_signals(
+    data["TRANGE_indicator"] = _generate_signals(
         condition_buy=trange > 20, condition_sell=trange < 10
     )
     logger.warning(
         "Warning: Using fixed TRANGE levels (10, 20) for Buy/Sell signals in TRANGE_indicator is unconventional."
     )
-    return data["TRANGE_Signal"]
+    return data["TRANGE_indicator"]
 
 
 # --- Pattern Recognition ---
@@ -1090,36 +1094,36 @@ def _pattern_signals(pattern_series):
 def CDL2CROWS_indicator(data):
     """Vectorized Two Crows (CDL2CROWS) indicator signals."""
     pattern = ta.CDL2CROWS(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDL2CROWS_Signal"] = _pattern_signals(pattern)
-    return data["CDL2CROWS_Signal"]
+    data["CDL2CROWS_indicator"] = _pattern_signals(pattern)
+    return data["CDL2CROWS_indicator"]
 
 
 def CDL3BLACKCROWS_indicator(data):
     """Vectorized Three Black Crows (CDL3BLACKCROWS) indicator signals."""
     pattern = ta.CDL3BLACKCROWS(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDL3BLACKCROWS_Signal"] = _pattern_signals(pattern)
-    return data["CDL3BLACKCROWS_Signal"]
+    data["CDL3BLACKCROWS_indicator"] = _pattern_signals(pattern)
+    return data["CDL3BLACKCROWS_indicator"]
 
 
 def CDL3INSIDE_indicator(data):
     """Vectorized Three Inside Up/Down (CDL3INSIDE) indicator signals."""
     pattern = ta.CDL3INSIDE(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDL3INSIDE_Signal"] = _pattern_signals(pattern)
-    return data["CDL3INSIDE_Signal"]
+    data["CDL3INSIDE_indicator"] = _pattern_signals(pattern)
+    return data["CDL3INSIDE_indicator"]
 
 
 def CDL3LINESTRIKE_indicator(data):
     """Vectorized Three-Line Strike (CDL3LINESTRIKE) indicator signals."""
     pattern = ta.CDL3LINESTRIKE(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDL3LINESTRIKE_Signal"] = _pattern_signals(pattern)
-    return data["CDL3LINESTRIKE_Signal"]
+    data["CDL3LINESTRIKE_indicator"] = _pattern_signals(pattern)
+    return data["CDL3LINESTRIKE_indicator"]
 
 
 def CDL3OUTSIDE_indicator(data):
     """Vectorized Three Outside Up/Down (CDL3OUTSIDE) indicator signals."""
     pattern = ta.CDL3OUTSIDE(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDL3OUTSIDE_Signal"] = _pattern_signals(pattern)
-    return data["CDL3OUTSIDE_Signal"]
+    data["CDL3OUTSIDE_indicator"] = _pattern_signals(pattern)
+    return data["CDL3OUTSIDE_indicator"]
 
 
 def CDL3STARSINSOUTH_indicator(data):
@@ -1127,8 +1131,8 @@ def CDL3STARSINSOUTH_indicator(data):
     pattern = ta.CDL3STARSINSOUTH(
         data["Open"], data["High"], data["Low"], data["Close"]
     )
-    data["CDL3STARSINSOUTH_Signal"] = _pattern_signals(pattern)
-    return data["CDL3STARSINSOUTH_Signal"]
+    data["CDL3STARSINSOUTH_indicator"] = _pattern_signals(pattern)
+    return data["CDL3STARSINSOUTH_indicator"]
 
 
 def CDL3WHITESOLDIERS_indicator(data):
@@ -1136,8 +1140,8 @@ def CDL3WHITESOLDIERS_indicator(data):
     pattern = ta.CDL3WHITESOLDIERS(
         data["Open"], data["High"], data["Low"], data["Close"]
     )
-    data["CDL3WHITESOLDIERS_Signal"] = _pattern_signals(pattern)
-    return data["CDL3WHITESOLDIERS_Signal"]
+    data["CDL3WHITESOLDIERS_indicator"] = _pattern_signals(pattern)
+    return data["CDL3WHITESOLDIERS_indicator"]
 
 
 def CDLABANDONEDBABY_indicator(data, penetration=0):
@@ -1145,29 +1149,29 @@ def CDLABANDONEDBABY_indicator(data, penetration=0):
     pattern = ta.CDLABANDONEDBABY(
         data["Open"], data["High"], data["Low"], data["Close"], penetration=penetration
     )
-    data["CDLABANDONEDBABY_Signal"] = _pattern_signals(pattern)
-    return data["CDLABANDONEDBABY_Signal"]
+    data["CDLABANDONEDBABY_indicator"] = _pattern_signals(pattern)
+    return data["CDLABANDONEDBABY_indicator"]
 
 
 def CDLADVANCEBLOCK_indicator(data):
     """Vectorized Advance Block (CDLADVANCEBLOCK) indicator signals."""
     pattern = ta.CDLADVANCEBLOCK(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLADVANCEBLOCK_Signal"] = _pattern_signals(pattern)
-    return data["CDLADVANCEBLOCK_Signal"]
+    data["CDLADVANCEBLOCK_indicator"] = _pattern_signals(pattern)
+    return data["CDLADVANCEBLOCK_indicator"]
 
 
 def CDLBELTHOLD_indicator(data):
     """Vectorized Belt-hold (CDLBELTHOLD) indicator signals."""
     pattern = ta.CDLBELTHOLD(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLBELTHOLD_Signal"] = _pattern_signals(pattern)
-    return data["CDLBELTHOLD_Signal"]
+    data["CDLBELTHOLD_indicator"] = _pattern_signals(pattern)
+    return data["CDLBELTHOLD_indicator"]
 
 
 def CDLBREAKAWAY_indicator(data):
     """Vectorized Breakaway (CDLBREAKAWAY) indicator signals."""
     pattern = ta.CDLBREAKAWAY(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLBREAKAWAY_Signal"] = _pattern_signals(pattern)
-    return data["CDLBREAKAWAY_Signal"]
+    data["CDLBREAKAWAY_indicator"] = _pattern_signals(pattern)
+    return data["CDLBREAKAWAY_indicator"]
 
 
 def CDLCLOSINGMARUBOZU_indicator(data):
@@ -1175,8 +1179,8 @@ def CDLCLOSINGMARUBOZU_indicator(data):
     pattern = ta.CDLCLOSINGMARUBOZU(
         data["Open"], data["High"], data["Low"], data["Close"]
     )
-    data["CDLCLOSINGMARUBOZU_Signal"] = _pattern_signals(pattern)
-    return data["CDLCLOSINGMARUBOZU_Signal"]
+    data["CDLCLOSINGMARUBOZU_indicator"] = _pattern_signals(pattern)
+    return data["CDLCLOSINGMARUBOZU_indicator"]
 
 
 def CDLCONCEALBABYSWALL_indicator(data):
@@ -1184,8 +1188,8 @@ def CDLCONCEALBABYSWALL_indicator(data):
     pattern = ta.CDLCONCEALBABYSWALL(
         data["Open"], data["High"], data["Low"], data["Close"]
     )
-    data["CDLCONCEALBABYSWALL_Signal"] = _pattern_signals(pattern)
-    return data["CDLCONCEALBABYSWALL_Signal"]
+    data["CDLCONCEALBABYSWALL_indicator"] = _pattern_signals(pattern)
+    return data["CDLCONCEALBABYSWALL_indicator"]
 
 
 def CDLCOUNTERATTACK_indicator(data):
@@ -1193,8 +1197,8 @@ def CDLCOUNTERATTACK_indicator(data):
     pattern = ta.CDLCOUNTERATTACK(
         data["Open"], data["High"], data["Low"], data["Close"]
     )
-    data["CDLCOUNTERATTACK_Signal"] = _pattern_signals(pattern)
-    return data["CDLCOUNTERATTACK_Signal"]
+    data["CDLCOUNTERATTACK_indicator"] = _pattern_signals(pattern)
+    return data["CDLCOUNTERATTACK_indicator"]
 
 
 def CDLDARKCLOUDCOVER_indicator(data, penetration=0):
@@ -1202,22 +1206,22 @@ def CDLDARKCLOUDCOVER_indicator(data, penetration=0):
     pattern = ta.CDLDARKCLOUDCOVER(
         data["Open"], data["High"], data["Low"], data["Close"], penetration=penetration
     )
-    data["CDLDARKCLOUDCOVER_Signal"] = _pattern_signals(pattern)
-    return data["CDLDARKCLOUDCOVER_Signal"]
+    data["CDLDARKCLOUDCOVER_indicator"] = _pattern_signals(pattern)
+    return data["CDLDARKCLOUDCOVER_indicator"]
 
 
 def CDLDOJI_indicator(data):
     """Vectorized Doji (CDLDOJI) indicator signals."""
     pattern = ta.CDLDOJI(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLDOJI_Signal"] = _pattern_signals(pattern)
-    return data["CDLDOJI_Signal"]
+    data["CDLDOJI_indicator"] = _pattern_signals(pattern)
+    return data["CDLDOJI_indicator"]
 
 
 def CDLDOJISTAR_indicator(data):
     """Vectorized Doji Star (CDLDOJISTAR) indicator signals."""
     pattern = ta.CDLDOJISTAR(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLDOJISTAR_Signal"] = _pattern_signals(pattern)
-    return data["CDLDOJISTAR_Signal"]
+    data["CDLDOJISTAR_indicator"] = _pattern_signals(pattern)
+    return data["CDLDOJISTAR_indicator"]
 
 
 def CDLDRAGONFLYDOJI_indicator(data):
@@ -1225,15 +1229,15 @@ def CDLDRAGONFLYDOJI_indicator(data):
     pattern = ta.CDLDRAGONFLYDOJI(
         data["Open"], data["High"], data["Low"], data["Close"]
     )
-    data["CDLDRAGONFLYDOJI_Signal"] = _pattern_signals(pattern)
-    return data["CDLDRAGONFLYDOJI_Signal"]
+    data["CDLDRAGONFLYDOJI_indicator"] = _pattern_signals(pattern)
+    return data["CDLDRAGONFLYDOJI_indicator"]
 
 
 def CDLENGULFING_indicator(data):
     """Vectorized Engulfing Pattern (CDLENGULFING) indicator signals."""
     pattern = ta.CDLENGULFING(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLENGULFING_Signal"] = _pattern_signals(pattern)
-    return data["CDLENGULFING_Signal"]
+    data["CDLENGULFING_indicator"] = _pattern_signals(pattern)
+    return data["CDLENGULFING_indicator"]
 
 
 def CDLEVENINGDOJISTAR_indicator(data, penetration=0):
@@ -1241,8 +1245,8 @@ def CDLEVENINGDOJISTAR_indicator(data, penetration=0):
     pattern = ta.CDLEVENINGDOJISTAR(
         data["Open"], data["High"], data["Low"], data["Close"], penetration=penetration
     )
-    data["CDLEVENINGDOJISTAR_Signal"] = _pattern_signals(pattern)
-    return data["CDLEVENINGDOJISTAR_Signal"]
+    data["CDLEVENINGDOJISTAR_indicator"] = _pattern_signals(pattern)
+    return data["CDLEVENINGDOJISTAR_indicator"]
 
 
 def CDLEVENINGSTAR_indicator(data, penetration=0):
@@ -1250,8 +1254,8 @@ def CDLEVENINGSTAR_indicator(data, penetration=0):
     pattern = ta.CDLEVENINGSTAR(
         data["Open"], data["High"], data["Low"], data["Close"], penetration=penetration
     )
-    data["CDLEVENINGSTAR_Signal"] = _pattern_signals(pattern)
-    return data["CDLEVENINGSTAR_Signal"]
+    data["CDLEVENINGSTAR_indicator"] = _pattern_signals(pattern)
+    return data["CDLEVENINGSTAR_indicator"]
 
 
 def CDLGAPSIDESIDEWHITE_indicator(data):
@@ -1259,8 +1263,8 @@ def CDLGAPSIDESIDEWHITE_indicator(data):
     pattern = ta.CDLGAPSIDESIDEWHITE(
         data["Open"], data["High"], data["Low"], data["Close"]
     )
-    data["CDLGAPSIDESIDEWHITE_Signal"] = _pattern_signals(pattern)
-    return data["CDLGAPSIDESIDEWHITE_Signal"]
+    data["CDLGAPSIDESIDEWHITE_indicator"] = _pattern_signals(pattern)
+    return data["CDLGAPSIDESIDEWHITE_indicator"]
 
 
 def CDLGRAVESTONEDOJI_indicator(data):
@@ -1268,64 +1272,64 @@ def CDLGRAVESTONEDOJI_indicator(data):
     pattern = ta.CDLGRAVESTONEDOJI(
         data["Open"], data["High"], data["Low"], data["Close"]
     )
-    data["CDLGRAVESTONEDOJI_Signal"] = _pattern_signals(pattern)
-    return data["CDLGRAVESTONEDOJI_Signal"]
+    data["CDLGRAVESTONEDOJI_indicator"] = _pattern_signals(pattern)
+    return data["CDLGRAVESTONEDOJI_indicator"]
 
 
 def CDLHAMMER_indicator(data):
     """Vectorized Hammer (CDLHAMMER) indicator signals."""
     pattern = ta.CDLHAMMER(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLHAMMER_Signal"] = _pattern_signals(pattern)
-    return data["CDLHAMMER_Signal"]
+    data["CDLHAMMER_indicator"] = _pattern_signals(pattern)
+    return data["CDLHAMMER_indicator"]
 
 
 def CDLHANGINGMAN_indicator(data):
     """Vectorized Hanging Man (CDLHANGINGMAN) indicator signals."""
     pattern = ta.CDLHANGINGMAN(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLHANGINGMAN_Signal"] = _pattern_signals(pattern)
-    return data["CDLHANGINGMAN_Signal"]
+    data["CDLHANGINGMAN_indicator"] = _pattern_signals(pattern)
+    return data["CDLHANGINGMAN_indicator"]
 
 
 def CDLHARAMI_indicator(data):
     """Vectorized Harami Pattern (CDLHARAMI) indicator signals."""
     pattern = ta.CDLHARAMI(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLHARAMI_Signal"] = _pattern_signals(pattern)
-    return data["CDLHARAMI_Signal"]
+    data["CDLHARAMI_indicator"] = _pattern_signals(pattern)
+    return data["CDLHARAMI_indicator"]
 
 
 def CDLHARAMICROSS_indicator(data):
     """Vectorized Harami Cross Pattern (CDLHARAMICROSS) indicator signals."""
     pattern = ta.CDLHARAMICROSS(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLHARAMICROSS_Signal"] = _pattern_signals(pattern)
-    return data["CDLHARAMICROSS_Signal"]
+    data["CDLHARAMICROSS_indicator"] = _pattern_signals(pattern)
+    return data["CDLHARAMICROSS_indicator"]
 
 
 def CDLHIGHWAVE_indicator(data):
     """Vectorized High-Wave Candle (CDLHIGHWAVE) indicator signals."""
     pattern = ta.CDLHIGHWAVE(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLHIGHWAVE_Signal"] = _pattern_signals(pattern)
-    return data["CDLHIGHWAVE_Signal"]
+    data["CDLHIGHWAVE_indicator"] = _pattern_signals(pattern)
+    return data["CDLHIGHWAVE_indicator"]
 
 
 def CDLHIKKAKE_indicator(data):
     """Vectorized Hikkake Pattern (CDLHIKKAKE) indicator signals."""
     pattern = ta.CDLHIKKAKE(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLHIKKAKE_Signal"] = _pattern_signals(pattern)
-    return data["CDLHIKKAKE_Signal"]
+    data["CDLHIKKAKE_indicator"] = _pattern_signals(pattern)
+    return data["CDLHIKKAKE_indicator"]
 
 
 def CDLHIKKAKEMOD_indicator(data):
     """Vectorized Modified Hikkake Pattern (CDLHIKKAKEMOD) indicator signals."""
     pattern = ta.CDLHIKKAKEMOD(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLHIKKAKEMOD_Signal"] = _pattern_signals(pattern)
-    return data["CDLHIKKAKEMOD_Signal"]
+    data["CDLHIKKAKEMOD_indicator"] = _pattern_signals(pattern)
+    return data["CDLHIKKAKEMOD_indicator"]
 
 
 def CDLHOMINGPIGEON_indicator(data):
     """Vectorized Homing Pigeon (CDLHOMINGPIGEON) indicator signals."""
     pattern = ta.CDLHOMINGPIGEON(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLHOMINGPIGEON_Signal"] = _pattern_signals(pattern)
-    return data["CDLHOMINGPIGEON_Signal"]
+    data["CDLHOMINGPIGEON_indicator"] = _pattern_signals(pattern)
+    return data["CDLHOMINGPIGEON_indicator"]
 
 
 def CDLIDENTICAL3CROWS_indicator(data):
@@ -1333,15 +1337,15 @@ def CDLIDENTICAL3CROWS_indicator(data):
     pattern = ta.CDLIDENTICAL3CROWS(
         data["Open"], data["High"], data["Low"], data["Close"]
     )
-    data["CDLIDENTICAL3CROWS_Signal"] = _pattern_signals(pattern)
-    return data["CDLIDENTICAL3CROWS_Signal"]
+    data["CDLIDENTICAL3CROWS_indicator"] = _pattern_signals(pattern)
+    return data["CDLIDENTICAL3CROWS_indicator"]
 
 
 def CDLINNECK_indicator(data):
     """Vectorized In-Neck Pattern (CDLINNECK) indicator signals."""
     pattern = ta.CDLINNECK(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLINNECK_Signal"] = _pattern_signals(pattern)
-    return data["CDLINNECK_Signal"]
+    data["CDLINNECK_indicator"] = _pattern_signals(pattern)
+    return data["CDLINNECK_indicator"]
 
 
 def CDLINVERTEDHAMMER_indicator(data):
@@ -1349,15 +1353,15 @@ def CDLINVERTEDHAMMER_indicator(data):
     pattern = ta.CDLINVERTEDHAMMER(
         data["Open"], data["High"], data["Low"], data["Close"]
     )
-    data["CDLINVERTEDHAMMER_Signal"] = _pattern_signals(pattern)
-    return data["CDLINVERTEDHAMMER_Signal"]
+    data["CDLINVERTEDHAMMER_indicator"] = _pattern_signals(pattern)
+    return data["CDLINVERTEDHAMMER_indicator"]
 
 
 def CDLKICKING_indicator(data):
     """Vectorized Kicking (CDLKICKING) indicator signals."""
     pattern = ta.CDLKICKING(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLKICKING_Signal"] = _pattern_signals(pattern)
-    return data["CDLKICKING_Signal"]
+    data["CDLKICKING_indicator"] = _pattern_signals(pattern)
+    return data["CDLKICKING_indicator"]
 
 
 def CDLKICKINGBYLENGTH_indicator(data):
@@ -1365,15 +1369,15 @@ def CDLKICKINGBYLENGTH_indicator(data):
     pattern = ta.CDLKICKINGBYLENGTH(
         data["Open"], data["High"], data["Low"], data["Close"]
     )
-    data["CDLKICKINGBYLENGTH_Signal"] = _pattern_signals(pattern)
-    return data["CDLKICKINGBYLENGTH_Signal"]
+    data["CDLKICKINGBYLENGTH_indicator"] = _pattern_signals(pattern)
+    return data["CDLKICKINGBYLENGTH_indicator"]
 
 
 def CDLLADDERBOTTOM_indicator(data):
     """Vectorized Ladder Bottom (CDLLADDERBOTTOM) indicator signals."""
     pattern = ta.CDLLADDERBOTTOM(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLLADDERBOTTOM_Signal"] = _pattern_signals(pattern)
-    return data["CDLLADDERBOTTOM_Signal"]
+    data["CDLLADDERBOTTOM_indicator"] = _pattern_signals(pattern)
+    return data["CDLLADDERBOTTOM_indicator"]
 
 
 def CDLLONGLEGGEDDOJI_indicator(data):
@@ -1381,29 +1385,29 @@ def CDLLONGLEGGEDDOJI_indicator(data):
     pattern = ta.CDLLONGLEGGEDDOJI(
         data["Open"], data["High"], data["Low"], data["Close"]
     )
-    data["CDLLONGLEGGEDDOJI_Signal"] = _pattern_signals(pattern)
-    return data["CDLLONGLEGGEDDOJI_Signal"]
+    data["CDLLONGLEGGEDDOJI_indicator"] = _pattern_signals(pattern)
+    return data["CDLLONGLEGGEDDOJI_indicator"]
 
 
 def CDLLONGLINE_indicator(data):
     """Vectorized Long Line Candle (CDLLONGLINE) indicator signals."""
     pattern = ta.CDLLONGLINE(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLLONGLINE_Signal"] = _pattern_signals(pattern)
-    return data["CDLLONGLINE_Signal"]
+    data["CDLLONGLINE_indicator"] = _pattern_signals(pattern)
+    return data["CDLLONGLINE_indicator"]
 
 
 def CDLMARUBOZU_indicator(data):
     """Vectorized Marubozu (CDLMARUBOZU) indicator signals."""
     pattern = ta.CDLMARUBOZU(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLMARUBOZU_Signal"] = _pattern_signals(pattern)
-    return data["CDLMARUBOZU_Signal"]
+    data["CDLMARUBOZU_indicator"] = _pattern_signals(pattern)
+    return data["CDLMARUBOZU_indicator"]
 
 
 def CDLMATCHINGLOW_indicator(data):
     """Vectorized Matching Low (CDLMATCHINGLOW) indicator signals."""
     pattern = ta.CDLMATCHINGLOW(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLMATCHINGLOW_Signal"] = _pattern_signals(pattern)
-    return data["CDLMATCHINGLOW_Signal"]
+    data["CDLMATCHINGLOW_indicator"] = _pattern_signals(pattern)
+    return data["CDLMATCHINGLOW_indicator"]
 
 
 def CDLMATHOLD_indicator(data, penetration=0):
@@ -1411,8 +1415,8 @@ def CDLMATHOLD_indicator(data, penetration=0):
     pattern = ta.CDLMATHOLD(
         data["Open"], data["High"], data["Low"], data["Close"], penetration=penetration
     )
-    data["CDLMATHOLD_Signal"] = _pattern_signals(pattern)
-    return data["CDLMATHOLD_Signal"]
+    data["CDLMATHOLD_indicator"] = _pattern_signals(pattern)
+    return data["CDLMATHOLD_indicator"]
 
 
 def CDLMORNINGDOJISTAR_indicator(data, penetration=0):
@@ -1420,8 +1424,8 @@ def CDLMORNINGDOJISTAR_indicator(data, penetration=0):
     pattern = ta.CDLMORNINGDOJISTAR(
         data["Open"], data["High"], data["Low"], data["Close"], penetration=penetration
     )
-    data["CDLMORNINGDOJISTAR_Signal"] = _pattern_signals(pattern)
-    return data["CDLMORNINGDOJISTAR_Signal"]
+    data["CDLMORNINGDOJISTAR_indicator"] = _pattern_signals(pattern)
+    return data["CDLMORNINGDOJISTAR_indicator"]
 
 
 def CDLMORNINGSTAR_indicator(data, penetration=0):
@@ -1429,29 +1433,29 @@ def CDLMORNINGSTAR_indicator(data, penetration=0):
     pattern = ta.CDLMORNINGSTAR(
         data["Open"], data["High"], data["Low"], data["Close"], penetration=penetration
     )
-    data["CDLMORNINGSTAR_Signal"] = _pattern_signals(pattern)
-    return data["CDLMORNINGSTAR_Signal"]
+    data["CDLMORNINGSTAR_indicator"] = _pattern_signals(pattern)
+    return data["CDLMORNINGSTAR_indicator"]
 
 
 def CDLONNECK_indicator(data):
     """Vectorized On-Neck Pattern (CDLONNECK) indicator signals."""
     pattern = ta.CDLONNECK(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLONNECK_Signal"] = _pattern_signals(pattern)
-    return data["CDLONNECK_Signal"]
+    data["CDLONNECK_indicator"] = _pattern_signals(pattern)
+    return data["CDLONNECK_indicator"]
 
 
 def CDLPIERCING_indicator(data):
     """Vectorized Piercing Pattern (CDLPIERCING) indicator signals."""
     pattern = ta.CDLPIERCING(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLPIERCING_Signal"] = _pattern_signals(pattern)
-    return data["CDLPIERCING_Signal"]
+    data["CDLPIERCING_indicator"] = _pattern_signals(pattern)
+    return data["CDLPIERCING_indicator"]
 
 
 def CDLRICKSHAWMAN_indicator(data):
     """Vectorized Rickshaw Man (CDLRICKSHAWMAN) indicator signals."""
     pattern = ta.CDLRICKSHAWMAN(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLRICKSHAWMAN_Signal"] = _pattern_signals(pattern)
-    return data["CDLRICKSHAWMAN_Signal"]
+    data["CDLRICKSHAWMAN_indicator"] = _pattern_signals(pattern)
+    return data["CDLRICKSHAWMAN_indicator"]
 
 
 def CDLRISEFALL3METHODS_indicator(data):
@@ -1459,8 +1463,8 @@ def CDLRISEFALL3METHODS_indicator(data):
     pattern = ta.CDLRISEFALL3METHODS(
         data["Open"], data["High"], data["Low"], data["Close"]
     )
-    data["CDLRISEFALL3METHODS_Signal"] = _pattern_signals(pattern)
-    return data["CDLRISEFALL3METHODS_Signal"]
+    data["CDLRISEFALL3METHODS_indicator"] = _pattern_signals(pattern)
+    return data["CDLRISEFALL3METHODS_indicator"]
 
 
 def CDLSEPARATINGLINES_indicator(data):
@@ -1468,29 +1472,29 @@ def CDLSEPARATINGLINES_indicator(data):
     pattern = ta.CDLSEPARATINGLINES(
         data["Open"], data["High"], data["Low"], data["Close"]
     )
-    data["CDLSEPARATINGLINES_Signal"] = _pattern_signals(pattern)
-    return data["CDLSEPARATINGLINES_Signal"]
+    data["CDLSEPARATINGLINES_indicator"] = _pattern_signals(pattern)
+    return data["CDLSEPARATINGLINES_indicator"]
 
 
 def CDLSHOOTINGSTAR_indicator(data):
     """Vectorized Shooting Star (CDLSHOOTINGSTAR) indicator signals."""
     pattern = ta.CDLSHOOTINGSTAR(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLSHOOTINGSTAR_Signal"] = _pattern_signals(pattern)
-    return data["CDLSHOOTINGSTAR_Signal"]
+    data["CDLSHOOTINGSTAR_indicator"] = _pattern_signals(pattern)
+    return data["CDLSHOOTINGSTAR_indicator"]
 
 
 def CDLSHORTLINE_indicator(data):
     """Vectorized Short Line Candle (CDLSHORTLINE) indicator signals."""
     pattern = ta.CDLSHORTLINE(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLSHORTLINE_Signal"] = _pattern_signals(pattern)
-    return data["CDLSHORTLINE_Signal"]
+    data["CDLSHORTLINE_indicator"] = _pattern_signals(pattern)
+    return data["CDLSHORTLINE_indicator"]
 
 
 def CDLSPINNINGTOP_indicator(data):
     """Vectorized Spinning Top (CDLSPINNINGTOP) indicator signals."""
     pattern = ta.CDLSPINNINGTOP(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLSPINNINGTOP_Signal"] = _pattern_signals(pattern)
-    return data["CDLSPINNINGTOP_Signal"]
+    data["CDLSPINNINGTOP_indicator"] = _pattern_signals(pattern)
+    return data["CDLSPINNINGTOP_indicator"]
 
 
 def CDLSTALLEDPATTERN_indicator(data):
@@ -1498,8 +1502,8 @@ def CDLSTALLEDPATTERN_indicator(data):
     pattern = ta.CDLSTALLEDPATTERN(
         data["Open"], data["High"], data["Low"], data["Close"]
     )
-    data["CDLSTALLEDPATTERN_Signal"] = _pattern_signals(pattern)
-    return data["CDLSTALLEDPATTERN_Signal"]
+    data["CDLSTALLEDPATTERN_indicator"] = _pattern_signals(pattern)
+    return data["CDLSTALLEDPATTERN_indicator"]
 
 
 def CDLSTICKSANDWICH_indicator(data):
@@ -1507,43 +1511,43 @@ def CDLSTICKSANDWICH_indicator(data):
     pattern = ta.CDLSTICKSANDWICH(
         data["Open"], data["High"], data["Low"], data["Close"]
     )
-    data["CDLSTICKSANDWICH_Signal"] = _pattern_signals(pattern)
-    return data["CDLSTICKSANDWICH_Signal"]
+    data["CDLSTICKSANDWICH_indicator"] = _pattern_signals(pattern)
+    return data["CDLSTICKSANDWICH_indicator"]
 
 
 def CDLTAKURI_indicator(data):
     """Vectorized Takuri (Dragonfly Doji with very long lower shadow) (CDLTAKURI) indicator signals."""
     pattern = ta.CDLTAKURI(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLTAKURI_Signal"] = _pattern_signals(pattern)
-    return data["CDLTAKURI_Signal"]
+    data["CDLTAKURI_indicator"] = _pattern_signals(pattern)
+    return data["CDLTAKURI_indicator"]
 
 
 def CDLTASUKIGAP_indicator(data):
     """Vectorized Tasuki Gap (CDLTASUKIGAP) indicator signals."""
     pattern = ta.CDLTASUKIGAP(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLTASUKIGAP_Signal"] = _pattern_signals(pattern)
-    return data["CDLTASUKIGAP_Signal"]
+    data["CDLTASUKIGAP_indicator"] = _pattern_signals(pattern)
+    return data["CDLTASUKIGAP_indicator"]
 
 
 def CDLTHRUSTING_indicator(data):
     """Vectorized Thrusting Pattern (CDLTHRUSTING) indicator signals."""
     pattern = ta.CDLTHRUSTING(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLTHRUSTING_Signal"] = _pattern_signals(pattern)
-    return data["CDLTHRUSTING_Signal"]
+    data["CDLTHRUSTING_indicator"] = _pattern_signals(pattern)
+    return data["CDLTHRUSTING_indicator"]
 
 
 def CDLTRISTAR_indicator(data):
     """Vectorized Tristar Pattern (CDLTRISTAR) indicator signals."""
     pattern = ta.CDLTRISTAR(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLTRISTAR_Signal"] = _pattern_signals(pattern)
-    return data["CDLTRISTAR_Signal"]
+    data["CDLTRISTAR_indicator"] = _pattern_signals(pattern)
+    return data["CDLTRISTAR_indicator"]
 
 
 def CDLUNIQUE3RIVER_indicator(data):
     """Vectorized Unique 3 River (CDLUNIQUE3RIVER) indicator signals."""
     pattern = ta.CDLUNIQUE3RIVER(data["Open"], data["High"], data["Low"], data["Close"])
-    data["CDLUNIQUE3RIVER_Signal"] = _pattern_signals(pattern)
-    return data["CDLUNIQUE3RIVER_Signal"]
+    data["CDLUNIQUE3RIVER_indicator"] = _pattern_signals(pattern)
+    return data["CDLUNIQUE3RIVER_indicator"]
 
 
 def CDLUPSIDEGAP2CROWS_indicator(data):
@@ -1551,8 +1555,8 @@ def CDLUPSIDEGAP2CROWS_indicator(data):
     pattern = ta.CDLUPSIDEGAP2CROWS(
         data["Open"], data["High"], data["Low"], data["Close"]
     )
-    data["CDLUPSIDEGAP2CROWS_Signal"] = _pattern_signals(pattern)
-    return data["CDLUPSIDEGAP2CROWS_Signal"]
+    data["CDLUPSIDEGAP2CROWS_indicator"] = _pattern_signals(pattern)
+    return data["CDLUPSIDEGAP2CROWS_indicator"]
 
 
 def CDLXSIDEGAP3METHODS_indicator(data):
@@ -1560,8 +1564,8 @@ def CDLXSIDEGAP3METHODS_indicator(data):
     pattern = ta.CDLXSIDEGAP3METHODS(
         data["Open"], data["High"], data["Low"], data["Close"]
     )
-    data["CDLXSIDEGAP3METHODS_Signal"] = _pattern_signals(pattern)
-    return data["CDLXSIDEGAP3METHODS_Signal"]
+    data["CDLXSIDEGAP3METHODS_indicator"] = _pattern_signals(pattern)
+    return data["CDLXSIDEGAP3METHODS_indicator"]
 
 
 # --- Revised Statistic Functions ---
@@ -1575,13 +1579,13 @@ def BETA_indicator_v2(data, timeperiod=5):
     Keeping original logic but adding stronger warning.
     """
     beta = ta.BETA(data["High"], data["Low"], timeperiod=timeperiod)
-    data["BETA_Signal"] = _generate_signals(
+    data["BETA_indicator"] = _generate_signals(
         condition_buy=beta > 1, condition_sell=beta < 1
     )
     logger.warning(
         "Warning: BETA_indicator Buy/Sell signals based on Beta > 1 or < 1 are highly context-dependent and may not be meaningful."
     )
-    return data["BETA_Signal"]
+    return data["BETA_indicator"]
 
 
 def CORREL_indicator_v2(data, timeperiod=30):
@@ -1592,13 +1596,13 @@ def CORREL_indicator_v2(data, timeperiod=30):
     Keeping original logic but adding stronger warning.
     """
     correl = ta.CORREL(data["High"], data["Low"], timeperiod=timeperiod)
-    data["CORREL_Signal"] = _generate_signals(
+    data["CORREL_indicator"] = _generate_signals(
         condition_buy=correl > 0.5, condition_sell=correl < -0.5
     )
     logger.warning(
         "Warning: CORREL_indicator Buy/Sell signals based on fixed correlation levels are arbitrary and context-dependent."
     )
-    return data["CORREL_Signal"]
+    return data["CORREL_indicator"]
 
 
 def LINEARREG_INTERCEPT_indicator_v2(data, timeperiod=14):
@@ -1609,14 +1613,14 @@ def LINEARREG_INTERCEPT_indicator_v2(data, timeperiod=14):
     """
     linearreg = ta.LINEARREG(data["Close"], timeperiod=timeperiod)
 
-    data["LINEARREG_INTERCEPT_Signal"] = _generate_signals(
+    data["LINEARREG_INTERCEPT_indicator"] = _generate_signals(
         condition_buy=data["Close"] > linearreg,
         condition_sell=data["Close"] < linearreg,
     )
     logger.warning(
         "Note: LINEARREG_INTERCEPT_indicator logic revised to compare Close vs LINEARREG (forecast), making it equivalent to LINEARREG_indicator."
     )
-    return data["LINEARREG_INTERCEPT_Signal"]
+    return data["LINEARREG_INTERCEPT_indicator"]
 
 
 def STDDEV_indicator_v2(data, timeperiod=20, nbdev=1, ma_period=20):
@@ -1628,14 +1632,14 @@ def STDDEV_indicator_v2(data, timeperiod=20, nbdev=1, ma_period=20):
     stddev = ta.STDDEV(data["Close"], timeperiod=timeperiod, nbdev=nbdev)
     stddev_ma = ta.SMA(stddev, timeperiod=ma_period)
 
-    data["STDDEV_Signal"] = _generate_signals(
+    data["STDDEV_indicator"] = _generate_signals(
         condition_buy=stddev > stddev_ma,
         condition_sell=stddev < stddev_ma,
     )
     logger.warning(
         "Warning: STDDEV_indicator revised logic (STDDEV vs MA) is unconventional for Buy/Sell signals."
     )
-    return data["STDDEV_Signal"]
+    return data["STDDEV_indicator"]
 
 
 def VAR_indicator_v2(data, timeperiod=5, nbdev=1, ma_period=5):
@@ -1647,14 +1651,14 @@ def VAR_indicator_v2(data, timeperiod=5, nbdev=1, ma_period=5):
     var = ta.VAR(data["Close"], timeperiod=timeperiod, nbdev=nbdev)
     var_ma = ta.SMA(var, timeperiod=ma_period)
 
-    data["VAR_Signal"] = _generate_signals(
+    data["VAR_indicator"] = _generate_signals(
         condition_buy=var > var_ma,
         condition_sell=var < var_ma,
     )
     logger.warning(
         "Warning: VAR_indicator revised logic (VAR vs MA) is unconventional for Buy/Sell signals."
     )
-    return data["VAR_Signal"]
+    return data["VAR_indicator"]
 
 
 # --- Statistic Functions ---
@@ -1663,95 +1667,95 @@ def VAR_indicator_v2(data, timeperiod=5, nbdev=1, ma_period=5):
 def BETA_indicator(data, timeperiod=5):
     """Vectorized Beta (BETA) indicator signals."""
     beta = ta.BETA(data["High"], data["Low"], timeperiod=timeperiod)
-    data["BETA_Signal"] = _generate_signals(
+    data["BETA_indicator"] = _generate_signals(
         condition_buy=beta > 1, condition_sell=beta < 1
     )
-    return data["BETA_Signal"]
+    return data["BETA_indicator"]
 
 
 def CORREL_indicator(data, timeperiod=30):
     """Vectorized Pearson's Correlation Coefficient (CORREL) indicator signals."""
     correl = ta.CORREL(data["High"], data["Low"], timeperiod=timeperiod)
-    data["CORREL_Signal"] = _generate_signals(
+    data["CORREL_indicator"] = _generate_signals(
         condition_buy=correl > 0.5, condition_sell=correl < -0.5
     )
-    return data["CORREL_Signal"]
+    return data["CORREL_indicator"]
 
 
 def LINEARREG_indicator(data, timeperiod=14):
     """Vectorized Linear Regression (LINEARREG) indicator signals."""
     linearreg = ta.LINEARREG(data["Close"], timeperiod=timeperiod)
-    data["LINEARREG_Signal"] = _generate_signals(
+    data["LINEARREG_indicator"] = _generate_signals(
         condition_buy=data["Close"] > linearreg,
         condition_sell=data["Close"] < linearreg,
     )
-    return data["LINEARREG_Signal"]
+    return data["LINEARREG_indicator"]
 
 
 def LINEARREG_ANGLE_indicator(data, timeperiod=14):
     """Vectorized Linear Regression Angle (LINEARREG_ANGLE) indicator signals."""
     linearreg_angle = ta.LINEARREG_ANGLE(data["Close"], timeperiod=timeperiod)
-    data["LINEARREG_ANGLE_Signal"] = _generate_signals(
+    data["LINEARREG_ANGLE_indicator"] = _generate_signals(
         condition_buy=linearreg_angle > 0,
         condition_sell=linearreg_angle < 0,
     )
-    return data["LINEARREG_ANGLE_Signal"]
+    return data["LINEARREG_ANGLE_indicator"]
 
 
 def LINEARREG_INTERCEPT_indicator(data, timeperiod=14):
     """Vectorized Linear Regression Intercept (LINEARREG_INTERCEPT) indicator signals."""
     linearreg_intercept = ta.LINEARREG_INTERCEPT(data["Close"], timeperiod=timeperiod)
-    data["LINEARREG_INTERCEPT_Signal"] = _generate_signals(
+    data["LINEARREG_INTERCEPT_indicator"] = _generate_signals(
         condition_buy=data["Close"] > linearreg_intercept,
         condition_sell=data["Close"] < linearreg_intercept,
     )
     logger.warning(
         "Warning: Comparing Close to LINEARREG_INTERCEPT for signals in LINEARREG_INTERCEPT_indicator might be unconventional."
     )
-    return data["LINEARREG_INTERCEPT_Signal"]
+    return data["LINEARREG_INTERCEPT_indicator"]
 
 
 def LINEARREG_SLOPE_indicator(data, timeperiod=14):
     """Vectorized Linear Regression Slope (LINEARREG_SLOPE) indicator signals."""
     linearreg_slope = ta.LINEARREG_SLOPE(data["Close"], timeperiod=timeperiod)
-    data["LINEARREG_SLOPE_Signal"] = _generate_signals(
+    data["LINEARREG_SLOPE_indicator"] = _generate_signals(
         condition_buy=linearreg_slope > 0,
         condition_sell=linearreg_slope < 0,
     )
-    return data["LINEARREG_SLOPE_Signal"]
+    return data["LINEARREG_SLOPE_indicator"]
 
 
 def STDDEV_indicator(data, timeperiod=20, nbdev=1):
     """Vectorized Standard Deviation (STDDEV) indicator signals."""
     stddev = ta.STDDEV(data["Close"], timeperiod=timeperiod, nbdev=nbdev)
-    data["STDDEV_Signal"] = _generate_signals(
+    data["STDDEV_indicator"] = _generate_signals(
         condition_buy=stddev > 20, condition_sell=stddev < 10
     )
     logger.warning(
         "Warning: Using fixed STDDEV levels (10, 20) for Buy/Sell signals in STDDEV_indicator is unconventional."
     )
-    return data["STDDEV_Signal"]
+    return data["STDDEV_indicator"]
 
 
 def TSF_indicator(data, timeperiod=14):
     """Vectorized Time Series Forecast (TSF) indicator signals."""
     tsf = ta.TSF(data["Close"], timeperiod=timeperiod)
-    data["TSF_Signal"] = _generate_signals(
+    data["TSF_indicator"] = _generate_signals(
         condition_buy=data["Close"] > tsf, condition_sell=data["Close"] < tsf
     )
-    return data["TSF_Signal"]
+    return data["TSF_indicator"]
 
 
 def VAR_indicator(data, timeperiod=5, nbdev=1):
     """Vectorized Variance (VAR) indicator signals."""
     var = ta.VAR(data["Close"], timeperiod=timeperiod, nbdev=nbdev)
-    data["VAR_Signal"] = _generate_signals(
+    data["VAR_indicator"] = _generate_signals(
         condition_buy=var > 20, condition_sell=var < 10
     )
     logger.warning(
         "Warning: Using fixed VAR levels (10, 20) for Buy/Sell signals in VAR_indicator is unconventional."
     )
-    return data["VAR_Signal"]
+    return data["VAR_indicator"]
 
 
 # --- New Indicator Functions ---
@@ -1809,7 +1813,7 @@ def ichimoku_cloud_indicator(
         close_prices < data["Ichi_SenkouB"]
     )
 
-    data["Ichimoku_Signal"] = _generate_signals(
+    data["Ichimoku_indicator"] = _generate_signals(
         condition_buy=above_cloud, condition_sell=below_cloud
     )
     data.drop(
@@ -1822,7 +1826,7 @@ def ichimoku_cloud_indicator(
         ],
         inplace=True,
     )
-    return data["Ichimoku_Signal"]
+    return data["Ichimoku_indicator"]
 
 
 def keltner_channels_indicator(data, period_ema=20, period_atr=10, multiplier=2.0):
@@ -1847,12 +1851,12 @@ def keltner_channels_indicator(data, period_ema=20, period_atr=10, multiplier=2.
     data["KC_Upper"] = data["KC_Middle"] + (multiplier * atr)
     data["KC_Lower"] = data["KC_Middle"] - (multiplier * atr)
 
-    data["Keltner_Signal"] = _generate_signals(
+    data["Keltner_indicator"] = _generate_signals(
         condition_buy=data["Close"] > data["KC_Upper"],
         condition_sell=data["Close"] < data["KC_Lower"],
     )
     data.drop(columns=["KC_Middle", "KC_Upper", "KC_Lower"], inplace=True)
-    return data["Keltner_Signal"]
+    return data["Keltner_indicator"]
 
 
 def vwap_indicator(data, window=14):
@@ -1886,14 +1890,14 @@ def vwap_indicator(data, window=14):
     # data["VWAP"] = data["VWAP"].fillna(method="ffill")
     data["VWAP"] = data["VWAP"].ffill()
 
-    data["VWAP_Signal"] = _generate_signals(
+    data["VWAP_indicator"] = _generate_signals(
         condition_buy=data["Close"] > data["VWAP"],
         condition_sell=data["Close"] < data["VWAP"],
     )
 
     data.drop(columns=["VWAP"], inplace=True)
 
-    return data["VWAP_Signal"]
+    return data["VWAP_indicator"]
 
 
 # --- Example Usage ---
