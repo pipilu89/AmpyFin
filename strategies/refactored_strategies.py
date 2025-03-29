@@ -296,7 +296,7 @@ def WMA_indicator(data, timeperiod=30):
 # --- Revised Momentum Indicators ---
 
 
-def ADX_indicator_v2(data, timeperiod=14, adx_threshold=20):
+def ADX_indicator(data, timeperiod=14, adx_threshold=20):
     """
     Vectorized ADX indicator signals based on DI+/DI- crossover,
     filtered by ADX strength.
@@ -324,7 +324,7 @@ def ADX_indicator_v2(data, timeperiod=14, adx_threshold=20):
     return data["ADX_indicator"]
 
 
-def ADXR_indicator_v2(data, timeperiod=14, adx_threshold=20):
+def ADXR_indicator(data, timeperiod=14, adx_threshold=20):
     """
     Vectorized ADXR indicator signals. ADXR smooths ADX.
     Using similar DI crossover logic, filtered by ADXR strength.
@@ -353,7 +353,7 @@ def ADXR_indicator_v2(data, timeperiod=14, adx_threshold=20):
     return data["ADXR_indicator"]
 
 
-def CCI_indicator_v2(data, timeperiod=14, buy_level=-100, sell_level=100):
+def CCI_indicator(data, timeperiod=14, buy_level=-100, sell_level=100):
     """
     Vectorized Commodity Channel Index (CCI) indicator signals.
     Standard interpretation: Buy when crossing UP from oversold (< buy_level),
@@ -369,7 +369,7 @@ def CCI_indicator_v2(data, timeperiod=14, buy_level=-100, sell_level=100):
     return data["CCI_indicator"]
 
 
-def CMO_indicator_v2(data, timeperiod=14, buy_level=-50, sell_level=50):
+def CMO_indicator(data, timeperiod=14, buy_level=-50, sell_level=50):
     """
     Vectorized Chande Momentum Oscillator (CMO) indicator signals.
     Standard interpretation: Buy when oversold (< buy_level),
@@ -384,7 +384,7 @@ def CMO_indicator_v2(data, timeperiod=14, buy_level=-50, sell_level=50):
     return data["CMO_indicator"]
 
 
-def DX_indicator_v2(data, timeperiod=14, dx_threshold=20):
+def DX_indicator(data, timeperiod=14, dx_threshold=20):
     """
     Vectorized Directional Movement Index (DX) indicator signals.
     DX measures spread between DI+ and DI-. High DX = Strong trend.
@@ -422,32 +422,32 @@ def PLUS_MINUS_DI_indicator(data, timeperiod=14):
         data["High"], data["Low"], data["Close"], timeperiod=timeperiod
     )
 
-    data["MINUS_DI_indicator"] = _generate_signals(
+    data["PLUS_MINUS_DI_indicator"] = _generate_signals(
         condition_buy=plus_di > minus_di,
         condition_sell=minus_di > plus_di,
     )
-    return data["MINUS_DI_indicator"]
+    return data["PLUS_MINUS_DI_indicator"]
 
 
 # --- Momentum Indicators ---
 
 
-def ADX_indicator(data, timeperiod=14):
-    """Vectorized Average Directional Movement Index (ADX) indicator signals."""
-    adx = ta.ADX(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
-    data["ADX_indicator"] = _generate_signals(
-        condition_buy=adx > 25, condition_sell=adx < 20
-    )
-    return data["ADX_indicator"]
+# def ADX_indicator_old(data, timeperiod=14):
+#     """Vectorized Average Directional Movement Index (ADX) indicator signals."""
+#     adx = ta.ADX(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
+#     data["ADX_indicator"] = _generate_signals(
+#         condition_buy=adx > 25, condition_sell=adx < 20
+#     )
+#     return data["ADX_indicator"]
 
 
-def ADXR_indicator(data, timeperiod=14):
-    """Vectorized Average Directional Movement Index Rating (ADXR) indicator signals."""
-    adxr = ta.ADXR(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
-    data["ADXR_indicator"] = _generate_signals(
-        condition_buy=adxr > 25, condition_sell=adxr < 20
-    )
-    return data["ADXR_indicator"]
+# def ADXR_indicator_old(data, timeperiod=14):
+#     """Vectorized Average Directional Movement Index Rating (ADXR) indicator signals."""
+#     adxr = ta.ADXR(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
+#     data["ADXR_indicator"] = _generate_signals(
+#         condition_buy=adxr > 25, condition_sell=adxr < 20
+#     )
+#     return data["ADXR_indicator"]
 
 
 def APO_indicator(data, fastperiod=12, slowperiod=26, matype=0):
@@ -488,31 +488,31 @@ def BOP_indicator(data):
     return data["BOP_indicator"]
 
 
-def CCI_indicator(data, timeperiod=14):
-    """Vectorized Commodity Channel Index (CCI) indicator signals."""
-    cci = ta.CCI(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
-    data["CCI_indicator"] = _generate_signals(
-        condition_buy=cci > 100, condition_sell=cci < -100
-    )
-    return data["CCI_indicator"]
+# def CCI_indicator_old(data, timeperiod=14):
+#     """Vectorized Commodity Channel Index (CCI) indicator signals."""
+#     cci = ta.CCI(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
+#     data["CCI_indicator"] = _generate_signals(
+#         condition_buy=cci > 100, condition_sell=cci < -100
+#     )
+#     return data["CCI_indicator"]
 
 
-def CMO_indicator(data, timeperiod=14):
-    """Vectorized Chande Momentum Oscillator (CMO) indicator signals."""
-    cmo = ta.CMO(data["Close"], timeperiod=timeperiod)
-    data["CMO_indicator"] = _generate_signals(
-        condition_buy=cmo > 50, condition_sell=cmo < -50
-    )
-    return data["CMO_indicator"]
+# def CMO_indicator_old(data, timeperiod=14):
+#     """Vectorized Chande Momentum Oscillator (CMO) indicator signals."""
+#     cmo = ta.CMO(data["Close"], timeperiod=timeperiod)
+#     data["CMO_indicator"] = _generate_signals(
+#         condition_buy=cmo > 50, condition_sell=cmo < -50
+#     )
+#     return data["CMO_indicator"]
 
 
-def DX_indicator(data, timeperiod=14):
-    """Vectorized Directional Movement Index (DX) indicator signals."""
-    dx = ta.DX(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
-    data["DX_indicator"] = _generate_signals(
-        condition_buy=dx > 25, condition_sell=dx < 20
-    )
-    return data["DX_indicator"]
+# def DX_indicator_old(data, timeperiod=14):
+#     """Vectorized Directional Movement Index (DX) indicator signals."""
+#     dx = ta.DX(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
+#     data["DX_indicator"] = _generate_signals(
+#         condition_buy=dx > 25, condition_sell=dx < 20
+#     )
+#     return data["DX_indicator"]
 
 
 def MACD_indicator(data, fastperiod=12, slowperiod=26, signalperiod=9):
@@ -578,28 +578,28 @@ def MFI_indicator(data, timeperiod=14):
     return data["MFI_indicator"]
 
 
-def MINUS_DI_indicator(data, timeperiod=14):
-    """Vectorized Minus Directional Indicator (MINUS_DI) indicator signals."""
-    minus_di = ta.MINUS_DI(
-        data["High"], data["Low"], data["Close"], timeperiod=timeperiod
-    )
-    data["MINUS_DI_indicator"] = _generate_signals(
-        condition_buy=minus_di < 20,
-        condition_sell=minus_di > 25,
-    )
-    return data["MINUS_DI_indicator"]
+# def MINUS_DI_indicator_old(data, timeperiod=14):
+#     """Vectorized Minus Directional Indicator (MINUS_DI) indicator signals."""
+#     minus_di = ta.MINUS_DI(
+#         data["High"], data["Low"], data["Close"], timeperiod=timeperiod
+#     )
+#     data["MINUS_DI_indicator"] = _generate_signals(
+#         condition_buy=minus_di < 20,
+#         condition_sell=minus_di > 25,
+#     )
+#     return data["MINUS_DI_indicator"]
 
 
-def PLUS_DI_indicator(data, timeperiod=14):
-    """Vectorized Plus Directional Indicator (PLUS_DI) indicator signals."""
-    plus_di = ta.PLUS_DI(
-        data["High"], data["Low"], data["Close"], timeperiod=timeperiod
-    )
-    data["PLUS_DI_indicator"] = _generate_signals(
-        condition_buy=plus_di > 25,
-        condition_sell=plus_di < 20,
-    )
-    return data["PLUS_DI_indicator"]
+# def PLUS_DI_indicator_old(data, timeperiod=14):
+#     """Vectorized Plus Directional Indicator (PLUS_DI) indicator signals."""
+#     plus_di = ta.PLUS_DI(
+#         data["High"], data["Low"], data["Close"], timeperiod=timeperiod
+#     )
+#     data["PLUS_DI_indicator"] = _generate_signals(
+#         condition_buy=plus_di > 25,
+#         condition_sell=plus_di < 20,
+#     )
+#     return data["PLUS_DI_indicator"]
 
 
 def MINUS_DM_indicator(data, timeperiod=14):
@@ -615,15 +615,6 @@ def MINUS_DM_indicator(data, timeperiod=14):
     return data["MINUS_DM_indicator"]
 
 
-def MOM_indicator(data, timeperiod=10):
-    """Vectorized Momentum (MOM) indicator signals."""
-    mom = ta.MOM(data["Close"], timeperiod=timeperiod)
-    data["MOM_indicator"] = _generate_signals(
-        condition_buy=mom > 0, condition_sell=mom < 0
-    )
-    return data["MOM_indicator"]
-
-
 def PLUS_DM_indicator(data, timeperiod=14):
     """Vectorized Plus Directional Movement (PLUS_DM) indicator signals."""
     plus_dm = ta.PLUS_DM(data["High"], data["Low"], timeperiod=timeperiod)
@@ -635,6 +626,15 @@ def PLUS_DM_indicator(data, timeperiod=14):
         "Warning: The implemented logic for PLUS_DM_indicator based on the original function seems potentially incorrect."
     )
     return data["PLUS_DM_indicator"]
+
+
+def MOM_indicator(data, timeperiod=10):
+    """Vectorized Momentum (MOM) indicator signals."""
+    mom = ta.MOM(data["Close"], timeperiod=timeperiod)
+    data["MOM_indicator"] = _generate_signals(
+        condition_buy=mom > 0, condition_sell=mom < 0
+    )
+    return data["MOM_indicator"]
 
 
 def PPO_indicator(data, fastperiod=12, slowperiod=26, matype=0):
@@ -783,7 +783,7 @@ def WILLR_indicator(data, timeperiod=14):
 # --- Revised Volume Indicators ---
 
 
-def AD_indicator_v2(data, ma_period=20):
+def AD_indicator(data, ma_period=20):
     """
     Vectorized Chaikin A/D Line (AD) indicator signals.
     Revised logic: Compare AD line to its moving average.
@@ -801,7 +801,7 @@ def AD_indicator_v2(data, ma_period=20):
     return data["AD_indicator"]
 
 
-def OBV_indicator_v2(data, ma_period=20):
+def OBV_indicator(data, ma_period=20):
     """
     Vectorized On Balance Volume (OBV) indicator signals.
     Revised logic: Compare OBV to its moving average.
@@ -822,18 +822,18 @@ def OBV_indicator_v2(data, ma_period=20):
 # --- Volume Indicators ---
 
 
-def AD_indicator(data):
-    """Vectorized Chaikin A/D Line (AD) indicator signals."""
-    if "Volume" not in data.columns:
-        raise ValueError("AD_indicator requires 'Volume' column in data")
-    ad = ta.AD(data["High"], data["Low"], data["Close"], data["Volume"])
-    data["AD_indicator"] = _generate_signals(
-        condition_buy=ad > 0, condition_sell=ad < 0
-    )
-    logger.warning(
-        "Warning: The implemented logic for AD_indicator based on the original function might be unconventional."
-    )
-    return data["AD_indicator"]
+# def AD_indicator_old(data):
+#     """Vectorized Chaikin A/D Line (AD) indicator signals."""
+#     if "Volume" not in data.columns:
+#         raise ValueError("AD_indicator requires 'Volume' column in data")
+#     ad = ta.AD(data["High"], data["Low"], data["Close"], data["Volume"])
+#     data["AD_indicator"] = _generate_signals(
+#         condition_buy=ad > 0, condition_sell=ad < 0
+#     )
+#     logger.warning(
+#         "Warning: The implemented logic for AD_indicator based on the original function might be unconventional."
+#     )
+#     return data["AD_indicator"]
 
 
 def ADOSC_indicator(data, fastperiod=3, slowperiod=10):
@@ -854,24 +854,24 @@ def ADOSC_indicator(data, fastperiod=3, slowperiod=10):
     return data["ADOSC_indicator"]
 
 
-def OBV_indicator(data):
-    """Vectorized On Balance Volume (OBV) indicator signals."""
-    if "Volume" not in data.columns:
-        raise ValueError("OBV_indicator requires 'Volume' column in data")
-    obv = ta.OBV(data["Close"], data["Volume"])
-    data["OBV_indicator"] = _generate_signals(
-        condition_buy=obv > 0, condition_sell=obv < 0
-    )
-    logger.warning(
-        "Warning: The implemented logic for OBV_indicator based on the original function might be unconventional."
-    )
-    return data["OBV_indicator"]
+# def OBV_indicator_old(data):
+#     """Vectorized On Balance Volume (OBV) indicator signals."""
+#     if "Volume" not in data.columns:
+#         raise ValueError("OBV_indicator requires 'Volume' column in data")
+#     obv = ta.OBV(data["Close"], data["Volume"])
+#     data["OBV_indicator"] = _generate_signals(
+#         condition_buy=obv > 0, condition_sell=obv < 0
+#     )
+#     logger.warning(
+#         "Warning: The implemented logic for OBV_indicator based on the original function might be unconventional."
+#     )
+#     return data["OBV_indicator"]
 
 
 # --- Revised Cycle Indicators ---
 
 
-def HT_TRENDMODE_indicator_v2(data):
+def HT_TRENDMODE_indicator(data):
     """
     Vectorized Hilbert Transform - Trend vs Cycle Mode (HT_TRENDMODE) signals.
     Revised logic: Buy in Trend Mode (1), Sell in Cycle Mode (0).
@@ -929,17 +929,17 @@ def HT_SINE_indicator(data):
     return data["HT_SINE_indicator"]
 
 
-def HT_TRENDMODE_indicator(data):
-    """Vectorized Hilbert Transform - Trend vs Cycle Mode (HT_TRENDMODE) signals."""
-    ht_trendmode = ta.HT_TRENDMODE(data["Close"])
-    data["HT_TRENDMODE_indicator"] = _generate_signals(
-        condition_buy=ht_trendmode > 0,
-        condition_sell=ht_trendmode < 0,
-    )
-    logger.warning(
-        "Warning: Original HT_TRENDMODE_indicator logic might be flawed (Sell condition never met)."
-    )
-    return data["HT_TRENDMODE_indicator"]
+# def HT_TRENDMODE_indicator_old(data):
+#     """Vectorized Hilbert Transform - Trend vs Cycle Mode (HT_TRENDMODE) signals."""
+#     ht_trendmode = ta.HT_TRENDMODE(data["Close"])
+#     data["HT_TRENDMODE_indicator"] = _generate_signals(
+#         condition_buy=ht_trendmode > 0,
+#         condition_sell=ht_trendmode < 0,
+#     )
+#     logger.warning(
+#         "Warning: Original HT_TRENDMODE_indicator logic might be flawed (Sell condition never met)."
+#     )
+#     return data["HT_TRENDMODE_indicator"]
 
 
 # --- Price Transform ---
@@ -984,7 +984,7 @@ def WCLPRICE_indicator(data):
 # --- Revised Volatility Indicators ---
 
 
-def ATR_indicator_v2(data, timeperiod=14, ma_period=14):
+def ATR_indicator(data, timeperiod=14, ma_period=14):
     """
     Vectorized Average True Range (ATR) indicator signals.
     Revised logic: Compare ATR to its moving average.
@@ -1003,7 +1003,7 @@ def ATR_indicator_v2(data, timeperiod=14, ma_period=14):
     return data["ATR_indicator"]
 
 
-def NATR_indicator_v2(data, timeperiod=14, ma_period=14):
+def NATR_indicator(data, timeperiod=14, ma_period=14):
     """
     Vectorized Normalized Average True Range (NATR) indicator signals.
     Revised logic: Compare NATR to its moving average.
@@ -1022,7 +1022,7 @@ def NATR_indicator_v2(data, timeperiod=14, ma_period=14):
     return data["NATR_indicator"]
 
 
-def TRANGE_indicator_v2(data, ma_period=14):
+def TRANGE_indicator(data, ma_period=14):
     """
     Vectorized True Range (TRANGE) indicator signals.
     Revised logic: Compare TRANGE to its moving average.
@@ -1044,40 +1044,40 @@ def TRANGE_indicator_v2(data, ma_period=14):
 # --- Volatility Indicators ---
 
 
-def ATR_indicator(data, timeperiod=14):
-    """Vectorized Average True Range (ATR) indicator signals."""
-    atr = ta.ATR(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
-    data["ATR_indicator"] = _generate_signals(
-        condition_buy=atr > 20, condition_sell=atr < 10
-    )
-    logger.warning(
-        "Warning: Using fixed ATR levels (10, 20) for Buy/Sell signals in ATR_indicator is unconventional."
-    )
-    return data["ATR_indicator"]
+# def ATR_indicator_old(data, timeperiod=14):
+#     """Vectorized Average True Range (ATR) indicator signals."""
+#     atr = ta.ATR(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
+#     data["ATR_indicator"] = _generate_signals(
+#         condition_buy=atr > 20, condition_sell=atr < 10
+#     )
+#     logger.warning(
+#         "Warning: Using fixed ATR levels (10, 20) for Buy/Sell signals in ATR_indicator is unconventional."
+#     )
+#     return data["ATR_indicator"]
 
 
-def NATR_indicator(data, timeperiod=14):
-    """Vectorized Normalized Average True Range (NATR) indicator signals."""
-    natr = ta.NATR(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
-    data["NATR_indicator"] = _generate_signals(
-        condition_buy=natr > 20, condition_sell=natr < 10
-    )
-    logger.warning(
-        "Warning: Using fixed NATR levels (10, 20) for Buy/Sell signals in NATR_indicator is unconventional."
-    )
-    return data["NATR_indicator"]
+# def NATR_indicator_old(data, timeperiod=14):
+#     """Vectorized Normalized Average True Range (NATR) indicator signals."""
+#     natr = ta.NATR(data["High"], data["Low"], data["Close"], timeperiod=timeperiod)
+#     data["NATR_indicator"] = _generate_signals(
+#         condition_buy=natr > 20, condition_sell=natr < 10
+#     )
+#     logger.warning(
+#         "Warning: Using fixed NATR levels (10, 20) for Buy/Sell signals in NATR_indicator is unconventional."
+#     )
+#     return data["NATR_indicator"]
 
 
-def TRANGE_indicator(data):
-    """Vectorized True Range (TRANGE) indicator signals."""
-    trange = ta.TRANGE(data["High"], data["Low"], data["Close"])
-    data["TRANGE_indicator"] = _generate_signals(
-        condition_buy=trange > 20, condition_sell=trange < 10
-    )
-    logger.warning(
-        "Warning: Using fixed TRANGE levels (10, 20) for Buy/Sell signals in TRANGE_indicator is unconventional."
-    )
-    return data["TRANGE_indicator"]
+# def TRANGE_indicator_old(data):
+#     """Vectorized True Range (TRANGE) indicator signals."""
+#     trange = ta.TRANGE(data["High"], data["Low"], data["Close"])
+#     data["TRANGE_indicator"] = _generate_signals(
+#         condition_buy=trange > 20, condition_sell=trange < 10
+#     )
+#     logger.warning(
+#         "Warning: Using fixed TRANGE levels (10, 20) for Buy/Sell signals in TRANGE_indicator is unconventional."
+#     )
+#     return data["TRANGE_indicator"]
 
 
 # --- Pattern Recognition ---
@@ -1571,7 +1571,7 @@ def CDLXSIDEGAP3METHODS_indicator(data):
 # --- Revised Statistic Functions ---
 
 
-def BETA_indicator_v2(data, timeperiod=5):
+def BETA_indicator(data, timeperiod=5):
     """
     Vectorized Beta (BETA) indicator signals.
     Logic: Beta > 1 implies higher volatility than benchmark (Low price here).
@@ -1588,7 +1588,7 @@ def BETA_indicator_v2(data, timeperiod=5):
     return data["BETA_indicator"]
 
 
-def CORREL_indicator_v2(data, timeperiod=30):
+def CORREL_indicator(data, timeperiod=30):
     """
     Vectorized Pearson's Correlation Coefficient (CORREL) indicator signals.
     Logic: Measures correlation between High and Low.
@@ -1605,7 +1605,7 @@ def CORREL_indicator_v2(data, timeperiod=30):
     return data["CORREL_indicator"]
 
 
-def LINEARREG_INTERCEPT_indicator_v2(data, timeperiod=14):
+def LINEARREG_INTERCEPT_indicator(data, timeperiod=14):
     """
     Vectorized Linear Regression Intercept (LINEARREG_INTERCEPT) indicator signals.
     Revised logic: Compares Close to the forecast value (LINEARREG), not the intercept.
@@ -1623,7 +1623,7 @@ def LINEARREG_INTERCEPT_indicator_v2(data, timeperiod=14):
     return data["LINEARREG_INTERCEPT_indicator"]
 
 
-def STDDEV_indicator_v2(data, timeperiod=20, nbdev=1, ma_period=20):
+def STDDEV_indicator(data, timeperiod=20, nbdev=1, ma_period=20):
     """
     Vectorized Standard Deviation (STDDEV) indicator signals.
     Revised logic: Compare STDDEV to its moving average.
@@ -1642,7 +1642,7 @@ def STDDEV_indicator_v2(data, timeperiod=20, nbdev=1, ma_period=20):
     return data["STDDEV_indicator"]
 
 
-def VAR_indicator_v2(data, timeperiod=5, nbdev=1, ma_period=5):
+def VAR_indicator(data, timeperiod=5, nbdev=1, ma_period=5):
     """
     Vectorized Variance (VAR) indicator signals.
     Revised logic: Compare VAR to its moving average.
@@ -1664,32 +1664,32 @@ def VAR_indicator_v2(data, timeperiod=5, nbdev=1, ma_period=5):
 # --- Statistic Functions ---
 
 
-def BETA_indicator(data, timeperiod=5):
-    """Vectorized Beta (BETA) indicator signals."""
-    beta = ta.BETA(data["High"], data["Low"], timeperiod=timeperiod)
-    data["BETA_indicator"] = _generate_signals(
-        condition_buy=beta > 1, condition_sell=beta < 1
-    )
-    return data["BETA_indicator"]
+# def BETA_indicator_old(data, timeperiod=5):
+#     """Vectorized Beta (BETA) indicator signals."""
+#     beta = ta.BETA(data["High"], data["Low"], timeperiod=timeperiod)
+#     data["BETA_indicator"] = _generate_signals(
+#         condition_buy=beta > 1, condition_sell=beta < 1
+#     )
+#     return data["BETA_indicator"]
 
 
-def CORREL_indicator(data, timeperiod=30):
-    """Vectorized Pearson's Correlation Coefficient (CORREL) indicator signals."""
-    correl = ta.CORREL(data["High"], data["Low"], timeperiod=timeperiod)
-    data["CORREL_indicator"] = _generate_signals(
-        condition_buy=correl > 0.5, condition_sell=correl < -0.5
-    )
-    return data["CORREL_indicator"]
+# def CORREL_indicator_old(data, timeperiod=30):
+#     """Vectorized Pearson's Correlation Coefficient (CORREL) indicator signals."""
+#     correl = ta.CORREL(data["High"], data["Low"], timeperiod=timeperiod)
+#     data["CORREL_indicator"] = _generate_signals(
+#         condition_buy=correl > 0.5, condition_sell=correl < -0.5
+#     )
+#     return data["CORREL_indicator"]
 
 
-def LINEARREG_indicator(data, timeperiod=14):
-    """Vectorized Linear Regression (LINEARREG) indicator signals."""
-    linearreg = ta.LINEARREG(data["Close"], timeperiod=timeperiod)
-    data["LINEARREG_indicator"] = _generate_signals(
-        condition_buy=data["Close"] > linearreg,
-        condition_sell=data["Close"] < linearreg,
-    )
-    return data["LINEARREG_indicator"]
+# def LINEARREG_indicator_old(data, timeperiod=14):
+#     """Vectorized Linear Regression (LINEARREG) indicator signals."""
+#     linearreg = ta.LINEARREG(data["Close"], timeperiod=timeperiod)
+#     data["LINEARREG_indicator"] = _generate_signals(
+#         condition_buy=data["Close"] > linearreg,
+#         condition_sell=data["Close"] < linearreg,
+#     )
+#     return data["LINEARREG_indicator"]
 
 
 def LINEARREG_ANGLE_indicator(data, timeperiod=14):
@@ -1702,17 +1702,17 @@ def LINEARREG_ANGLE_indicator(data, timeperiod=14):
     return data["LINEARREG_ANGLE_indicator"]
 
 
-def LINEARREG_INTERCEPT_indicator(data, timeperiod=14):
-    """Vectorized Linear Regression Intercept (LINEARREG_INTERCEPT) indicator signals."""
-    linearreg_intercept = ta.LINEARREG_INTERCEPT(data["Close"], timeperiod=timeperiod)
-    data["LINEARREG_INTERCEPT_indicator"] = _generate_signals(
-        condition_buy=data["Close"] > linearreg_intercept,
-        condition_sell=data["Close"] < linearreg_intercept,
-    )
-    logger.warning(
-        "Warning: Comparing Close to LINEARREG_INTERCEPT for signals in LINEARREG_INTERCEPT_indicator might be unconventional."
-    )
-    return data["LINEARREG_INTERCEPT_indicator"]
+# def LINEARREG_INTERCEPT_indicator_old(data, timeperiod=14):
+#     """Vectorized Linear Regression Intercept (LINEARREG_INTERCEPT) indicator signals."""
+#     linearreg_intercept = ta.LINEARREG_INTERCEPT(data["Close"], timeperiod=timeperiod)
+#     data["LINEARREG_INTERCEPT_indicator"] = _generate_signals(
+#         condition_buy=data["Close"] > linearreg_intercept,
+#         condition_sell=data["Close"] < linearreg_intercept,
+#     )
+#     logger.warning(
+#         "Warning: Comparing Close to LINEARREG_INTERCEPT for signals in LINEARREG_INTERCEPT_indicator might be unconventional."
+#     )
+#     return data["LINEARREG_INTERCEPT_indicator"]
 
 
 def LINEARREG_SLOPE_indicator(data, timeperiod=14):
@@ -1725,16 +1725,16 @@ def LINEARREG_SLOPE_indicator(data, timeperiod=14):
     return data["LINEARREG_SLOPE_indicator"]
 
 
-def STDDEV_indicator(data, timeperiod=20, nbdev=1):
-    """Vectorized Standard Deviation (STDDEV) indicator signals."""
-    stddev = ta.STDDEV(data["Close"], timeperiod=timeperiod, nbdev=nbdev)
-    data["STDDEV_indicator"] = _generate_signals(
-        condition_buy=stddev > 20, condition_sell=stddev < 10
-    )
-    logger.warning(
-        "Warning: Using fixed STDDEV levels (10, 20) for Buy/Sell signals in STDDEV_indicator is unconventional."
-    )
-    return data["STDDEV_indicator"]
+# def STDDEV_indicator_old(data, timeperiod=20, nbdev=1):
+#     """Vectorized Standard Deviation (STDDEV) indicator signals."""
+#     stddev = ta.STDDEV(data["Close"], timeperiod=timeperiod, nbdev=nbdev)
+#     data["STDDEV_indicator"] = _generate_signals(
+#         condition_buy=stddev > 20, condition_sell=stddev < 10
+#     )
+#     logger.warning(
+#         "Warning: Using fixed STDDEV levels (10, 20) for Buy/Sell signals in STDDEV_indicator is unconventional."
+#     )
+#     return data["STDDEV_indicator"]
 
 
 def TSF_indicator(data, timeperiod=14):
@@ -1746,24 +1746,22 @@ def TSF_indicator(data, timeperiod=14):
     return data["TSF_indicator"]
 
 
-def VAR_indicator(data, timeperiod=5, nbdev=1):
-    """Vectorized Variance (VAR) indicator signals."""
-    var = ta.VAR(data["Close"], timeperiod=timeperiod, nbdev=nbdev)
-    data["VAR_indicator"] = _generate_signals(
-        condition_buy=var > 20, condition_sell=var < 10
-    )
-    logger.warning(
-        "Warning: Using fixed VAR levels (10, 20) for Buy/Sell signals in VAR_indicator is unconventional."
-    )
-    return data["VAR_indicator"]
+# def VAR_indicator_old(data, timeperiod=5, nbdev=1):
+#     """Vectorized Variance (VAR) indicator signals."""
+#     var = ta.VAR(data["Close"], timeperiod=timeperiod, nbdev=nbdev)
+#     data["VAR_indicator"] = _generate_signals(
+#         condition_buy=var > 20, condition_sell=var < 10
+#     )
+#     logger.warning(
+#         "Warning: Using fixed VAR levels (10, 20) for Buy/Sell signals in VAR_indicator is unconventional."
+#     )
+#     return data["VAR_indicator"]
 
 
 # --- New Indicator Functions ---
 
 
-def ichimoku_cloud_indicator(
-    data, period_tenkan=9, period_kijun=26, period_senkou_b=52
-):
+def ICHIMOKU_indicator(data, period_tenkan=9, period_kijun=26, period_senkou_b=52):
     """
     Calculates Ichimoku Cloud components and adds them to the DataFrame.
     Also adds a basic Price vs Cloud signal.
@@ -1813,7 +1811,7 @@ def ichimoku_cloud_indicator(
         close_prices < data["Ichi_SenkouB"]
     )
 
-    data["Ichimoku_indicator"] = _generate_signals(
+    data["ICHIMOKU_indicator"] = _generate_signals(
         condition_buy=above_cloud, condition_sell=below_cloud
     )
     data.drop(
@@ -1826,10 +1824,10 @@ def ichimoku_cloud_indicator(
         ],
         inplace=True,
     )
-    return data["Ichimoku_indicator"]
+    return data["ICHIMOKU_indicator"]
 
 
-def keltner_channels_indicator(data, period_ema=20, period_atr=10, multiplier=2.0):
+def KELTNER_indicator(data, period_ema=20, period_atr=10, multiplier=2.0):
     """
     Calculates Keltner Channels and adds them to the DataFrame.
     Also adds a basic channel breakout signal.
@@ -1851,15 +1849,15 @@ def keltner_channels_indicator(data, period_ema=20, period_atr=10, multiplier=2.
     data["KC_Upper"] = data["KC_Middle"] + (multiplier * atr)
     data["KC_Lower"] = data["KC_Middle"] - (multiplier * atr)
 
-    data["Keltner_indicator"] = _generate_signals(
+    data["KELTNER_indicator"] = _generate_signals(
         condition_buy=data["Close"] > data["KC_Upper"],
         condition_sell=data["Close"] < data["KC_Lower"],
     )
     data.drop(columns=["KC_Middle", "KC_Upper", "KC_Lower"], inplace=True)
-    return data["Keltner_indicator"]
+    return data["KELTNER_indicator"]
 
 
-def vwap_indicator(data, window=14):
+def VWAP_indicator(data, window=14):
     """
     Calculates a rolling Volume Weighted Average Price (VWAP) and adds it to the DataFrame.
     Also adds a basic Price vs VWAP signal.
@@ -1898,8 +1896,3 @@ def vwap_indicator(data, window=14):
     data.drop(columns=["VWAP"], inplace=True)
 
     return data["VWAP_indicator"]
-
-
-# --- Example Usage ---
-if __name__ == "__main__":
-    ...

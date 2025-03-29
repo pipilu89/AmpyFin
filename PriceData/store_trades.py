@@ -132,7 +132,9 @@ if __name__ == "__main__":
 
     # setup db connections
     price_data_dir = "PriceData"
-    strategy_decisions_db_name = os.path.join(price_data_dir, "strategy_decisions.db")
+    strategy_decisions_db_name = os.path.join(
+        price_data_dir, "strategy_decisions_final.db"
+    )
     con_sd = sqlite3.connect(strategy_decisions_db_name)
     trades_list_db_name = os.path.join(price_data_dir, "trades_list.db")
     con_tl = sqlite3.connect(trades_list_db_name)

@@ -186,11 +186,13 @@ def summarize_trades_list(db_path: str) -> pd.DataFrame:
 
 if __name__ == "__main__":
 
-    # strategy_decisions_db_path = os.path.join("PriceData", "strategy_decisions.db")
-    # summary_df = summarize_strategy_decisions(strategy_decisions_db_path)
-    # save_summary_to_db(strategy_decisions_db_path, summary_df)
+    strategy_decisions_db_path = os.path.join(
+        "PriceData", "strategy_decisions_final.db"
+    )
+    summary_df = summarize_strategy_decisions(strategy_decisions_db_path)
+    save_summary_to_db(strategy_decisions_db_path, summary_df)
 
-    trades_list_db_name = os.path.join("PriceData", "trades_list.db")
-    summary_df = summarize_trades_list(trades_list_db_name)
-    save_summary_to_db(trades_list_db_name, summary_df)
+    # trades_list_db_name = os.path.join("PriceData", "trades_list.db")
+    # summary_df = summarize_trades_list(trades_list_db_name)
+    # save_summary_to_db(trades_list_db_name, summary_df)
     print(summary_df)

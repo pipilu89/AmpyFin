@@ -134,9 +134,14 @@ def convert_decisions_from_by_ticker_to_by_strategy(
     strategies (list): List of strategy functions
     logger (logging.Logger): Logger instance
     """
+
+    logger.info(
+        f"==Converting ticker-based strategy decisions to strategy-based tables"
+    )
     # Get list of all tickers (tables) from source database
     ticker_query = "SELECT name FROM sqlite_master WHERE type='table'"
     tickers = pd.read_sql(ticker_query, con_source)["name"].tolist()
+    logger.info(f"{len(strategies) = } {len(tickers) = }")
 
     # Initialize dictionary to store strategy DataFrames
     strategy_dfs = {}
