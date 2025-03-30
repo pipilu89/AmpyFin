@@ -323,7 +323,7 @@ def create_buy_and_sell_date_column(df):
     return df
 
 
-def merge_price_and_regime_data(trades_df, price_conn):
+def lookup_price_data(trades_df, price_conn):
     """
     Efficiently merges trade data with price data using pandas vectorized operations.
 
@@ -337,8 +337,6 @@ def merge_price_and_regime_data(trades_df, price_conn):
     Returns:
         pandas.DataFrame: Trades dataframe with added buy_price and sell_price columns
     """
-    import sqlite3
-    import pandas as pd
 
     # Connect to trades database and read the trades list
     # trades_conn = sqlite3.connect('trades_list_vectorized.db')
@@ -460,8 +458,8 @@ if __name__ == "__main__":
     logger.info(f"Training period: {start_date} to {end_date}")
     strategies = [strategies[0]]
     # ticker = "AAPL"
-    ticker_list = ["MSFT", "AAPL", "ARM"]
-    # ticker_list = train_tickers
+    # ticker_list = ["MSFT", "AAPL", "ARM"]
+    ticker_list = train_tickers
     for strategy in strategies:
         strategy_name = strategy.__name__
         df = sql_to_df_with_date_range(strategy_name, start_date, end_date, con_sd)
@@ -496,7 +494,8 @@ if __name__ == "__main__":
         logger.info(f"{strategy_name} {number_of_trades = }")
         if number_of_trades > 0:
             # get/merge price and regime data
-            trades_with_merged_data = merge_price_and_regime_data(
+            logger.info(f"lookup prices...")
+            trades_with_merged_data = lookup_price_data(
                 trades_list_single_strategy_df, con_pd
             )
 
