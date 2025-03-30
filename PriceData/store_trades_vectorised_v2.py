@@ -404,6 +404,9 @@ def lookup_price_data(trades_df, price_conn):
                 ticker_mask, "sell_date"
             ].map(price_data[ticker])
 
+    trades_df["buy_date"] = trades_df["buy_date"].dt.strftime("%Y-%m-%d")
+    trades_df["sell_date"] = trades_df["sell_date"].dt.strftime("%Y-%m-%d")
+
     return trades_df
 
 
@@ -432,11 +435,12 @@ def prepare_sp500_one_day_return(conn):
     if "Date" in sp500_df.columns:
         sp500_df["Date"] = pd.to_datetime(sp500_df["Date"])
 
+    # sp500_df.drop(columns=["1_day_spy_return"], inplace=True)
     # Calculate one-day percentage return using vectorized operations
-    sp500_df["1_day_spy_return"] = sp500_df["Close"].pct_change().round(4) * 100
+    sp500_df["One_day_spy_return"] = sp500_df["Close"].pct_change().round(4) * 100
 
     # Replace NaN values with 0 for the first row
-    sp500_df["1_day_spy_return"] = sp500_df["1_day_spy_return"].fillna(0)
+    sp500_df["One_day_spy_return"] = sp500_df["One_day_spy_return"].fillna(0)
 
     # Save the updated dataframe back to the database
     # First, drop the existing table
@@ -444,61 +448,105 @@ def prepare_sp500_one_day_return(conn):
     cursor.execute("DROP TABLE IF EXISTS '^GSPC'")
     conn.commit()
 
+    sp500_df["Date"] = sp500_df["Date"].dt.strftime("%Y-%m-%d")
     # Then write the updated dataframe to a new table with the same name
-    sp500_df.to_sql("^GSPC", conn, index=False, if_exists="replace")
+    sp500_df.to_sql(
+        "^GSPC",
+        conn,
+        index=False,
+        if_exists="replace",
+        dtype={"Date": "TEXT PRIMARY KEY NOT NULL"},
+    )
 
     return sp500_df
 
 
 def lookup_regime_data(trades_df, price_conn):
     """
-    Efficiently looks up regime data (VIX Close price and S&P 500 1-day return) for trade buy dates.
+    Looks up regime data (VIX Close price and S&P500 one-day return) for trade buy dates.
 
-    This function:
-    1. Uses trades_df that's passed in
-    2. Reads VIX and S&P 500 data from 'price_data.db' using SQL queries that filter only needed dates
-    3. Uses vectorized operations for lookups
+    Args:
+        trades_df (pd.DataFrame): DataFrame containing trades with columns 'Ticker', 'buy_date', 'sell_date'
+        price_conn (sqlite3.Connection): Connection to price_data.db SQLite database
 
     Returns:
-        pandas.DataFrame: Trades dataframe with added regime data columns
+        pd.DataFrame: Original trades_df with added columns '^VIX' and 'One_day_spy_return'
     """
-    # Ensure date columns are in datetime format
-    trades_df["buy_date"] = pd.to_datetime(trades_df["buy_date"])
+    # Make a copy of the input DataFrame to avoid modifying the original
+    result_df = trades_df.copy()
 
-    # Extract unique buy dates to minimize data retrieval
-    unique_buy_dates = trades_df["buy_date"].drop_duplicates()
-    date_strings = "', '".join(unique_buy_dates.dt.strftime("%Y-%m-%d"))
+    # Convert buy_date to datetime if not already
+    result_df["buy_date"] = pd.to_datetime(result_df["buy_date"])
 
-    if not date_strings:
-        # Handle empty dataframe case
-        trades_df["^VIX"] = 0
-        trades_df["1_day_spy_return"] = 0
-        return trades_df
+    # Get unique buy dates to minimize database queries
+    unique_dates = result_df["buy_date"].dt.strftime("%Y-%m-%d").unique()
 
-    # Read only the necessary VIX data with a single optimized query
-    vix_query = f"SELECT Date, Close FROM '^VIX' WHERE Date IN ('{date_strings}')"
-    vix_df = pd.read_sql_query(vix_query, price_conn)
-    vix_df["Date"] = pd.to_datetime(vix_df["Date"])
+    # Query VIX data for all unique dates at once
+    vix_query = f"""
+    SELECT Date, Close 
+    FROM "^VIX" 
+    WHERE Date IN ({','.join(['?']*len(unique_dates))})
+    """
+    vix_data = pd.read_sql_query(vix_query, price_conn, params=tuple(unique_dates))
 
-    # Read only the necessary S&P 500 data with a single optimized query
-    # Use quotes around column name to handle underscore
-    sp500_query = f"""SELECT Date, "1_day_spy_return" FROM '^GSPC' WHERE Date IN ('{date_strings}')"""
-    sp500_df = pd.read_sql_query(sp500_query, price_conn)
-    sp500_df["Date"] = pd.to_datetime(sp500_df["Date"])
+    # Query S&P500 data for all unique dates at once
+    spy_query = f"""
+    SELECT Date, One_day_spy_return 
+    FROM "^GSPC" 
+    WHERE Date IN ({','.join(['?']*len(unique_dates))})
+    """
+    spy_data = pd.read_sql_query(spy_query, price_conn, params=tuple(unique_dates))
 
-    # Create efficient lookup dictionaries using zip for better performance
-    vix_close_dict = dict(zip(vix_df["Date"], vix_df["Close"]))
-    sp500_return_dict = dict(zip(sp500_df["Date"], sp500_df["1_day_spy_return"]))
+    # Check if we got data back
+    if vix_data.empty:
+        print("Warning: No VIX data found for the specified dates")
+    if spy_data.empty:
+        print("Warning: No S&P500 data found for the specified dates")
 
-    # Use vectorized mapping to add regime data columns
-    trades_df["^VIX"] = trades_df["buy_date"].map(vix_close_dict)
-    trades_df["1_day_spy_return"] = trades_df["buy_date"].map(sp500_return_dict)
+    # Convert date columns to datetime for proper merging
+    vix_data["Date"] = pd.to_datetime(vix_data["Date"])
+    spy_data["Date"] = pd.to_datetime(spy_data["Date"])
 
-    # Handle any missing values (dates that don't exist in the regime data)
-    trades_df["^VIX"] = trades_df["^VIX"].fillna(0)
-    trades_df["1_day_spy_return"] = trades_df["1_day_spy_return"].fillna(0)
+    # Convert buy_date to string format for merging
+    result_df["date_key"] = result_df["buy_date"].dt.strftime("%Y-%m-%d")
 
-    return trades_df
+    # Merge VIX data
+    if not vix_data.empty:
+        vix_data["date_key"] = vix_data["Date"].dt.strftime("%Y-%m-%d")
+        result_df = pd.merge(
+            result_df, vix_data[["date_key", "Close"]], on="date_key", how="left"
+        )
+        result_df.rename(columns={"Close": "^VIX"}, inplace=True)
+    else:
+        result_df["^VIX"] = None
+
+    # Merge S&P500 data
+    if not spy_data.empty:
+        spy_data["date_key"] = spy_data["Date"].dt.strftime("%Y-%m-%d")
+        result_df = pd.merge(
+            result_df,
+            spy_data[["date_key", "One_day_spy_return"]],
+            on="date_key",
+            how="left",
+        )
+    else:
+        result_df["One_day_spy_return"] = None
+
+    # Drop the temporary key column
+    result_df.drop("date_key", axis=1, inplace=True)
+
+    # Check for missing values after merge
+    missing_vix = result_df["^VIX"].isna().sum()
+    missing_spy = result_df["One_day_spy_return"].isna().sum()
+
+    if missing_vix > 0:
+        print(f"Warning: {missing_vix} rows have missing VIX data")
+    if missing_spy > 0:
+        print(f"Warning: {missing_spy} rows have missing S&P500 data")
+
+    result_df["buy_date"] = result_df["buy_date"].dt.strftime("%Y-%m-%d")
+
+    return result_df
 
 
 if __name__ == "__main__":
@@ -548,12 +596,16 @@ if __name__ == "__main__":
 
     # 3. run training
     logger.info(f"Training period: {start_date} to {end_date}")
-    # strategies = [strategies[0]]
+    strategies = [strategies[0]]
     # ticker = "AAPL"
-    # ticker_list = ["MSFT", "AAPL", "ARM"]
-    ticker_list = train_tickers
-    for strategy in strategies:
+    ticker_list = ["MSFT", "AAPL", "ARM"]
+    # ticker_list = train_tickers
+    for idx, strategy in enumerate(strategies):
         strategy_name = strategy.__name__
+        logger.info(
+            f"\n=== COMPUTING DECISIONS FOR: {strategy_name} ({idx + 1}/{len(strategies)}) ==="
+        )
+
         df = sql_to_df_with_date_range(strategy_name, start_date, end_date, con_sd)
 
         # Melt df_existing to stack ticker columns to rows
@@ -565,6 +617,7 @@ if __name__ == "__main__":
         df_trades_list = []
 
         for ticker in ticker_list:
+
             df_ticker = df[df["Ticker"] == ticker]
             df_ticker = df_ticker.set_index("Date")
 
@@ -587,18 +640,22 @@ if __name__ == "__main__":
         if number_of_trades > 0:
             # get/merge price and regime data
             logger.info(f"lookup prices...")
-            trades_with_merged_data = lookup_price_data(
+
+            trades_list_single_strategy_df = lookup_price_data(
                 trades_list_single_strategy_df, con_pd
             )
-            trades_with_merged_data = lookup_regime_data(
-                trades_with_merged_data, con_pd
+
+            trades_list_single_strategy_df = lookup_regime_data(
+                trades_list_single_strategy_df, con_pd
             )
 
             # df_trades["ratio"] = df_trades["sell_price"] / df_trades["buy_price"]
             # df_trades["return"] = df_trades["ratio"] - 1
             # df_trades["cum_return"] = df_trades["return"].cumsum()
 
-            trades_with_merged_data.to_sql(strategy_name, con_tl, if_exists="replace")
+            trades_list_single_strategy_df.to_sql(
+                strategy_name, con_tl, if_exists="replace"
+            )
 
     # number_of_trades = len(trades_list_single_strategy_df)
     # # put into db

@@ -25,11 +25,11 @@ save the result as a df.
 create a function called 'prepare_sp500_one_day_return'. make the function efficient, should use pandas vectorized methods. the function will have 1 arguement, which is a sqlite connection to the 'price_data.db'. The function should get the sp500 price data from the table named '^GSPC' as a df. Then it will calculate a new col called '1_day_pct_return' using pandas. Finally save the new df back to the 'price_data.db' replacing the '^GSPC' table.
 
 
-create a function called "lookup_regime_data". make the function efficient, should use pandas vectorized methods. There is list of trades stored in sqlite db called 'trades_list_vectorized.db' cols are 'Ticker', 'buy_date' and 'sell_date'.
-the function should lookup the "^VIX" Close price and "^GSPC" "1_day_spy_return" for the buy dates from another sqlite db called 'price_data.db'. the price data is stored as 1 table for each ticker.
+create a function called "lookup_regime_data". Takes 2 arguments (trades_df, price_conn) make the function efficient, should use pandas vectorized methods. There is list of trades stored in trades_df cols are 'Ticker', 'buy_date' and 'sell_date'.
+the function should lookup the "^VIX" Close price and "^GSPC" "One_day_spy_return" for the buy dates from another sqlite db called 'price_data.db'. the price data is stored as 1 table for each ticker.
 
 2 lookups are required:
 1. lookup the "^VIX" 'Close' price for "buy_date" from price_data.db and add it to a col "^VIX" in the trades_list df
-2. lookup the "^GSPC" "1_day_spy_return" value for "buy_date" from price_data.db and add it to a col "1_day_spy_return" in the trades_list df
+2. lookup the "^GSPC" "One_day_spy_return" value for "buy_date" from price_data.db and add it to a col "One_day_spy_return" in the trades_list df
 
 save the result as a df.
