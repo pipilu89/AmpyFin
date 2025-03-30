@@ -590,9 +590,9 @@ def simulate_trading_day(
 
     logger.debug(f"Simulating trading for {date_str}.")
 
-    # new get daily regime data
     """
-    Regime data from previous index?
+    # new get daily regime data
+    Regime data from previous index? No, at point of purchase
     try using .shift?
     """
     # daily_regime_data = ticker_price_history[regime_tickers[0]].loc[date_str]
@@ -649,7 +649,7 @@ def simulate_trading_day(
             # Find the position of the current index in the DataFrame
             current_position = precomputed_decisions.index.get_loc(date_str)
 
-            # Get the previous row index
+            # Get the previous row index. try using .shift?
             if current_position > 0:  # Ensure it's not the first row
                 previous_index = precomputed_decisions.index[current_position - 1]
                 # Access the value in the previous row for the same column (ticker)
