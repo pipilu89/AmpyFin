@@ -386,9 +386,6 @@ def lookup_price_data(trades_df, price_conn):
         except Exception as e:
             print(f"Error fetching price data for {ticker}: {e}")
 
-    # Close the price database connection
-    price_conn.close()
-
     # Create empty columns for buy and sell prices
     trades_df["buy_price"] = None
     trades_df["sell_price"] = None
@@ -406,6 +403,100 @@ def lookup_price_data(trades_df, price_conn):
             trades_df.loc[ticker_mask, "sell_price"] = trades_df.loc[
                 ticker_mask, "sell_date"
             ].map(price_data[ticker])
+
+    return trades_df
+
+
+def prepare_sp500_one_day_return(conn):
+    """
+    Efficiently calculates the one-day percentage return for S&P 500 data and updates the database.
+
+    This function:
+    1. Retrieves S&P 500 price data from the '^GSPC' table in the SQLite database
+    2. Calculates the one-day percentage return using pandas vectorized operations
+    3. Saves the updated dataframe back to the database, replacing the original table
+
+    Args:
+        conn: SQLite database connection to 'price_data.db'
+
+    Returns:
+        pandas.DataFrame: The updated S&P 500 dataframe with the '1_day_pct_return' column
+    """
+    import pandas as pd
+
+    # Read S&P 500 data from the database
+    query = "SELECT * FROM '^GSPC'"
+    sp500_df = pd.read_sql_query(query, conn)
+
+    # Ensure Date column is in datetime format
+    if "Date" in sp500_df.columns:
+        sp500_df["Date"] = pd.to_datetime(sp500_df["Date"])
+
+    # Calculate one-day percentage return using vectorized operations
+    sp500_df["1_day_spy_return"] = sp500_df["Close"].pct_change().round(4) * 100
+
+    # Replace NaN values with 0 for the first row
+    sp500_df["1_day_spy_return"] = sp500_df["1_day_spy_return"].fillna(0)
+
+    # Save the updated dataframe back to the database
+    # First, drop the existing table
+    cursor = conn.cursor()
+    cursor.execute("DROP TABLE IF EXISTS '^GSPC'")
+    conn.commit()
+
+    # Then write the updated dataframe to a new table with the same name
+    sp500_df.to_sql("^GSPC", conn, index=False, if_exists="replace")
+
+    return sp500_df
+
+
+def lookup_regime_data(trades_df, price_conn):
+    """
+    Efficiently looks up regime data (VIX Close price and S&P 500 1-day return) for trade buy dates.
+
+    This function:
+    1. Uses trades_df that's passed in
+    2. Reads VIX and S&P 500 data from 'price_data.db' using SQL queries that filter only needed dates
+    3. Uses vectorized operations for lookups
+
+    Returns:
+        pandas.DataFrame: Trades dataframe with added regime data columns
+    """
+    # Ensure date columns are in datetime format
+    trades_df["buy_date"] = pd.to_datetime(trades_df["buy_date"])
+
+    # Extract unique buy dates to minimize data retrieval
+    unique_buy_dates = trades_df["buy_date"].drop_duplicates()
+    date_strings = "', '".join(unique_buy_dates.dt.strftime("%Y-%m-%d"))
+
+    if not date_strings:
+        # Handle empty dataframe case
+        trades_df["^VIX"] = 0
+        trades_df["1_day_spy_return"] = 0
+        return trades_df
+
+    # Read only the necessary VIX data with a single optimized query
+    vix_query = f"SELECT Date, Close FROM '^VIX' WHERE Date IN ('{date_strings}')"
+    vix_df = pd.read_sql_query(vix_query, price_conn)
+    vix_df["Date"] = pd.to_datetime(vix_df["Date"])
+
+    # Read only the necessary S&P 500 data with a single optimized query
+    # Use quotes around column name to handle underscore
+    sp500_query = f"""SELECT Date, "1_day_spy_return" FROM '^GSPC' WHERE Date IN ('{date_strings}')"""
+    sp500_df = pd.read_sql_query(sp500_query, price_conn)
+    sp500_df["Date"] = pd.to_datetime(sp500_df["Date"])
+
+    # Create efficient lookup dictionaries using zip for better performance
+    vix_close_dict = dict(zip(vix_df["Date"], vix_df["Close"]))
+    sp500_return_dict = dict(zip(sp500_df["Date"], sp500_df["1_day_spy_return"]))
+
+    # Use vectorized mapping to add regime data columns
+    trades_df["^VIX"] = trades_df["buy_date"].map(vix_close_dict)
+    trades_df["1_day_spy_return"] = trades_df["buy_date"].map(sp500_return_dict)
+
+    # Handle any missing values (dates that don't exist in the regime data)
+    trades_df["^VIX"] = trades_df["^VIX"].fillna(0)
+    trades_df["1_day_spy_return"] = trades_df["1_day_spy_return"].fillna(0)
 
     return trades_df
 
@@ -450,13 +541,14 @@ if __name__ == "__main__":
     )
 
     # === prepare REGIME ma calcs eg 1-day spy return. Use pandas dataframe.
-    # logger.info(f"prepare regime data")
+    logger.info(f"prepare regime data")
+    prepare_sp500_one_day_return(con_pd)
     # ticker_price_history = prepare_regime_data(ticker_price_history, logger)
     # logger.info(f"{ticker_price_history = }")
 
     # 3. run training
     logger.info(f"Training period: {start_date} to {end_date}")
-    strategies = [strategies[0]]
+    # strategies = [strategies[0]]
     # ticker = "AAPL"
     # ticker_list = ["MSFT", "AAPL", "ARM"]
     ticker_list = train_tickers
@@ -498,14 +590,15 @@ if __name__ == "__main__":
             trades_with_merged_data = lookup_price_data(
                 trades_list_single_strategy_df, con_pd
             )
+            trades_with_merged_data = lookup_regime_data(
+                trades_with_merged_data, con_pd
+            )
 
             # df_trades["ratio"] = df_trades["sell_price"] / df_trades["buy_price"]
             # df_trades["return"] = df_trades["ratio"] - 1
             # df_trades["cum_return"] = df_trades["return"].cumsum()
 
-            trades_list_single_strategy_df.to_sql(
-                strategy_name, con_tl, if_exists="replace"
-            )
+            trades_with_merged_data.to_sql(strategy_name, con_tl, if_exists="replace")
 
     # number_of_trades = len(trades_list_single_strategy_df)
     # # put into db
@@ -524,6 +617,11 @@ if __name__ == "__main__":
 
     # # summary
     # number_of_trades_by_strategy[strategy_name] = {number_of_trades}
+    # Close the database connection
+    con_pd.close()
+    con_tl.close()
+    con_sd.close()
+
     end_time = time.time()  # Record the end time
     elapsed_time = end_time - start_time  # Calculate elapsed time
     logger.info(f"Execution time for main(): {elapsed_time:.2f} seconds")
