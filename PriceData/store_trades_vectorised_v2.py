@@ -596,14 +596,14 @@ if __name__ == "__main__":
 
     # 3. run training
     logger.info(f"Training period: {start_date} to {end_date}")
-    strategies = [strategies[0]]
+    # strategies = [strategies[0]]
     # ticker = "AAPL"
-    ticker_list = ["MSFT", "AAPL", "ARM"]
-    # ticker_list = train_tickers
+    # ticker_list = ["MSFT", "AAPL", "ARM"]
+    ticker_list = train_tickers
     for idx, strategy in enumerate(strategies):
         strategy_name = strategy.__name__
         logger.info(
-            f"\n=== COMPUTING DECISIONS FOR: {strategy_name} ({idx + 1}/{len(strategies)}) ==="
+            f"\n=== COMPUTING TRADES FOR: {strategy_name} ({idx + 1}/{len(strategies)}) ==="
         )
 
         df = sql_to_df_with_date_range(strategy_name, start_date, end_date, con_sd)
@@ -634,27 +634,32 @@ if __name__ == "__main__":
             df_trades_list.append(df_trades)
 
         # append all df_trades into 1 dataframe
-        trades_list_single_strategy_df = pd.concat(df_trades_list)
-        number_of_trades = len(trades_list_single_strategy_df)
+        trades_df = pd.concat(df_trades_list)
+        number_of_trades = len(trades_df)
         logger.info(f"{strategy_name} {number_of_trades = }")
         if number_of_trades > 0:
             # get/merge price and regime data
             logger.info(f"lookup prices...")
 
-            trades_list_single_strategy_df = lookup_price_data(
-                trades_list_single_strategy_df, con_pd
-            )
+            trades_df = lookup_price_data(trades_df, con_pd)
 
-            trades_list_single_strategy_df = lookup_regime_data(
-                trades_list_single_strategy_df, con_pd
-            )
+            trades_df = lookup_regime_data(trades_df, con_pd)
 
-            # df_trades["ratio"] = df_trades["sell_price"] / df_trades["buy_price"]
+            trades_df["ratio"] = trades_df["sell_price"] / trades_df["buy_price"]
+
             # df_trades["return"] = df_trades["ratio"] - 1
             # df_trades["cum_return"] = df_trades["return"].cumsum()
 
-            trades_list_single_strategy_df.to_sql(
-                strategy_name, con_tl, if_exists="replace"
+            trades_df["trade_id"] = trades_df["buy_date"] + trades_df["Ticker"]
+            trades_df.set_index("trade_id", inplace=True)
+            trades_df.sort_index(inplace=True)
+
+            trades_df.to_sql(
+                strategy_name,
+                con_tl,
+                if_exists="replace",
+                index=True,
+                dtype={"trade_id": "TEXT PRIMARY KEY"},
             )
 
     # number_of_trades = len(trades_list_single_strategy_df)

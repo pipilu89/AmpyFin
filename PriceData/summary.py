@@ -1,8 +1,10 @@
+from operator import index
 import sqlite3
 import logging
 import pandas as pd
 import os
 import sys
+from tqdm import tqdm
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from helper_files.client_helper import setup_logging
@@ -139,9 +141,35 @@ def summarize_trades_list(db_path: str) -> pd.DataFrame:
         # Initialize a list to store summary data for each strategy
         summary_data = []
 
-        for table in tables:
+        for table in tqdm(tables):
+            # for table in tables:
+            # print(f"{table = }")
             # Load the data for the current strategy
-            df = pd.read_sql(f"SELECT * FROM {table}", con)
+            df = pd.read_sql(f"SELECT * FROM {table}", con, index_col=["trade_id"])
+            # print(f"{len(df) = }")
+            # tables = pd.read_sql(query, con, index_col="index")["name"].tolist()
+
+            # optionally update a metric and save to trades db
+            update = False
+            if update:
+                df["ratio"] = (df["sell_price"] / df["buy_price"]).round(2)
+
+                df["trade_id"] = df["buy_date"] + df["Ticker"]
+                df.set_index("trade_id", inplace=True)
+                df.sort_index(inplace=True)
+
+                if "level_0" in df.columns:
+                    df.drop(columns=["level_0"], inplace=True)
+                if "index" in df.columns:
+                    df.drop(columns=["index"], inplace=True)
+
+                df.to_sql(
+                    table,
+                    con,
+                    if_exists="replace",
+                    index=True,
+                    dtype={"trade_id": "TEXT PRIMARY KEY"},
+                )
 
             # Calculate summary metrics
             total_trades = len(df)
@@ -150,8 +178,8 @@ def summarize_trades_list(db_path: str) -> pd.DataFrame:
             pct_successful = (successful_trades / total_trades) * 100
             ratio_avg = df["ratio"].mean()
             buy_price_sum = df["buy_price"].sum()
-            current_price_sum = df["current_price"].sum()
-            profit = current_price_sum - buy_price_sum
+            sell_price_sum = df["sell_price"].sum()
+            profit = sell_price_sum - buy_price_sum
 
             # portfolio_value = df["portfolio_value"].iloc[-1] if not df.empty else 0
 
@@ -172,7 +200,8 @@ def summarize_trades_list(db_path: str) -> pd.DataFrame:
         # Convert the summary data to a DataFrame
         summary_df = pd.DataFrame(summary_data)
         summary_df = summary_df.sort_values(by="pct_successful", ascending=False)
-        summary_df = summary_df.reset_index(drop=True)
+        # summary_df = summary_df.reset_index(drop=True)
+        summary_df.set_index("strategy", inplace=True)
 
         return summary_df
 
@@ -186,13 +215,18 @@ def summarize_trades_list(db_path: str) -> pd.DataFrame:
 
 if __name__ == "__main__":
 
-    strategy_decisions_db_path = os.path.join(
-        "PriceData", "strategy_decisions_final.db"
-    )
-    summary_df = summarize_strategy_decisions(strategy_decisions_db_path)
-    save_summary_to_db(strategy_decisions_db_path, summary_df)
+    sd = False
+    if sd:
+        strategy_decisions_db_path = os.path.join(
+            "PriceData", "strategy_decisions_final.db"
+        )
+        summary_df = summarize_strategy_decisions(strategy_decisions_db_path)
+        save_summary_to_db(strategy_decisions_db_path, summary_df)
 
-    # trades_list_db_name = os.path.join("PriceData", "trades_list.db")
-    # summary_df = summarize_trades_list(trades_list_db_name)
-    # save_summary_to_db(trades_list_db_name, summary_df)
+    tl = True
+    if tl:
+        trades_list_db_name = os.path.join("PriceData", "trades_list_vectorised.db")
+        summary_df = summarize_trades_list(trades_list_db_name)
+        save_summary_to_db(trades_list_db_name, summary_df)
+
     print(summary_df)
