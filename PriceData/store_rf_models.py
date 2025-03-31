@@ -77,7 +77,7 @@ def main():
     logger.info(f"{strategy_name = }")
 
     price_data_dir = "PriceData"
-    trades_list_db_name = os.path.join(price_data_dir, "trades_list.db")
+    trades_list_db_name = os.path.join(price_data_dir, "trades_list_vectorised.db")
     con_tl = sqlite3.connect(trades_list_db_name)
 
     existing_data_query = f"SELECT * FROM {strategy_name}"
