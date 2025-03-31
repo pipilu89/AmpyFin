@@ -18,7 +18,6 @@ from random_forest import (
 
 from helper_files.client_helper import setup_logging, strategies_test
 
-from config import PRICE_DB_PATH
 from control import (
     test_period_end,
     train_period_start,
@@ -104,7 +103,7 @@ def main():
         rcv = True
         if rcv:
             # param_dist = {"n_estimators": randint(50, 500), "max_depth": randint(1, 20)}
-            param_dist = {"n_estimators": randint(50, 500), "max_depth": randint(1, 50)}
+            param_dist = {"n_estimators": randint(50, 500), "max_depth": randint(1, 20)}
             rf_classifier, accuracy, precision, recall = (
                 train_random_forest_classifier_RandomizedSearchCV(
                     trades_data_df, param_dist
