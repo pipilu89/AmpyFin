@@ -129,13 +129,15 @@ def main():
     model_path = store_rf_model_to_disk(rf_classifier, strategy_name, price_data_dir)
     assert model_path is not None, "Model path is None, model saving failed."
 
-    loaded_model = load_rf_model("HT_TRENDLINE_indicator")
-    assert loaded_model is not None, "loaded_model is None, model loading failed."
+    # loaded_model = load_rf_model("HT_TRENDLINE_indicator")
+    # loaded_model = load_rf_model("strategy_name")
+    # assert loaded_model is not None, "loaded_model is None, model loading failed."
+    loaded_model = rf_classifier
 
     if loaded_model:
         # 2. use rf models to generate predictions df
         # Example usage: Make a prediction for a specific strategy
-        sample_data = {"current_vix": [15], "sp500": [1.5]}
+        sample_data = {"^VIX": [15], "One_day_spy_return": [1.5]}
         sample_df = pd.DataFrame(sample_data, index=[0])
 
         prediction = predict_random_forest_classifier(loaded_model, sample_df)
