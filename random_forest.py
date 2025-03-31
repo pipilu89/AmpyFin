@@ -29,7 +29,9 @@ def train_random_forest_classifier(trades_data):
     trades_data["return"] = np.where(trades_data["ratio"] > 1, 1, 0)
 
     # Features and target variable
-    X = trades_data[["current_vix", "sp500"]]  # Using only 'current_vix' as a feature
+    X = trades_data[
+        ["^VIX", "One_day_spy_return"]
+    ]  # Using only 'current_vix' as a feature
     y = trades_data["return"]
 
     # Split data into training and testing sets
@@ -74,7 +76,9 @@ def train_random_forest_classifier_RandomizedSearchCV(
     trades_data["return"] = np.where(trades_data["ratio"] > 1, 1, 0)
 
     # Features and target variable
-    X = trades_data[["current_vix", "sp500"]]  # Using only 'current_vix' as a feature
+    X = trades_data[
+        ["^VIX", "One_day_spy_return"]
+    ]  # Using only 'current_vix' as a feature
     y = trades_data["return"]
 
     # Split data into training and testing sets

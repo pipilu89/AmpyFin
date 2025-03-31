@@ -81,7 +81,7 @@ def main():
     con_tl = sqlite3.connect(trades_list_db_name)
 
     existing_data_query = f"SELECT * FROM {strategy_name}"
-    trades_data_df = pd.read_sql(existing_data_query, con_tl)
+    trades_data_df = pd.read_sql(existing_data_query, con_tl, index_col=["trade_id"])
 
     # Ensure trades_data_df is a Pandas DataFrame
     assert isinstance(
