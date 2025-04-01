@@ -68,6 +68,23 @@ def load_rf_model(strategy_name, price_data_dir="PriceData"):
         return None
 
 
+def get_tables_list(con_source):
+    # Get list of all strategies with trades (tables) from source database
+    tables_query = "SELECT name FROM sqlite_master WHERE type='table'"
+    tables_list = pd.read_sql(tables_query, con_source)["name"].tolist()
+    logger.info(f"{len(tables_list) = }")
+    return tables_list
+
+
+def check_model_exists(strategy_name):
+    price_data_dir = "PriceData"
+    rf_dir = "rf_models"
+    model_filename = f"{strategy_name}_rf_classifier.pkl"
+    if not os.path.exists(os.path.join(price_data_dir, rf_dir, model_filename)):
+        return False
+    return True
+
+
 def main():
     start_time = time.time()
 
@@ -75,12 +92,23 @@ def main():
     trades_list_db_name = os.path.join(price_data_dir, "trades_list_vectorised.db")
     con_tl = sqlite3.connect(trades_list_db_name)
 
-    # strategies = [strategies_test[0], strategies_test[1]]
-    for idx, strategy in enumerate(strategies):
-        start_time_strategy = time.time()
-        strategy_name = strategy.__name__
-        logger.info(f"{strategy_name} {idx + 1}/{len(strategies)}")
+    strategies_list = get_tables_list(con_tl)
+    # removes 'summary' table from list if it exists
+    if "summary" in strategies_list:
+        strategies_list.remove("summary")
 
+    # strategies = [strategies_test[0], strategies_test[1]]
+    for idx, strategy in enumerate(strategies_list):
+        start_time_strategy = time.time()
+        strategy_name = strategy
+        logger.info(f"{strategy_name} {idx + 1}/{len(strategies_list)}")
+
+        # check if model already saved
+        if check_model_exists(strategy_name):
+            logger.info(f"Model for {strategy_name} already exists, skipping...")
+            continue
+
+        # get trades from db
         existing_data_query = f"SELECT * FROM {strategy_name}"
         trades_data_df = pd.read_sql(
             existing_data_query, con_tl, index_col=["trade_id"]
@@ -94,11 +122,11 @@ def main():
         # logger.info(f"{len(trades_data_df) = }")
         logger.info(f"{trades_data_df.shape = }")
         if trades_data_df.empty:
-            logger.info(f"no trades for {strategy_name}")
-            return
+            logger.info(f"no trades for {strategy_name}, skipping...")
+            continue
         elif len(trades_data_df) < 100:
-            logger.info(f"too few trades for {strategy_name}")
-            return
+            logger.info(f"too few trades for {strategy_name}, skipping...")
+            continue
 
         """
         train and save models
@@ -144,6 +172,13 @@ def main():
             model_path = store_rf_model_to_disk(rf_dict, strategy_name, price_data_dir)
             assert model_path is not None, "Model path is None, model saving failed."
 
+            logger.info(
+                f"{strategy_name}: accuracy = {accuracy:.2f}, precision = {precision:.2f}, recall = {recall:.2f}"
+            )
+
+        """"
+        Load and Predict
+        """
         load_model = False
         if load_model:
             loaded_rf_dict = load_rf_model(strategy_name)
@@ -174,7 +209,7 @@ def main():
             end_time_strategy - start_time_strategy
         )  # Calculate elapsed time
         logger.info(
-            f"{strategy_name}: accuracy = {accuracy:.2f}, precision = {precision:.2f}, recall = {recall:.2f} Execution time: {elapsed_time_strategy:.2f} seconds"
+            f"Execution time for strategy {strategy_name}: {elapsed_time_strategy:.2f} seconds"
         )
 
     end_time = time.time()  # Record the end time
