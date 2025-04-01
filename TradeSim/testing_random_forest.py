@@ -282,6 +282,9 @@ def test_random_forest(
     logger.info("Starting testing phase...")
 
     # train rf classifiers
+    """
+    already done?
+    """
     try:
         # Load the trades data
         trades_data_df = pd.read_csv(
@@ -392,6 +395,11 @@ def test_random_forest(
                     #     continue
 
                     # Get precomputed strategy decision from DataFrame
+                    """
+                    refactor to get from strategy decisions intermediate database
+                    
+                    """
+
                     action = precomputed_decisions[strategy_name][
                         (
                             precomputed_decisions[strategy_name]["Strategy"]
@@ -421,6 +429,10 @@ def test_random_forest(
                             ]
                             data = {"current_vix": [daily_vix_df]}
                             sample_df = pd.DataFrame(data, index=[0])
+
+                            """
+                            Load rf model. Pre-compute from strategy_decisions_intermediate.db. create new db with test dates?
+                            """
 
                             prediction = predict_random_forest_classifier(
                                 trained_classifiers[strategy_name]["rf_classifier"],

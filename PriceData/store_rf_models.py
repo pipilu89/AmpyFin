@@ -58,7 +58,7 @@ def load_rf_model(strategy_name, price_data_dir="PriceData"):
     try:
         with open(model_path, "rb") as file:  # Open in binary read mode ("rb")
             loaded_rf_classifier = pickle.load(file)
-        logging.info("Model loaded successfully!")
+        logger.info("Model loaded successfully!")
         return loaded_rf_classifier
     except FileNotFoundError:
         logger.error(f"Model file not found at {model_path}")
@@ -144,12 +144,14 @@ def main():
     sample_data = {"^VIX": [15], "One_day_spy_return": [1.5]}
     sample_df = pd.DataFrame(sample_data, index=[0])
 
+    prediction_results = []
+
     strategies_list = get_tables_list(con_tl)
     # removes 'summary' table from list if it exists
     if "summary" in strategies_list:
         strategies_list.remove("summary")
 
-    strategies_list = [strategies_list[-1]]
+    # strategies_list = [strategies_list[-1]]
     # strategies = [strategies_test[0], strategies_test[1]]
     for idx, strategy in enumerate(strategies_list):
         start_time_strategy = time.time()
@@ -195,19 +197,30 @@ def main():
             model_path = store_rf_model_to_disk(rf_dict, strategy_name, price_data_dir)
             assert model_path is not None, "Model path is None, model saving failed."
         if load_model:
+            if not check_model_exists(strategy_name):
+                logger.info(f"Model for {strategy_name} does not exist, skipping...")
+                continue
             rf_dict = load_rf_model(strategy_name)
             assert rf_dict is not None, "loaded_model is None, model loading failed."
+            assert isinstance(
+                rf_dict, dict
+            ), "loaded_model is not a dictionary, model loading failed."
+
         if model_predict and rf_dict is not None:
             #  use rf models to generate predictions df
             prediction = predict_random_forest_classifier(
                 rf_dict["rf_classifier"], sample_df
             )
 
-            accuracy = rf_dict["accuracy"]
-            precision = rf_dict["precision"]
-            recall = rf_dict["recall"]
+            accuracy = round(rf_dict["accuracy"], 2)
+            precision = round(rf_dict["precision"], 2)
+            recall = round(rf_dict["recall"], 2)
             logger.info(
                 f"\nPrediction for {strategy_name}: {prediction}, accuracy = {accuracy:.2f}, precision = {precision:.2f}, recall = {recall:.2f}"
+            )
+
+            prediction_results.append(
+                [strategy_name, prediction, accuracy, precision, recall]
             )
 
         end_time_strategy = time.time()  # Record the end time
@@ -218,11 +231,17 @@ def main():
             f"Execution time for strategy {strategy_name}: {elapsed_time_strategy:.2f} seconds"
         )
 
+    if prediction_results:
+        prediction_results_df = pd.DataFrame(
+            prediction_results,
+            columns=["strategy", "prediction", "accuracy", "precision", "recall"],
+        )
+        logger.info(f"{prediction_results_df}")
     end_time = time.time()  # Record the end time
     elapsed_time = end_time - start_time  # Calculate elapsed time
     logger.info(f"Execution time for main(): {elapsed_time:.2f} seconds")
 
 
 if __name__ == "__main__":
-    logger = setup_logging("logs", "rf_models.log", level=logging.info)
+    logger = setup_logging("logs", "rf_models.log", level=logging.INFO)
     main()

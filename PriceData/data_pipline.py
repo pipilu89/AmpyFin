@@ -18,4 +18,6 @@ stored in rf_models folder.
 runtime: 2-3 minutes per strategy. 3-5 hours.
 
 5. test model.
+create testing_random_forest_v2.py
+
 """
