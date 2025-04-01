@@ -85,6 +85,44 @@ def check_model_exists(strategy_name):
     return True
 
 
+def train_rf_model(trades_data_df, strategy_name):
+    try:
+        logger.info(f"Training classifier for strategy {strategy_name}")
+        rf_classifier = None
+        rcv = True
+        if rcv:
+            # param_dist = {"n_estimators": randint(50, 500), "max_depth": randint(1, 20)}
+            param_dist = {
+                "n_estimators": randint(50, 500),
+                "max_depth": randint(1, 20),
+            }
+            rf_classifier, accuracy, precision, recall = (
+                train_random_forest_classifier_RandomizedSearchCV(
+                    trades_data_df, param_dist
+                )
+            )
+        else:
+            rf_classifier, accuracy, precision, recall = train_random_forest_classifier(
+                trades_data_df
+            )
+
+        rf_dict = {
+            "rf_classifier": rf_classifier,
+            "accuracy": accuracy,
+            "precision": precision,
+            "recall": recall,
+        }
+        logger.info(f"{rf_dict = }")
+        assert rf_classifier is not None, "rf_classifier is None"
+        logger.info(f"Classifier for strategy {strategy_name} trained successfully.")
+        logger.info(
+            f"{strategy_name}: accuracy = {accuracy:.2f}, precision = {precision:.2f}, recall = {recall:.2f}"
+        )
+        return rf_dict
+    except Exception as e:
+        logger.error(f"Error training classifier for strategy {strategy_name}: {e}")
+
+
 def main():
     start_time = time.time()
 
@@ -92,117 +130,85 @@ def main():
     trades_list_db_name = os.path.join(price_data_dir, "trades_list_vectorised.db")
     con_tl = sqlite3.connect(trades_list_db_name)
 
+    """
+    Choose options.
+    eg: load and predict or train and save model.
+    """
+    train_model = False
+    save_model = False
+    overwrite_model = False  # if model file exist, do we retrain and save model?
+    load_model = True
+    model_predict = True  # need to either train or load a model first
+
+    # data for prediction
+    sample_data = {"^VIX": [15], "One_day_spy_return": [1.5]}
+    sample_df = pd.DataFrame(sample_data, index=[0])
+
     strategies_list = get_tables_list(con_tl)
     # removes 'summary' table from list if it exists
     if "summary" in strategies_list:
         strategies_list.remove("summary")
 
+    strategies_list = [strategies_list[-1]]
     # strategies = [strategies_test[0], strategies_test[1]]
     for idx, strategy in enumerate(strategies_list):
         start_time_strategy = time.time()
         strategy_name = strategy
         logger.info(f"{strategy_name} {idx + 1}/{len(strategies_list)}")
 
-        # check if model already saved
+        # check if model already saved to help prevent accidental overwrite.
         if check_model_exists(strategy_name):
-            logger.info(f"Model for {strategy_name} already exists, skipping...")
-            continue
-
-        # get trades from db
-        existing_data_query = f"SELECT * FROM {strategy_name}"
-        trades_data_df = pd.read_sql(
-            existing_data_query, con_tl, index_col=["trade_id"]
-        )
-
-        # Ensure trades_data_df is a Pandas DataFrame
-        assert isinstance(
-            trades_data_df, pd.DataFrame
-        ), "trades_data_df is not a Pandas DataFrame"
-
-        # logger.info(f"{len(trades_data_df) = }")
-        logger.info(f"{trades_data_df.shape = }")
-        if trades_data_df.empty:
-            logger.info(f"no trades for {strategy_name}, skipping...")
-            continue
-        elif len(trades_data_df) < 100:
-            logger.info(f"too few trades for {strategy_name}, skipping...")
-            continue
+            if overwrite_model and save_model:
+                logger.warning(f"Model file exists, overwriting...")
+            elif not overwrite_model and save_model:
+                logger.info(f"Model for {strategy_name} already exists, skipping...")
+                continue
 
         """
-        train and save models
+        train, save, Load, and Predict models.
         """
-        train_model = True
+
         if train_model:
-            try:
-                logger.info(f"Training classifier for strategy {strategy_name}")
-                rf_classifier = None
-                rcv = True
-                if rcv:
-                    # param_dist = {"n_estimators": randint(50, 500), "max_depth": randint(1, 20)}
-                    param_dist = {
-                        "n_estimators": randint(50, 500),
-                        "max_depth": randint(1, 20),
-                    }
-                    rf_classifier, accuracy, precision, recall = (
-                        train_random_forest_classifier_RandomizedSearchCV(
-                            trades_data_df, param_dist
-                        )
-                    )
-                else:
-                    rf_classifier, accuracy, precision, recall = (
-                        train_random_forest_classifier(trades_data_df)
-                    )
-
-                rf_dict = {
-                    "rf_classifier": rf_classifier,
-                    "accuracy": accuracy,
-                    "precision": precision,
-                    "recall": recall,
-                }
-                logger.info(f"{rf_dict = }")
-                assert rf_classifier is not None, "rf_classifier is None"
-                logger.info(
-                    f"Classifier for strategy {strategy_name} trained successfully."
-                )
-            except Exception as e:
-                logger.error(
-                    f"Error training classifier for strategy {strategy_name}: {e}"
-                )
-
-            model_path = store_rf_model_to_disk(rf_dict, strategy_name, price_data_dir)
-            assert model_path is not None, "Model path is None, model saving failed."
-
-            logger.info(
-                f"{strategy_name}: accuracy = {accuracy:.2f}, precision = {precision:.2f}, recall = {recall:.2f}"
+            # get trades from db
+            existing_data_query = f"SELECT * FROM {strategy_name}"
+            trades_data_df = pd.read_sql(
+                existing_data_query, con_tl, index_col=["trade_id"]
             )
 
-        """"
-        Load and Predict
-        """
-        load_model = False
+            # Ensure trades_data_df is a Pandas DataFrame
+            assert isinstance(
+                trades_data_df, pd.DataFrame
+            ), "trades_data_df is not a Pandas DataFrame"
+
+            # logger.info(f"{len(trades_data_df) = }")
+            logger.info(f"{trades_data_df.shape = }")
+            if trades_data_df.empty:
+                logger.info(f"no trades for {strategy_name}, skipping...")
+                continue
+            elif len(trades_data_df) < 100:
+                logger.info(f"too few trades for {strategy_name}, skipping...")
+                continue
+
+            rf_dict = train_rf_model(trades_data_df, strategy_name)
+
+        if save_model:
+            model_path = store_rf_model_to_disk(rf_dict, strategy_name, price_data_dir)
+            assert model_path is not None, "Model path is None, model saving failed."
         if load_model:
-            loaded_rf_dict = load_rf_model(strategy_name)
-            assert (
-                loaded_rf_dict is not None
-            ), "loaded_model is None, model loading failed."
+            rf_dict = load_rf_model(strategy_name)
+            assert rf_dict is not None, "loaded_model is None, model loading failed."
+        if model_predict and rf_dict is not None:
+            #  use rf models to generate predictions df
+            prediction = predict_random_forest_classifier(
+                rf_dict["rf_classifier"], sample_df
+            )
 
-            if loaded_rf_dict:
-                # 2. use rf models to generate predictions df
-                # Example usage: Make a prediction for a specific strategy
-                sample_data = {"^VIX": [15], "One_day_spy_return": [1.5]}
-                sample_df = pd.DataFrame(sample_data, index=[0])
-
-                prediction = predict_random_forest_classifier(
-                    loaded_rf_dict["rf_classifier"], sample_df
-                )
-
-                accuracy = loaded_rf_dict["accuracy"]
-                precision = loaded_rf_dict["precision"]
-                recall = loaded_rf_dict["recall"]
-
-                logger.info(
-                    f"\nPrediction for {strategy_name}: {prediction}, accuracy = {accuracy:.2f}, precision = {precision:.2f}, recall = {recall:.2f}"
-                )
+            accuracy = rf_dict["accuracy"]
+            precision = rf_dict["precision"]
+            recall = rf_dict["recall"]
+            logger.info(
+                f"\nPrediction for {strategy_name}: {prediction}, accuracy = {accuracy:.2f}, precision = {precision:.2f}, recall = {recall:.2f}"
+            )
 
         end_time_strategy = time.time()  # Record the end time
         elapsed_time_strategy = (
