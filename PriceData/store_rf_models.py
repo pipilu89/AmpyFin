@@ -201,7 +201,11 @@ def main():
                 logger.info(f"Model for {strategy_name} does not exist, skipping...")
                 continue
             rf_dict = load_rf_model(strategy_name)
-            assert rf_dict is not None, "loaded_model is None, model loading failed."
+            if rf_dict is None:
+                logger.info(
+                    f"Model for {strategy_name} could not be loaded, skipping..."
+                )
+                continue
             assert isinstance(
                 rf_dict, dict
             ), "loaded_model is not a dictionary, model loading failed."

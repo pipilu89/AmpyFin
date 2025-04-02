@@ -37,7 +37,7 @@ from TradeSim.utils import (
     precompute_strategy_decisions,
     prepare_regime_data,
 )
-from TradeSim.testing_random_forest import test_random_forest
+from TradeSim.testing_random_forest import test_random_forest_v2
 
 ca = certifi.where()
 
@@ -143,7 +143,7 @@ if __name__ == "__main__":
         )
 
     elif mode == "test":
-        test_random_forest(
+        test_random_forest_v2(
             ticker_price_history,
             ideal_period,
             mongo_client,

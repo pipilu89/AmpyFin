@@ -573,6 +573,245 @@ def test_random_forest(
     logger.info("-------------------------------------------------")
 
 
+def test_random_forest_v2(
+    ticker_price_history,
+    ideal_period,
+    mongo_client,
+    precomputed_decisions,
+    # strategies,
+    logger,
+):
+    """
+    Runs the testing phase of the trading simulator.
+
+    1. slice trades_list with test date
+    2. make prediction for each trade (based on regime data and rf_model). loop by strategy.
+        prediction_results_df
+       account = check_stop_loss_take_profit
+        get_holdings_value_by_strategy
+    3. buy_df = strategy_and_ticker_cash_allocation()
+    4. buy_heap = create_buy_heap(buy_df)
+       account = execute_sell_orders()
+    5. account = execute_buy_orders() # Execute buy orders, create sl and tp prices
+        update_account_portfolio_values
+
+
+    """
+    global train_tickers
+    logger.info("Starting testing phase...")
+
+    # Initialize testing variables
+    strategy_to_coefficient = {}
+    account = initialize_test_account()
+
+    start_date = datetime.strptime(test_period_start, "%Y-%m-%d")
+    end_date = datetime.strptime(test_period_end, "%Y-%m-%d")
+    current_date = start_date
+    account_values = pd.Series(index=pd.date_range(start=start_date, end=end_date))
+    logger.info(f"Testing period: {start_date} to {end_date}")
+
+    while current_date <= end_date:
+        logger.info(f"Processing date: {current_date.strftime('%Y-%m-%d')}")
+
+        # Process trading day
+        buy_heap, suggestion_heap = [], []
+        date_str = current_date.strftime("%Y-%m-%d")
+        prediction_results = {}
+        prediction_results_list = []
+        for ticker in train_tickers:
+            if date_str in ticker_price_history[ticker].index:
+                daily_data = ticker_price_history[ticker].loc[date_str]
+                current_price = daily_data["Close"]
+                # logger.info(f"{ticker} - Current price: {current_price}")
+
+                # Check stop loss and take profit
+                account = check_stop_loss_take_profit(account, ticker, current_price)
+
+                # Get strategy decisions
+                decisions_and_quantities = []
+                portfolio_qty = account["holdings"].get(ticker, {}).get("quantity", 0)
+
+                for strategy in strategies:
+                    strategy_name = strategy.__name__
+
+                    """
+                    refactor to get from strategy decisions intermediate database
+                    
+                    """
+
+                    action = precomputed_decisions[strategy_name][
+                        (
+                            precomputed_decisions[strategy_name]["Strategy"]
+                            == strategy_name
+                        )
+                        & (precomputed_decisions[strategy_name]["Ticker"] == ticker)
+                        & (precomputed_decisions[strategy_name]["Date"] == date_str)
+                    ]["Action"].values
+
+                    if len(action) == 0:
+                        # Skip if no precomputed decision (should not happen if properly precomputed)
+                        logger.warning(
+                            f"No precomputed decision for {ticker}, {strategy_name}, {date_str}"
+                        )
+                        continue
+
+                    action = action[0]
+
+                    account_cash = account["cash"]
+                    total_portfolio_value = account["total_portfolio_value"]
+
+                    # Get prediction from random forest classifier
+                    if strategy_name in strategies_with_enough_data:
+                        if action == "Buy":
+                            daily_vix_df = ticker_price_history["^VIX"].loc[date_str][
+                                "Close"
+                            ]
+                            data = {"current_vix": [daily_vix_df]}
+                            sample_df = pd.DataFrame(data, index=[0])
+
+                            """
+                            Load rf model. Pre-compute from strategy_decisions_intermediate.db. create new db with test dates?
+                            """
+
+                            prediction = predict_random_forest_classifier(
+                                trained_classifiers[strategy_name]["rf_classifier"],
+                                sample_df,
+                            )
+
+                            if prediction != 1:
+                                action = "hold"
+                            accuracy = trained_classifiers[strategy_name]["accuracy"]
+                            logger.info(
+                                f"Prediction {current_date} {strategy_name} {ticker}: {prediction}, {accuracy = } daily_vix_df = {daily_vix_df:.2f} {action = }"
+                            )
+
+                            # weight = prediction * accuracy  # not needed
+                            prediction_results_list.append(
+                                {
+                                    "strategy_name": strategy_name,
+                                    "ticker": ticker,
+                                    "action": action,
+                                    "prediction": prediction,
+                                    "accuracy": accuracy,
+                                    "current_price": round(current_price, 2),
+                                }
+                            )
+
+                        # execute sell orders
+                        elif action == "sell":
+                            account = execute_sell_orders(
+                                action,
+                                ticker,
+                                strategy_name,
+                                account,
+                                current_price,
+                                current_date,
+                                logger,
+                            )
+
+        # Convert list of dictionaries to DataFrame
+        prediction_results_df = pd.DataFrame(prediction_results_list)
+        # Save prediction_results_df to CSV in results folder
+        csv_file_path = os.path.join(results_dir, "prediction_results.csv")
+        prediction_results_df.to_csv(csv_file_path, index=False)
+
+        # Calculate holdings value by strategy. needed to ensure cash allocation constraints are met.
+        holdings_value_by_strategy = get_holdings_value_by_strategy(
+            account, ticker_price_history, current_date
+        )
+        print(f"{holdings_value_by_strategy = }")
+
+        buy_df = strategy_and_ticker_cash_allocation(
+            prediction_results_df,
+            account,
+            holdings_value_by_strategy,
+            prediction_threshold,
+            train_trade_asset_limit,
+            train_trade_strategy_limit,
+        )
+
+        buy_heap = create_buy_heap(buy_df)
+
+        # Execute buy orders, create sl and tp prices
+        account = execute_buy_orders(
+            buy_heap,
+            suggestion_heap,
+            account,
+            current_date,
+            train_trade_liquidity_limit,
+            train_stop_loss,
+            train_take_profit,
+        )
+
+        # Simulate ranking updates. Updates list of trades.
+        trading_simulator, points = simulate_trading_day(
+            current_date,
+            strategies,
+            trading_simulator,
+            points,
+            time_delta,
+            ticker_price_history,
+            train_tickers,
+            precomputed_decisions,
+            logger,
+            regime_tickers,
+        )
+
+        # logger.info(f"{points = }")
+        # logger.info(f"{trading_simulator = }")
+        # Update trading_simulator portfolio values
+        active_count, trading_simulator = local_update_portfolio_values(
+            current_date, strategies, trading_simulator, ticker_price_history, logger
+        )
+
+        # Update time delta needed?
+        # time_delta = update_time_delta(time_delta, train_time_delta_mode)
+
+        # Calculate and update account total portfolio value
+        account = update_account_portfolio_values(
+            account, ticker_price_history, current_date
+        )
+
+        # Update account values for metrics
+        total_value = account["total_portfolio_value"]
+        account_values[current_date] = total_value
+
+        # Update rankings #needed?
+        rank = update_strategy_ranks(strategies, points, trading_simulator)
+
+        # Log daily results
+        logger.info("-------------------------------------------------")
+        logger.info(f"Account Cash: ${account['cash']: ,.2f}")
+        logger.info(f"Trades: {account['trades']}")
+        logger.info(f"Holdings: {account['holdings']}")
+        logger.info(f"Total Portfolio Value: ${account['total_portfolio_value']: ,.2f}")
+        logger.info(f"Active Count: {active_count}")
+        logger.info("-------------------------------------------------")
+
+        current_date += timedelta(days=1)
+        time.sleep(5)
+
+    # Calculate final metrics and generate tear sheet
+    metrics = calculate_metrics(account_values)
+    wandb.log(metrics)
+
+    logger.info("Final metrics calculated.")
+    logger.info(metrics)
+
+    try:
+        generate_tear_sheet(account_values, filename=f"{benchmark_asset}_vs_strategy")
+        logger.info("Tear sheet generated.")
+    except Exception as e:
+        logger.error(f"Error generating tear sheet: {e}")
+
+    # Print final results
+    logger.info("Testing Completed.")
+    logger.info("-------------------------------------------------")
+    logger.info(f"Account Cash: ${account['cash']: ,.2f}")
+    logger.info(f"Total Portfolio Value: ${account['total_portfolio_value']: ,.2f}")
+    logger.info("-------------------------------------------------")
+
+
 def get_holdings_value_by_strategy(account, ticker_price_history, current_date):
     """
     Calculates the current value of existing holdings by strategy.

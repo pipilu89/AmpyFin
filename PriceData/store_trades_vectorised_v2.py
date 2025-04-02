@@ -22,6 +22,7 @@ from control import (
     test_period_end,
     train_period_start,
     train_period_end,
+    test_period_end,
     train_tickers,
     regime_tickers,
     train_time_delta,
@@ -572,7 +573,7 @@ if __name__ == "__main__":
     con_pd = sqlite3.connect(PRICE_DB_PATH)
 
     start_date = datetime.strptime(train_period_start, "%Y-%m-%d")
-    end_date = datetime.strptime(train_period_end, "%Y-%m-%d")
+    end_date = datetime.strptime(test_period_end, "%Y-%m-%d")
 
     # Subtract 1 business day from start_date - needed for sp500 1 day return.
     start_date_np = np.datetime64(start_date).astype("datetime64[D]")
@@ -654,6 +655,10 @@ if __name__ == "__main__":
             trades_df.set_index("trade_id", inplace=True)
             trades_df.sort_index(inplace=True)
 
+            """
+            How to merge new data/trades? eg for latest dates?
+            """
+
             trades_df.to_sql(
                 strategy_name,
                 con_tl,
@@ -662,24 +667,6 @@ if __name__ == "__main__":
                 dtype={"trade_id": "TEXT PRIMARY KEY"},
             )
 
-    # number_of_trades = len(trades_list_single_strategy_df)
-    # # put into db
-    # if number_of_trades > 0:
-    #     logger.info(f"{strategy_name} {number_of_trades = }")
-
-    #     try:
-    #         df_to_sql_merge_tables_on_date_and_ticker_if_exist(
-    #             trades_list_single_strategy_df, strategy_name, con_tl, logger
-    #         )
-    #     except Exception as e:
-    #         logger.error(f"update db error {e}")
-
-    # else:
-    #     logger.info(f"{strategy_name}, no trades.")
-
-    # # summary
-    # number_of_trades_by_strategy[strategy_name] = {number_of_trades}
-    # Close the database connection
     con_pd.close()
     con_tl.close()
     con_sd.close()
