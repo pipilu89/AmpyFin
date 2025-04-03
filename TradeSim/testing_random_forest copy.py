@@ -16,10 +16,8 @@ from pymongo import MongoClient
 # Add parent directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from helper_files.client_helper import setup_logging
 from random_forest import predict_random_forest_classifier, train_and_store_classifiers
-from PriceData.store_rf_models import get_tables_list, check_model_exists, load_rf_model
-
+from PriceData.store_rf_models import get_tables_list
 
 # from variables import config_dict
 from TradeSim.variables import config_dict
@@ -843,67 +841,267 @@ def update_account_portfolio_values(account, ticker_price_history, current_date)
     return account
 
 
-def generate_predictions(trades_for_prediction_df, strategy, logger):
-    # load rf model
-    if not check_model_exists(strategy):
-        logger.error(f"Model for {strategy} does not exist, skipping...")
-        return None
-    rf_dict = load_rf_model(strategy, logger)
-    if rf_dict is None:
-        logger.error(f"Model for {strategy} could not be loaded, skipping...")
-        return None
-    assert isinstance(
-        rf_dict, dict
-    ), "loaded_model is not a dictionary, model loading failed."
-    # logger.info(f"{rf_dict}")
+if __name__ == "__main__":
+    # account = initialize_test_account()
+    current_date = datetime.strptime("2021-01-01", "%Y-%m-%d")
+    account = {
+        "holdings": {
+            # "AAPL": {
+            #     "quantity": 10,
+            #     "price": 100,
+            #     "strategy": "MEDPRICE_indicator",
+            # },
+            "AAPL": {
+                "MEDPRICE_indicator": {
+                    "quantity": 10,
+                    "price": 100,
+                },
+                "TYPPRICE_indicator": {
+                    "quantity": 1,
+                    "price": 50,
+                },
+            },
+            "MSFT": {
+                "WCLPRICE_indicator": {
+                    "quantity": 10,
+                    "price": 300,
+                },
+            },
+        },
+        "cash": train_start_cash,
+        # "cash": 500,
+        "trades": [],
+        "total_portfolio_value": train_start_cash,
+    }
 
-    # make prediction
-    sample_df = trades_for_prediction_df[["^VIX", "One_day_spy_return"]]
-    # logger.info(f"{sample_df = }")
-    trades_for_prediction_df["prediction"] = predict_random_forest_classifier(
-        rf_dict["rf_classifier"], sample_df
+    holdings_value_by_strategy = {
+        "MEDPRICE_indicator": 1500.0,
+        "TYPPRICE_indicator": 500.0,
+        "WCLPRICE_indicator": 3000.0,
+    }
+
+    # Load DataFrame from CSV in results folder
+    csv_file_path = os.path.join(results_dir, "prediction_results2.csv")
+    prediction_results_df = pd.read_csv(csv_file_path)
+
+    prediction_threshold = 0.5
+    # asset_limit = train_trade_asset_limit
+    asset_limit = 0.25
+    strategy_limit = train_trade_strategy_limit
+    train_trade_liquidity_limit = 10
+
+    buy_df = strategy_and_ticker_cash_allocation(
+        prediction_results_df,
+        account,
+        holdings_value_by_strategy,
+        prediction_threshold,
+        asset_limit,
+        strategy_limit,
+    )
+    print(buy_df)
+
+    buy_heap = create_buy_heap(buy_df)
+
+    print(buy_heap)
+
+    suggestion_heap = []
+
+    account = execute_buy_orders(
+        buy_heap,
+        suggestion_heap,
+        account,
+        current_date,
+        train_trade_liquidity_limit,
+        train_stop_loss,
+        train_take_profit,
     )
 
-    # logger.info(f"{rf_dict["accuracy"] = }")
-    trades_for_prediction_df["accuracy"] = rf_dict["accuracy"]
+    print(account)
 
-    return trades_for_prediction_df
+    # Create ticker_price_history_df
+    # Example data for AAPL
+    data_aapl = {
+        "Date": ["2025-03-20", "2025-03-21"],
+        "Open": [148.00, 150.00],
+        "High": [151.00, 153.00],
+        "Low": [147.00, 149.00],
+        "Close": [150.00, 152.00],
+        "Volume": [1000000, 1100000],
+    }
 
+    # Example data for MSFT
+    data_msft = {
+        "Date": ["2025-03-20", "2025-03-21"],
+        "Open": [248.00, 250.00],
+        "High": [251.00, 255.00],
+        "Low": [247.00, 249.00],
+        "Close": [250.00, 255.00],
+        "Volume": [2000000, 2100000],
+    }
 
-if __name__ == "__main__":
-    logger = setup_logging("logs", "testing.log", level=logging.INFO)
-    # Initialize testing variables
-    account = initialize_test_account()
+    # Convert to DataFrame and set the Date as the index
+    df_aapl = pd.DataFrame(data_aapl)
+    df_aapl["Date"] = pd.to_datetime(df_aapl["Date"])
+    df_aapl.set_index("Date", inplace=True)
 
-    start_date = datetime.strptime(test_period_start, "%Y-%m-%d")
-    end_date = datetime.strptime(test_period_end, "%Y-%m-%d")
-    current_date = start_date
-    account_values = pd.Series(index=pd.date_range(start=start_date, end=end_date))
-    logger.info(f"Testing period: {start_date} to {end_date}")
+    df_msft = pd.DataFrame(data_msft)
+    df_msft["Date"] = pd.to_datetime(df_msft["Date"])
+    df_msft.set_index("Date", inplace=True)
 
-    trades_list_db_name = os.path.join("PriceData", "trades_list_vectorised.db")
-    con_tl = sqlite3.connect(trades_list_db_name)
+    # Create ticker_price_history dictionary
+    ticker_price_history = {
+        "AAPL": df_aapl,
+        "MSFT": df_msft,
+    }
 
-    strategies_list = get_tables_list(con_tl, logger)
-    # removes 'summary' table from list if it exists
-    if "summary" in strategies_list:
-        strategies_list.remove("summary")
+    # account = update_account_portfolio_values(
+    #     account, ticker_price_history, current_date
+    # )
+    # print(account)
 
-    strategies_list = [strategies_list[0]]
-    for strategy in strategies_list:
-        logger.info(f"{strategy}")
-        """
-        1. Generate predictions
-        """
-        # slice trades_list.db with test date
-        query = f"SELECT * FROM {strategy} WHERE buy_date >= ? AND buy_date <= ?"
-        trades_for_prediction_df = pd.read_sql(
-            query, con_tl, params=(start_date, end_date), index_col=["trade_id"]
-        )
-        # logger.info(f"{trades_for_prediction_df}")
+    account = {
+        "holdings": {
+            "AAPL": {
+                "MEDPRICE_indicator": {
+                    "quantity": 45.06,
+                    "price": 242.4334412,
+                    "stop_loss": 235.160437964,
+                    "take_profit": 254.55511326,
+                },
+                "TYPPRICE_indicator": {
+                    "quantity": 6.5,
+                    "price": 242.4334412,
+                    "stop_loss": 235.160437964,
+                    "take_profit": 254.55511326,
+                },
+            },
+            "MSFT": {
+                "WCLPRICE_indicator": {
+                    "quantity": 18.259999999999998,
+                    "price": 423.7104187,
+                    "stop_loss": 410.999106139,
+                    "take_profit": 444.895939635,
+                },
+                "TYPPRICE_indicator": {
+                    "quantity": 11.21,
+                    "price": 423.7104187,
+                    "stop_loss": 410.999106139,
+                    "take_profit": 444.895939635,
+                },
+            },
+        },
+        "cash": 31917.257772839002,
+        "trades": [
+            {
+                "symbol": "MSFT",
+                "quantity": 8.26,
+                "price": 423.7104187,
+                "action": "buy",
+                "date": "2021-01-01",
+                "strategy": "WCLPRICE_indicator",
+            },
+            {
+                "symbol": "MSFT",
+                "quantity": 11.21,
+                "price": 423.7104187,
+                "action": "buy",
+                "date": "2021-01-01",
+                "strategy": "TYPPRICE_indicator",
+            },
+            {
+                "symbol": "AAPL",
+                "quantity": 35.06,
+                "price": 242.4334412,
+                "action": "buy",
+                "date": "2021-01-01",
+                "strategy": "MEDPRICE_indicator",
+            },
+            {
+                "symbol": "AAPL",
+                "quantity": 5.5,
+                "price": 242.4334412,
+                "action": "buy",
+                "date": "2021-01-01",
+                "strategy": "TYPPRICE_indicator",
+            },
+        ],
+        "total_portfolio_value": 50000.0,
+    }
 
-        trades_for_prediction_df = generate_predictions(
-            trades_for_prediction_df, strategy, logger
-        )
-        logger.info(f"DataFrame with predictions: {trades_for_prediction_df}")
-        logger.info(f"{trades_for_prediction_df.info() = }")
+    Holdings = {
+        "MSFT": {
+            "STOCHRSI_indicator": {
+                "quantity": 11.97,
+                "price": 417.74,
+                "stop_loss": 405.2078,
+                "take_profit": 438.627,
+            }
+        },
+        "AAPL": {
+            "STOCHRSI_indicator": {
+                "quantity": 20.53,
+                "price": 243.58,
+                "stop_loss": 236.2726,
+                "take_profit": 255.75900000000001,
+            },
+            "HT_PHASOR_indicator": {
+                "quantity": 0.24,
+                "price": 243.09,
+                "stop_loss": 235.7973,
+                "take_profit": 255.24450000000002,
+            },
+        },
+    }
+
+    Trades = [
+        {
+            "symbol": "MSFT",
+            "quantity": 11.97,
+            "price": 417.74,
+            "action": "buy",
+            "date": "2025-01-02",
+            "strategy": "STOCHRSI_indicator",
+        },
+        {
+            "symbol": "AAPL",
+            "quantity": 20.53,
+            "price": 243.58,
+            "action": "buy",
+            "date": "2025-01-02",
+            "strategy": "STOCHRSI_indicator",
+        },
+        {
+            "symbol": "AAPL",
+            "quantity": 0.24,
+            "price": 243.09,
+            "action": "buy",
+            "date": "2025-01-03",
+            "strategy": "HT_PHASOR_indicator",
+        },
+    ]
+    # account = execute_buy_orders(
+    #     buy_heap, suggestion_heap, account, ticker_price_history, current_date
+    # )
+
+    # todo:
+    # tests
+    # need to update functions to handle modified account structure
+    # sell_df
+
+    # Execute buy orders
+    # buy_heap = []
+    # for index, row in qualifing_strategies_df.iterrows():
+    #     if row["allocated_cash"] > 0:
+    #         heapq.heappush(
+    #             buy_heap,
+    #             (
+    #                 -row["score"],
+    #                 row["allocated_cash"] // row["current_price"],
+    #                 row["ticker"],
+    #                 row["strategy_name"],
+    #             ),
+    #         )
+
+    # account = execute_buy_orders(
+    #     buy_heap, [], account, ticker_price_history, current_date
+    # )

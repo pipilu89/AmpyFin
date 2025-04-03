@@ -50,7 +50,8 @@ def store_rf_model_to_disk(rf_classifier, strategy_name, price_data_dir):
         return None
 
 
-def load_rf_model(strategy_name, price_data_dir="PriceData"):
+def load_rf_model(strategy_name, logger):
+    price_data_dir = "PriceData"
     rf_dir = "rf_models"
     model_filename = f"{strategy_name}_rf_classifier.pkl"
     model_path = os.path.join(price_data_dir, rf_dir, model_filename)
@@ -68,7 +69,7 @@ def load_rf_model(strategy_name, price_data_dir="PriceData"):
         return None
 
 
-def get_tables_list(con_source):
+def get_tables_list(con_source, logger):
     # Get list of all strategies with trades (tables) from source database
     tables_query = "SELECT name FROM sqlite_master WHERE type='table'"
     tables_list = pd.read_sql(tables_query, con_source)["name"].tolist()
@@ -146,7 +147,7 @@ def main():
 
     prediction_results = []
 
-    strategies_list = get_tables_list(con_tl)
+    strategies_list = get_tables_list(con_tl, logger)
     # removes 'summary' table from list if it exists
     if "summary" in strategies_list:
         strategies_list.remove("summary")
@@ -200,7 +201,7 @@ def main():
             if not check_model_exists(strategy_name):
                 logger.info(f"Model for {strategy_name} does not exist, skipping...")
                 continue
-            rf_dict = load_rf_model(strategy_name)
+            rf_dict = load_rf_model(strategy_name, logger)
             if rf_dict is None:
                 logger.info(
                     f"Model for {strategy_name} could not be loaded, skipping..."

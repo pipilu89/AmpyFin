@@ -127,7 +127,8 @@ def predict_random_forest_classifier(rf_classifier, sample_df):
         int: The predicted return (0 or 1). 1 is positive return, 0 is -ve return.
     """
     prediction = rf_classifier.predict(sample_df)
-    return int(prediction[0])
+    # return int(prediction[0])
+    return prediction
 
 
 def train_and_store_classifiers(trades_data_df, logger):
