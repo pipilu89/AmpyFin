@@ -22,7 +22,6 @@ from control import (
     regime_tickers,
 )
 
-train_tickers
 from helper_files.client_helper import get_ndaq_tickers, strategies
 from helper_files.train_client_helper import local_update_portfolio_values
 from TradeSim.utils import simulate_trading_day, update_time_delta
@@ -94,7 +93,7 @@ def train(
             train_tickers,
             precomputed_decisions,
             logger,
-            regime_tickers
+            regime_tickers,
         )
 
         active_count, trading_simulator = local_update_portfolio_values(
@@ -122,21 +121,34 @@ def train(
     for strategy in strategies:
         strategy_name = strategy.__name__
         trades_list_all += trading_simulator[strategy_name]["trades_list"]
-    
-    trades_df = pd.DataFrame(trades_list_all, columns=['strategy', 'ticker','current_price', 'buy_price', 'qty', 'ratio', 'current_vix', 'sp500', 'buy_date','sell_date'])
+
+    trades_df = pd.DataFrame(
+        trades_list_all,
+        columns=[
+            "strategy",
+            "ticker",
+            "current_price",
+            "buy_price",
+            "qty",
+            "ratio",
+            "current_vix",
+            "sp500",
+            "buy_date",
+            "sell_date",
+        ],
+    )
 
     results_dir = "results"
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
         logger.info(f"Created results directory: {results_dir}")
-    
+
     # Save trades_df to csv file
     trades_csv_filename = f"{config_dict['experiment_name']}_trades.csv"
     trades_csv_path = os.path.join(results_dir, trades_csv_filename)
     trades_df.to_csv(trades_csv_path, index=False)
     logger.info(f"Trades data saved to {trades_csv_path}")
     # new end
-
 
     results = {
         "trading_simulator": trading_simulator,

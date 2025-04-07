@@ -146,6 +146,7 @@ def main():
     sample_df = pd.DataFrame(sample_data, index=[0])
 
     prediction_results = []
+    rf_dict = None
 
     strategies_list = get_tables_list(con_tl, logger)
     # removes 'summary' table from list if it exists
