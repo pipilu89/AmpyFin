@@ -85,7 +85,7 @@ def initialize_test_account():
     }
 
 
-def check_stop_loss_take_profit(account, ticker, current_price):
+def check_stop_loss_take_profit(account, ticker, current_price, current_date):
     """
     Checks and executes stop loss and take profit orders for a given ticker.
 
@@ -101,17 +101,28 @@ def check_stop_loss_take_profit(account, ticker, current_price):
         strategies_to_remove = []
         for strategy, holding in account["holdings"][ticker].items():
             if holding["quantity"] > 0:
-                if (
-                    current_price < holding["stop_loss"]
-                    or current_price > holding["take_profit"]
-                ):
+                if current_price < holding["stop_loss"]:
                     account["trades"].append(
                         {
                             "symbol": ticker,
                             "quantity": holding["quantity"],
                             "price": current_price,
-                            "action": "sell",
+                            "action": "sell - stop_loss",
                             "strategy": strategy,
+                            "date": current_date.strftime("%Y-%m-%d"),
+                        }
+                    )
+                    account["cash"] += holding["quantity"] * current_price
+                    strategies_to_remove.append(strategy)
+                elif current_price > holding["take_profit"]:
+                    account["trades"].append(
+                        {
+                            "symbol": ticker,
+                            "quantity": holding["quantity"],
+                            "price": current_price,
+                            "action": "sell - take_profit",
+                            "strategy": strategy,
+                            "date": current_date.strftime("%Y-%m-%d"),
                         }
                     )
                     account["cash"] += holding["quantity"] * current_price
@@ -159,7 +170,7 @@ def execute_buy_orders(
             break
 
         _, quantity, ticker, current_price, strategy_name = heapq.heappop(heap)
-        print(f"Executing BUY order for {ticker} of quantity {quantity}")
+        logger.info(f"Executing BUY order for {ticker} of quantity {quantity}")
 
         account["trades"].append(
             {
@@ -233,7 +244,7 @@ def execute_sell_orders(
         account["cash"] += quantity * current_price
         del account["holdings"][ticker][strategy_name]
         logger.info(
-            f"{ticker} - Sold {quantity} shares at ${current_price} for {strategy_name}"
+            f"{ticker} - Sold {quantity} shares at ${current_price} for {strategy_name} date: {current_date.strftime('%Y-%m-%d')}"
         )
     return account
 
@@ -388,7 +399,9 @@ def test_random_forest(
                 # logger.info(f"{ticker} - Current price: {current_price}")
 
                 # Check stop loss and take profit
-                account = check_stop_loss_take_profit(account, ticker, current_price)
+                account = check_stop_loss_take_profit(
+                    account, ticker, current_price, current_date
+                )
 
                 # Get strategy decisions
                 decisions_and_quantities = []
@@ -893,10 +906,9 @@ if __name__ == "__main__":
     account = initialize_test_account()
 
     start_date = datetime.strptime(test_period_start, "%Y-%m-%d")
-    # test_period_end = "2024-12-04"
+    test_period_end = "2025-01-31"
     end_date = datetime.strptime(test_period_end, "%Y-%m-%d")
     accuracy_threshold = 0.5
-    # account_values = pd.Series(index=pd.date_range(start=start_date, end=end_date))
 
     # Create a US business day calendar
     us_business_day = CustomBusinessDay(calendar=USFederalHolidayCalendar())
@@ -904,6 +916,9 @@ if __name__ == "__main__":
     test_date_range = pd.bdate_range(
         start=start_date, end=end_date, freq=us_business_day
     )
+
+    account_values = pd.Series(index=pd.date_range(start=start_date, end=end_date))
+    # account_values = pd.Series(dtype=float, index=test_date_range)
 
     logger.info(f"Testing period: {start_date} to {end_date}")
 
@@ -1032,7 +1047,7 @@ if __name__ == "__main__":
     # logger.info(f"{ticker_price_history = }")
     # logger.info(f"{test_date_range = }")
 
-    strategies = [strategies[1]]
+    # strategies = [strategies[1]]
     for date in test_date_range:
         prediction_results_list = []
         date_missing = False
@@ -1043,7 +1058,7 @@ if __name__ == "__main__":
             # get strategy decisions from strategy_decisions_final.db
             query = f"SELECT * FROM {strategy_name}"
             precomputed_decisions = pd.read_sql(query, con_sd_final, index_col=["Date"])
-            logger.info(f"{precomputed_decisions = }")
+            # logger.info(f"{precomputed_decisions = }")
 
             # check if current date is in precomputed_decisions
             if date.strftime("%Y-%m-%d") not in precomputed_decisions.index:
@@ -1092,10 +1107,12 @@ if __name__ == "__main__":
                     )
                     continue
 
-                logger.info(
-                    f"{ticker} - {date.strftime("%Y-%m-%d")} - {action} - current_price: {current_price}"
+                # logger.info(
+                #     f"{ticker} - {date.strftime("%Y-%m-%d")} - {action} - current_price: {current_price}"
+                # )
+                account = check_stop_loss_take_profit(
+                    account, ticker, current_price, date
                 )
-                account = check_stop_loss_take_profit(account, ticker, current_price)
                 # logger.info(f"{account = }")
 
                 if action == "Buy":
@@ -1196,9 +1213,21 @@ if __name__ == "__main__":
             account = update_account_portfolio_values(
                 account, ticker_price_history, date
             )
-            logger.info(f"{account = }")
+            # logger.info(f"{account = }")
 
-    logger.info(f"{account['total_portfolio_value'] = }")
+            # Update account values for metrics
+            total_value = account["total_portfolio_value"]
+            account_values[date] = total_value
+            # logger.info(f"{total_value = }")
+            logger.info(f"{round(total_value, 2) = }")
+
+    # convert account['trades'] to dataframe
+    trades_df = pd.DataFrame(account["trades"])
+    logger.info(f"{trades_df = }")
+    if not trades_df.empty:
+        trades_df.to_sql("trades", con_predictions, if_exists="replace", index=True)
+
+    # add trades to transaction table
 
     # Log daily results
     logger.info("-------------------------------------------------")
@@ -1209,3 +1238,12 @@ if __name__ == "__main__":
     logger.info(f"Total Portfolio Value: ${account['total_portfolio_value']: ,.2f}")
     # logger.info(f"Active Count: {active_count}")
     logger.info("-------------------------------------------------")
+
+    try:
+        # Calculate final metrics and generate tear sheet
+        metrics = calculate_metrics(account_values)
+        logger.info(metrics)
+        generate_tear_sheet(account_values, filename=f"{benchmark_asset}_vs_strategy")
+        logger.info("Tear sheet generated.")
+    except Exception as e:
+        logger.error(f"Error generating tear sheet: {e}")
