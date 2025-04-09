@@ -28,8 +28,10 @@ these parameters are useful to fine tune your bot
 0.03 stop loss means after 3% loss, you will sell your asset
 0.05 take profit means after 5% profit, you will sell your asset
 """
-stop_loss = 0.03
-take_profit = 0.05
+stop_loss = 0.1
+take_profit = 0.5
+# stop_loss = 0.03
+# take_profit = 0.05
 
 # training_client.py parameters
 """
@@ -778,8 +780,10 @@ train_loss_profit_time_else = 2
 train_stop_loss - the percentage of loss you are willing to take before you sell your asset
 train_take_profit - the percentage of profit you are willing to take before you sell your asset
 """
-train_stop_loss = 0.03
-train_take_profit = 0.05
+train_stop_loss = 0.1
+train_take_profit = 0.5
+# train_stop_loss = 0.03
+# train_take_profit = 0.05
 
 # ranking_client.py parameters
 
