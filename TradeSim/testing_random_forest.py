@@ -555,29 +555,39 @@ def test_random_forest(
                             Load rf model. Pre-compute from strategy_decisions_intermediate.db. create new db with test dates?
                             """
 
-                            prediction = predict_random_forest_classifier(
-                                trained_classifiers[strategy_name]["rf_classifier"],
+                            # Get prediction (0 or 1) and probability of class 1 (positive return)
+                            prediction, probability = predict_random_forest_classifier(
+                                rf_dict[strategy_name]["rf_classifier"],
                                 sample_df,
                             )
 
                             if prediction != 1:
-                                action = "hold"
-                            accuracy = trained_classifiers[strategy_name]["accuracy"]
+                                action = "hold"  # Override original 'Buy' if RF doesn't confirm
+
+                            accuracy = round(
+                                rf_dict[strategy_name]["accuracy"], 2
+                            )  # Keep accuracy for logging/potential future use
+                            probability = round(probability, 4)  # Round probability
+
                             logger.info(
-                                f"Prediction {current_date} {strategy_name} {ticker}: {prediction}, {accuracy = } daily_vix_df = {daily_vix_df:.2f} {action = }"
+                                f"Prediction {date.strftime('%Y-%m-%d')} {strategy_name} {ticker}: {prediction} (Prob: {probability:.4f}), Acc: {accuracy}, VIX: {daily_vix_df:.2f}, SPY: {One_day_spy_return:.2f}, Action: {action}"
                             )
 
-                            # weight = prediction * accuracy  # not needed
-                            prediction_results_list.append(
-                                {
-                                    "strategy_name": strategy_name,
-                                    "ticker": ticker,
-                                    "action": action,
-                                    "prediction": prediction,
-                                    "accuracy": accuracy,
-                                    "current_price": round(current_price, 2),
-                                }
-                            )
+                            # Only add to results if the original action was Buy and RF prediction is 1
+                            if (
+                                action == "Buy"
+                            ):  # Check if action is still Buy (meaning RF predicted 1)
+                                prediction_results_list.append(
+                                    {
+                                        "strategy_name": strategy_name,
+                                        "ticker": ticker,
+                                        "action": action,  # Should always be 'Buy' here
+                                        "prediction": prediction,  # Should always be 1 here
+                                        "accuracy": accuracy,  # Historical accuracy of the model
+                                        "probability": probability,  # Probability of this specific prediction being 1
+                                        "current_price": current_price,
+                                    }
+                                )
 
                         # execute sell orders
                         elif action == "sell":
@@ -824,18 +834,54 @@ def strategy_and_ticker_cash_allocation(
     - pd.DataFrame: DataFrame containing the allocated cash for each strategy and ticker.
     """
     if prediction_results_df.empty:
+        logger.info(
+            "strategy_and_ticker_cash_allocation: prediction_results_df is empty."
+        )
         return pd.DataFrame()
 
-    prediction_results_df["score"] = (
-        prediction_results_df["accuracy"] * prediction_results_df["prediction"]
+    # Ensure required columns exist
+    required_cols = ["probability", "prediction", "action"]
+    if not all(col in prediction_results_df.columns for col in required_cols):
+        logger.error(
+            f"strategy_and_ticker_cash_allocation: Missing required columns in prediction_results_df. Found: {prediction_results_df.columns}"
+        )
+        return pd.DataFrame()
+
+    # Filter for actual buy signals confirmed by RF (prediction == 1)
+    # Note: The loop appending to prediction_results_list already ensures action=='Buy' and prediction==1
+    confirmed_buys_df = prediction_results_df[
+        prediction_results_df["prediction"] == 1
+    ].copy()
+
+    if confirmed_buys_df.empty:
+        logger.info(
+            "strategy_and_ticker_cash_allocation: No confirmed buy signals (prediction == 1)."
+        )
+        return pd.DataFrame()
+
+    # Use probability as the primary score for ranking
+    confirmed_buys_df["score"] = confirmed_buys_df["probability"]
+
+    # Sort by the new probability-based score
+    confirmed_buys_df = confirmed_buys_df.sort_values(by=["score"], ascending=False)
+    logger.info(
+        f"strategy_and_ticker_cash_allocation: Sorted confirmed buys by probability score:\n{confirmed_buys_df[['strategy_name', 'ticker', 'probability', 'score']]}"
     )
 
-    prediction_results_df.sort_values(by=["score"], ascending=False)
+    # Filter DataFrame where score (probability) > prediction_threshold
+    qualifying_strategies_df = confirmed_buys_df[
+        confirmed_buys_df["score"] > prediction_threshold
+    ].copy()  # Use .copy() to avoid SettingWithCopyWarning
 
-    # Filter DataFrame where score > prediction_threshold
-    qualifying_strategies_df = prediction_results_df[
-        prediction_results_df["score"] > prediction_threshold
-    ]
+    if qualifying_strategies_df.empty:
+        logger.info(
+            f"strategy_and_ticker_cash_allocation: No strategies qualify after probability threshold {prediction_threshold}."
+        )
+        return pd.DataFrame()
+
+    logger.info(
+        f"strategy_and_ticker_cash_allocation: Qualifying strategies after threshold:\n{qualifying_strategies_df[['strategy_name', 'ticker', 'score']]}"
+    )
 
     total_portfolio_value = account["total_portfolio_value"]
     available_cash = account["cash"]
@@ -873,16 +919,17 @@ def strategy_and_ticker_cash_allocation(
         / qualifying_strategies_df["ticker_count"]
     )
 
-    # Calculate accuracy adjusted investment
-    qualifying_strategies_df["accuracy_adj_investment"] = (
-        qualifying_strategies_df["max_s_t_cash"] * qualifying_strategies_df["accuracy"]
+    # Calculate probability adjusted investment (using 'score' which is now probability)
+    qualifying_strategies_df["prob_adj_investment"] = (
+        qualifying_strategies_df["max_s_t_cash"]
+        * qualifying_strategies_df["score"]  # Use score (probability) for weighting
     )
 
     # Calculate investment considering asset limit
     asset_limit_value = asset_limit * total_portfolio_value
-    print(f"{asset_limit_value = }")
+    logger.info(f"strategy_and_ticker_cash_allocation: {asset_limit_value = }")
 
-    # Allocate cash based on accuracy_adj_investment until cash is exhausted
+    # Allocate cash based on prob_adj_investment until cash is exhausted
     qualifying_strategies_df["allocated_cash"] = (
         0.0  # Ensure the column is of float type
     )
@@ -900,7 +947,8 @@ def strategy_and_ticker_cash_allocation(
         for index, row in group.iterrows():
             if remaining_cash <= 0:
                 break
-            allocation = min(row["accuracy_adj_investment"], remaining_cash)
+            # Allocate based on probability-adjusted investment suggestion
+            allocation = min(row["prob_adj_investment"], remaining_cash)
             qualifying_strategies_df.at[index, "allocated_cash"] = round(
                 (allocation), 2
             )
@@ -1031,7 +1079,7 @@ if __name__ == "__main__":
     account = initialize_test_account()
 
     start_date = datetime.strptime(test_period_start, "%Y-%m-%d")
-    # test_period_end = "2025-01-20"
+    test_period_end = "2025-01-06"
     end_date = datetime.strptime(test_period_end, "%Y-%m-%d")
     experiment_name = f"{len(train_tickers)}_{test_period_start}_{test_period_end}_{train_stop_loss}_{train_take_profit}"
     accuracy_threshold = 0.5
@@ -1263,29 +1311,39 @@ if __name__ == "__main__":
                     Load rf model. Pre-compute from strategy_decisions_intermediate.db. create new db with test dates?
                     """
 
-                    prediction = predict_random_forest_classifier(
+                    # Get prediction (0 or 1) and probability of class 1 (positive return)
+                    prediction, probability = predict_random_forest_classifier(
                         rf_dict[strategy_name]["rf_classifier"],
                         sample_df,
                     )
 
                     if prediction != 1:
-                        action = "hold"
-                    accuracy = round(rf_dict[strategy_name]["accuracy"], 2)
+                        action = "hold"  # Override original 'Buy' if RF doesn't confirm
+
+                    accuracy = round(
+                        rf_dict[strategy_name]["accuracy"], 2
+                    )  # Keep accuracy for logging/potential future use
+                    probability = round(probability, 4)  # Round probability
+
                     logger.info(
-                        f"Prediction {date.strftime("%Y-%m-%d")} {strategy_name} {ticker}: {prediction}, {accuracy = } vix: {daily_vix_df:.2f} spy:{One_day_spy_return:.2f} {action = }"
+                        f"Prediction {date.strftime('%Y-%m-%d')} {strategy_name} {ticker}: {prediction} (Prob: {probability:.4f}), Acc: {accuracy}, VIX: {daily_vix_df:.2f}, SPY: {One_day_spy_return:.2f}, Action: {action}"
                     )
 
-                    # weight = prediction * accuracy  # not needed
-                    prediction_results_list.append(
-                        {
-                            "strategy_name": strategy_name,
-                            "ticker": ticker,
-                            "action": action,
-                            "prediction": prediction,
-                            "accuracy": accuracy,
-                            "current_price": current_price,
-                        }
-                    )
+                    # Only add to results if the original action was Buy and RF prediction is 1
+                    if (
+                        action == "Buy"
+                    ):  # Check if action is still Buy (meaning RF predicted 1)
+                        prediction_results_list.append(
+                            {
+                                "strategy_name": strategy_name,
+                                "ticker": ticker,
+                                "action": action,  # Should always be 'Buy' here
+                                "prediction": prediction,  # Should always be 1 here
+                                "accuracy": accuracy,  # Historical accuracy of the model
+                                "probability": probability,  # Probability of this specific prediction being 1
+                                "current_price": current_price,
+                            }
+                        )
 
                     # execute sell orders
 

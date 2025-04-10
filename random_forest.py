@@ -124,11 +124,17 @@ def predict_random_forest_classifier(rf_classifier, sample_df):
         sample_df (pd.DataFrame): DataFrame containing the sample data for prediction.
 
     Returns:
-        int: The predicted return (0 or 1). 1 is positive return, 0 is -ve return.
+        tuple: A tuple containing:
+            - int: The predicted class (0 or 1). 1 is positive return, 0 is negative/neutral return.
+            - float: The probability of predicting class 1 (positive return).
     """
-    prediction = rf_classifier.predict(sample_df)
-    return int(prediction[0])
-    # return prediction
+    # Get probabilities for each class [prob_class_0, prob_class_1]
+    probabilities = rf_classifier.predict_proba(sample_df)
+    # Probability of class 1 (positive return)
+    prob_class_1 = probabilities[0, 1]
+    # Determine prediction based on probability threshold (e.g., 0.5)
+    prediction = 1 if prob_class_1 > 0.5 else 0
+    return prediction, prob_class_1
 
 
 def train_and_store_classifiers(trades_data_df, logger):
@@ -181,13 +187,26 @@ def train_and_store_classifiers(trades_data_df, logger):
     return rf_classifiers, strategies_with_enough_data
 
 
+import logging
+
 if __name__ == "__main__":
-    # logger = setup_logging("logs", "rf_models.log", level=logging.info)
+    # Basic logger setup for standalone execution
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
     # Load the trades data
     trades_data_df = pd.read_csv("./results/10year_sp500_trades.csv")
 
     # Train and store classifiers
-    trained_classifiers = train_and_store_classifiers(trades_data_df)
+    trained_classifiers, _ = train_and_store_classifiers(
+        trades_data_df, logger
+    )  # Added logger and ignored second return value
 
     # logger.info(f"{trained_classifiers}")
 
@@ -201,7 +220,9 @@ if __name__ == "__main__":
         precision = classifier_data["precision"]
         recall = classifier_data["recall"]
 
-        prediction = predict_random_forest_classifier(rf_classifier, sample_df)
+        prediction, probability = predict_random_forest_classifier(
+            rf_classifier, sample_df
+        )
         # logger.info(
-        #     f"\nFinal Prediction for {strategy_name}: {prediction}, accuracy = {accuracy:.2f}, precision = {precision:.2f}, recall = {recall:.2f}"
+        #     f"\nFinal Prediction for {strategy_name}: {prediction} (Prob: {probability:.2f}), accuracy = {accuracy:.2f}, precision = {precision:.2f}, recall = {recall:.2f}"
         # )
