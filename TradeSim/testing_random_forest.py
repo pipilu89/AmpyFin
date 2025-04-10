@@ -1081,8 +1081,9 @@ if __name__ == "__main__":
     start_date = datetime.strptime(test_period_start, "%Y-%m-%d")
     test_period_end = "2025-01-06"
     end_date = datetime.strptime(test_period_end, "%Y-%m-%d")
-    experiment_name = f"{len(train_tickers)}_{test_period_start}_{test_period_end}_{train_stop_loss}_{train_take_profit}"
-    accuracy_threshold = 0.5
+    accuracy_threshold = 0.75
+    prediction_threshold = 0.75
+    experiment_name = f"{len(train_tickers)}_{test_period_start}_{test_period_end}_{train_stop_loss}_{train_take_profit}_thres{prediction_threshold}"
 
     # Create a US business day calendar
     us_business_day = CustomBusinessDay(calendar=USFederalHolidayCalendar())
@@ -1368,7 +1369,30 @@ if __name__ == "__main__":
             logger.info(f"{holdings_value_by_strategy = }")
 
             prediction_results_df = pd.DataFrame(prediction_results_list)
-            logger.info(f"{prediction_results_df = }")
+            prediction_results_df["Date"] = date.strftime("%Y-%m-%d")
+            prediction_results_df["prediction_id"] = (
+                prediction_results_df["ticker"]
+                + "_"
+                + prediction_results_df["strategy_name"]
+                + "_"
+                + prediction_results_df["Date"]
+            )
+            prediction_results_df.set_index("prediction_id", inplace=True)
+            # Ensure the DataFrame is not empty
+            if not prediction_results_df.empty:
+                logger.info(f"{prediction_results_df = }")
+                try:
+                    prediction_results_df.to_sql(
+                        f"predictions_{experiment_name}",
+                        con_trading_account,
+                        if_exists="append",
+                        index=True,
+                        dtype={"trade_id": "TEXT PRIMARY KEY"},
+                    )
+                except Exception as e:
+                    logger.error(f"Error saving trades to database: {e}")
+            else:
+                logger.warning("No prediction_results_df to insert into the database.")
 
             buy_df = strategy_and_ticker_cash_allocation(
                 prediction_results_df,

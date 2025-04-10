@@ -6,14 +6,21 @@ import os
 import sys
 from tqdm import tqdm
 from pandas.tseries.holiday import USFederalHolidayCalendar
-from pandas.tseries.offsets import CustomBusinessDay
+from pandas.tseries.offsets import (
+    CustomBusinessDay,
+    DateOffset,
+)
+from dateutil.relativedelta import (
+    MO,
+)
+
 from pandas.tseries.holiday import (
     AbstractHolidayCalendar,
-    DateOffset,
+    # DateOffset,
     EasterMonday,
     GoodFriday,
     Holiday,
-    MO,
+    # MO,
     next_monday,
     next_monday_or_tuesday,
 )  # https://www.tobiolabode.com/blog/2019/1/1/pandas-for-uk-hoildays
@@ -413,7 +420,7 @@ def convert_df_to_sql_values(df, index_boolean=True):
     return sql_values
 
 
-def download_and_store(df_tickers, options, pie_name):
+def download_and_store_old(df_tickers, options, pie_name):
     today = pd.to_datetime("today").date().strftime("%Y-%m-%d")
 
     def download_data_from_yf2(df_tickers, yf_period, pie_name):
@@ -426,6 +433,7 @@ def download_and_store(df_tickers, options, pie_name):
         for index, row in tqdm(df_tickers.iterrows()):
             ticker = row["yahoo_ticker"]
             create_table_schema(ticker)
+            df = None  # Initialize df
             try:
                 # df = yf.download(ticker, period = yf_period, interval = '1d', auto_adjust=True, progress=False)
                 df = yf.download(
@@ -440,12 +448,13 @@ def download_and_store(df_tickers, options, pie_name):
             except Exception as e:
                 logger.error("yf error")
                 logger.error(e)
-            df = df.round(2)
-            df = df.drop(
-                ["Repaired?"], axis=1, errors="ignore"
-            )  # if yf repairs data it adds this col.
-            sql_values = convert_df_to_sql_values(df)
-            upsert(ticker, sql_values)
+            if df is not None:  # Check if df was assigned
+                df = df.round(2)
+                df = df.drop(
+                    ["Repaired?"], axis=1, errors="ignore"
+                )  # if yf repairs data it adds this col.
+                sql_values = convert_df_to_sql_values(df)
+                upsert(ticker, sql_values)
 
         # update db with todays dl date
         data = [(pie_name, today)]
@@ -462,6 +471,7 @@ def download_and_store(df_tickers, options, pie_name):
         logger.info("download data...")
         # ticker_list = list(df_tickers["yahoo_ticker"])
         ticker_list = df_tickers  # modification for ampy
+        df = None  # Initialize df
         try:
             df = yf.download(
                 ticker_list,
@@ -476,24 +486,110 @@ def download_and_store(df_tickers, options, pie_name):
             logger.error("yf error")
             logger.error(e)
 
-        # stack multi-level column index
-        df = (
-            df.stack(level=0, future_stack=True)
-            .rename_axis(["Date", "Ticker"])
-            .reset_index(level=1)
-        )
+        if df is not None:  # Check if df was assigned
+            # stack multi-level column index
+            df = (
+                df.stack(level=0, future_stack=True)
+                .rename_axis(["Date", "Ticker"])
+                .reset_index(level=1)
+            )
 
-        for ticker in ticker_list:
-            # drop_table(ticker)
-            create_table_schema(ticker)
-            df_single_ticker = df[["Open", "High", "Low", "Close", "Volume"]].loc[
-                df["Ticker"] == ticker
-            ]
-            df_single_ticker = df_single_ticker.dropna()
-            # logger.info(f"{df_single_ticker = }")
-            sql_values = convert_df_to_sql_values(df_single_ticker)
-            # logger.info(f"{sql_values = }")
-            upsert(ticker, sql_values)
+            for ticker in ticker_list:
+                # drop_table(ticker)
+                create_table_schema(ticker)
+                df_single_ticker = df[["Open", "High", "Low", "Close", "Volume"]].loc[
+                    df["Ticker"] == ticker
+                ]
+                df_single_ticker = df_single_ticker.dropna()
+                # logger.info(f"{df_single_ticker = }")
+                sql_values = convert_df_to_sql_values(df_single_ticker)
+                # logger.info(f"{sql_values = }")
+                upsert(ticker, sql_values)
+
+        # update db with todays dl date
+        data = [(pie_name, today)]
+        # store_dl_date(last_dl_date_table_name, data)
+        create_dl_date_table_schema(last_dl_date_table_name)
+        upsert_date_today(last_dl_date_table_name, data)
+
+    # yf_period_offset = 20 # avoid error from occansional missing dates in yf.
+    if "backtest_offset_yf_period" in options:
+        # yf_period = f"{options['backtest_offset_yf_period']+yf_period_offset}d"
+        yf_period = "max"
+    else:
+        yf_period = "1y"
+    # elif options['regression_period'] > options['ma_period']:
+    #   yf_period = f"{options['regression_period']+yf_period_offset}d"
+    # else:
+    #   yf_period = f"{options['ma_period']+yf_period_offset}d"
+    download_data_from_yf(df_tickers, yf_period, pie_name)  # tickers
+
+    if options["trend_symbol"] != "":
+        df_trend_symbol = pd.DataFrame(
+            {"yahoo_ticker": options["trend_symbol"]}, index=[0]
+        )
+        if "backtest_offset_yf_period" in options:
+            # yf_trend_period = f"{options['backtest_offset_yf_period']+yf_period_offset}d"
+            yf_trend_period = "max"
+        else:
+            # yf_trend_period = f"{options['trend_period']+yf_period_offset}d"
+            yf_trend_period = "1y"
+        download_data_from_yf(
+            df_trend_symbol, yf_trend_period, options["trend_symbol"]
+        )  # trend
+
+    if "benchmark" in options:
+        yf_period = "max"
+        df_benchmark = pd.DataFrame({"yahoo_ticker": options["benchmark"]}, index=[0])
+        download_data_from_yf(df_benchmark, yf_period, options["benchmark"])
+
+
+def download_and_store(df_tickers, options, pie_name):
+    today = pd.to_datetime("today").date().strftime("%Y-%m-%d")
+
+    def download_data_from_yf(df_tickers, yf_period, pie_name):
+        logger.info(f"\n---DL DATA---{pie_name}---{today}")
+        if readSingleRow(last_dl_date_table_name, pie_name) == today:
+            logger.info("data already downloaded today")
+            return
+
+        logger.info("download data...")
+        # ticker_list = list(df_tickers["yahoo_ticker"])
+        ticker_list = df_tickers  # modification for ampy
+        df = None  # Initialize df
+        try:
+            df = yf.download(
+                ticker_list,
+                group_by="Ticker",
+                period=yf_period,
+                interval="1d",
+                auto_adjust=True,
+                repair=True,
+                rounding=True,
+            )
+        except Exception as e:
+            logger.error("yf error")
+            logger.error(e)
+
+        if df is not None:  # Check if df was assigned
+            # stack multi-level column index
+            df = (
+                df.stack(level=0, future_stack=True)
+                .rename_axis(["Date", "Ticker"])
+                .reset_index(level=1)
+            )
+
+            for ticker in ticker_list:
+                # drop_table(ticker)
+                create_table_schema(ticker)
+                df_single_ticker = df[["Open", "High", "Low", "Close", "Volume"]].loc[
+                    df["Ticker"] == ticker
+                ]
+                df_single_ticker = df_single_ticker.dropna()
+                # logger.info(f"{df_single_ticker = }")
+                sql_values = convert_df_to_sql_values(df_single_ticker)
+                # logger.info(f"{sql_values = }")
+                upsert(ticker, sql_values)
 
         # update db with todays dl date
         data = [(pie_name, today)]
@@ -612,20 +708,22 @@ def check_missing_dates_start_end(table_name, start_date, end_date, exchange="us
     # custom business day range: https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#custom-business-days
     df = sql_to_df(table_name)
     df.index = pd.to_datetime(df.index)
-    today = pd.to_datetime("today").date()
+    # today = pd.to_datetime("today").date() # Not used in this version
+    # date_range = pd.DataFrame() # Remove this incorrect initialization
     # logger.info(f'{today=}')
     # date_range = pd.date_range(end=today, periods=periods_int, freq='B')
 
+    us_bd = CustomBusinessDay(calendar=USFederalHolidayCalendar())  # Define us_bd once
+
     if exchange == "us":
-        us_bd = CustomBusinessDay(calendar=USFederalHolidayCalendar())
-        # date_range = pd.date_range(end=today, periods=periods_int, freq=us_bd)
-        date_range = pd.date_range(start=start_date, end=end_date, freq=us_bd)
+        freq = us_bd
     elif exchange == "uk":
 
         class Hoildays_England_and_Wales(AbstractHolidayCalendar):
             rules = [
                 Holiday("New Years Day", month=1, day=1, observance=next_monday),
                 GoodFriday,
+                EasterMonday,  # Added for consistency
                 Holiday(
                     "Early May Bank Holiday",
                     month=5,
@@ -651,8 +749,16 @@ def check_missing_dates_start_end(table_name, start_date, end_date, exchange="us
             ]
 
         uk_bd = CustomBusinessDay(calendar=Hoildays_England_and_Wales())
-        # date_range = pd.date_range(end=today, periods=periods_int, freq=uk_bd)
-        date_range = pd.date_range(start=start_date, end=end_date, freq=uk_bd)
+        freq = uk_bd
+    else:
+        # Default to US business days if exchange not recognized
+        logger.warning(
+            f"Exchange '{exchange}' not recognised, defaulting to US business days."
+        )
+        freq = us_bd
+
+    # Ensure start_date and end_date are valid before creating range
+    date_range = pd.date_range(start=start_date, end=end_date, freq=freq)
 
     number_of_missing_dates = len(date_range.difference(df.index))
     if number_of_missing_dates > 0:
@@ -726,9 +832,17 @@ def check_data_if_missing_dl(df_tickers, period):
         # check table exists (but some tickers arent dled eg LSE)
 
         # logger.info(ticker)
-        number_of_missing_dates = check_missing_dates(ticker, periods_int, "uk")
-        if number_of_missing_dates > 0:
-            download_and_store(df_tickers, period)
+        # check_missing_dates returns a tuple: (count, list, earliest_date)
+        missing_dates_info = check_missing_dates(ticker, periods_int, "uk")
+        # Access the count (first element) for the check
+        if missing_dates_info[0] > 0:
+            # TODO: Review this logic. Calling download_and_store here requires pie_name
+            # and might re-download all tickers, not just the missing one.
+            # Consider logging or raising an error instead.
+            # download_and_store(df_tickers, period) # Missing pie_name argument
+            logger.warning(
+                f"Ticker {ticker} has {missing_dates_info[0]} missing dates in the period."
+            )
 
 
 # check_data_if_missing_dl(df_tickers, period)
@@ -754,12 +868,29 @@ if __name__ == "__main__":
         "backtest_offset_yf_period": "max",
     }
     pie_name = "ampy"
+
+    # drop table "^GSPC"
+    drop_table("^GSPC")
+
     download_and_store(df_tickers, options, pie_name)
 
+    # recreate ^GSPC 1 day return column.
+    df_sp500 = pd.read_sql('SELECT * FROM "^GSPC"', con, index_col="Date")
+    df_sp500["One_day_spy_return"] = df_sp500["Close"].pct_change().round(4) * 100
+    # Replace NaN values with 0 for the first row
+    df_sp500["One_day_spy_return"] = df_sp500["One_day_spy_return"].fillna(0)
+    df_sp500.to_sql(
+        name="^GSPC",
+        con=con,
+        if_exists="replace",
+        index=True,
+        dtype={"Date": "TEXT PRIMARY KEY NOT NULL"},
+    )
+
     # create ticker price history from db.
-    table_name = "AAPL"
-    begin_date = "2021-01-04"
-    end_date = "2021-01-29"
+    # table_name = "AAPL"
+    # begin_date = "2021-01-04"
+    # end_date = "2021-01-29"
 
     # ticker_price_history = {}
     # for ticker in df_tickers:

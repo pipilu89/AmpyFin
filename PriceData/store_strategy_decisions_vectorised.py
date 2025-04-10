@@ -68,7 +68,7 @@ def df_to_sql_merge_tables_on_date_if_exist(df_new, strategy_name, con, logger):
         logger.info(f"Table {strategy_name} created in the database.")
     else:
         # Load existing data from the database
-        existing_data_query = f"SELECT * FROM {strategy_name}"
+        existing_data_query = f"SELECT * FROM '{strategy_name}'"
         df_existing = pd.read_sql(existing_data_query, con, index_col="Date")
 
         # Merge new data with existing data on index (Date)
@@ -221,7 +221,8 @@ def main():
         #     ticker, train_period_start_with_offset, test_period_end, con_pd
         # )
         ticker_price_history = pd.read_sql_query(
-            "SELECT * FROM `{tab}`".format(tab=ticker),
+            # "SELECT * FROM `{tab}`".format(tab=ticker),
+            "SELECT * FROM '{tab}'".format(tab=ticker),
             con_pd,
             index_col="Date",
         )
@@ -246,9 +247,19 @@ def main():
         ]
         df_merged = df_merged[desired_order + remaining_columns]
 
-        df_to_sql_merge_tables_on_date_if_exist(
-            df_merged, ticker, con_intermediate, logger
+        # maybe faster to just insert all data
+        df_merged.to_sql(
+            ticker,
+            con_intermediate,
+            if_exists="replace",
+            index=True,
+            dtype={"Date": "DATE PRIMARY KEY"},
         )
+        logger.info(f"Data for {ticker} saved to intermediate database.")
+
+        # df_to_sql_merge_tables_on_date_if_exist(
+        #     df_merged, ticker, con_intermediate, logger
+        # )
 
     # Second pass: convert to strategy-based tables
     logger.info("\n=== Converting to strategy-based tables ===")
@@ -270,8 +281,8 @@ def main():
 
 
 if __name__ == "__main__":
+    logger = setup_logging("logs", "store_data.log", level=logging.INFO)
     try:
-        logger = setup_logging("logs", "store_data.log", level=logging.INFO)
         main()
     except Exception as e:
         logger.error(f"An error occurred: {e}")

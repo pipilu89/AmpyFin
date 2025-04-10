@@ -69,10 +69,17 @@ Key Changes and Considerations:
 
 
 # --- Helper Function for Common Logic ---
-def _generate_signals(condition_buy, condition_sell, default="Hold"):
+def _generate_signals_orig(condition_buy, condition_sell, default="Hold"):
     """Uses np.select to generate signals based on boolean conditions."""
     conditions = [condition_buy, condition_sell]
     choices = ["Buy", "Sell"]
+    return np.select(conditions, choices, default=default)
+
+
+def _generate_signals(condition_buy, condition_sell, default=0):
+    """Uses np.select to generate signals based on boolean conditions."""
+    conditions = [condition_buy, condition_sell]
+    choices = [1, -1]
     return np.select(conditions, choices, default=default)
 
 
