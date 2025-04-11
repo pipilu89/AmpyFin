@@ -58,21 +58,7 @@ def main():
             strategy_results.append(strategy_result)
 
         combined_strategy_results = pd.concat(strategy_results, axis=1)
-        # df_merged = pd.merge(
-        #     ticker_price_history.copy(),
-        #     combined_strategy_results,
-        #     left_index=True,
-        #     right_index=True,
-        # )
 
-        # desired_order = ["Open", "High", "Low", "Close", "Volume"]
-        # remaining_columns = [
-        #     col for col in df_merged.columns if col not in desired_order
-        # ]
-        # df_merged = df_merged[desired_order + remaining_columns]
-
-        # insert all data
-        # df_merged.to_sql(
         combined_strategy_results.to_sql(
             ticker,
             con_strategy_decisions,
