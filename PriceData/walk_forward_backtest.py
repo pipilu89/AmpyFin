@@ -5,6 +5,7 @@ import pandas as pd
 import os, sys
 import logging
 import numpy as np
+from typing import Literal
 from sklearn.metrics import accuracy_score
 
 # Add parent directory to sys.path
@@ -19,14 +20,14 @@ from helper_files.client_helper import setup_logging
 
 
 def walk_forward_analysis(
-    trades,
-    start_date,
-    end_date,
-    in_sample_period,
-    out_sample_period,
-    strategy_name,
-    results_conn,
-):
+    trades: pd.DataFrame,
+    start_date: pd.Timestamp,
+    end_date: pd.Timestamp,
+    in_sample_period: int,
+    out_sample_period: int,
+    strategy_name: str,
+    required_features: list[str],
+) -> pd.DataFrame:
     current_date = start_date
     all_results = []
 
@@ -35,8 +36,8 @@ def walk_forward_analysis(
         <= end_date
     ):
         # Define in-sample and out-of-sample windows
-        # in_sample_mask = (trades["buy_date"] >= start_date) & (
-        in_sample_mask = (trades["buy_date"] >= current_date) & (
+        # in_sample_mask = (trades["buy_date"] >= current_date) & (
+        in_sample_mask = (trades["buy_date"] >= start_date) & (
             trades["buy_date"] < current_date + pd.Timedelta(days=in_sample_period)
         )
         out_sample_mask = (
@@ -148,28 +149,56 @@ def walk_forward_analysis(
 
     if all_results:
         final_results_df = pd.concat(all_results)
-        if "trade_id" in final_results_df.columns:
-            final_results_df.set_index("trade_id", inplace=True)
-        else:
-            logger.warning(
-                f"'trade_id' column not found in results for {strategy_name}. Writing without index."
-            )
-
-        try:
-            final_results_df.to_sql(
-                f"{strategy_name}", results_conn, if_exists="replace", index=True
-            )
-            logger.info(
-                f"Successfully wrote {len(final_results_df)} results for {strategy_name} to DB."
-            )
-        except Exception as db_error:
-            logger.error(f"Error writing results to DB for {strategy_name}: {db_error}")
-            return pd.DataFrame()
     else:
         logger.warning(f"No results generated for strategy {strategy_name}.")
         return pd.DataFrame()
 
     return final_results_df
+
+
+def calculate_overall_metrics(results_df: pd.DataFrame) -> float | None:
+    """Calculates overall accuracy from the results DataFrame."""
+    if (
+        results_df.empty
+        or "actual_outcome" not in results_df.columns
+        or "predicted_outcome" not in results_df.columns
+    ):
+        logger.warning(
+            "Cannot calculate metrics: DataFrame is empty or missing required columns."
+        )
+        return None
+    try:
+        accuracy = accuracy_score(
+            results_df["actual_outcome"],
+            results_df["predicted_outcome"],
+        )
+        return float(accuracy)  # Cast to standard Python float
+    except Exception as e:
+        return None
+
+
+def save_results_to_db(
+    df: pd.DataFrame,
+    table_name: str,
+    conn: sqlite3.Connection,
+    index: bool = True,
+    index_label: str | None = None,
+    if_exists: Literal["fail", "replace", "append"] = "replace",
+):
+    """Saves a DataFrame to a specified table in the SQLite database."""
+    if df.empty:
+        logger.warning(f"DataFrame is empty. Skipping save to table '{table_name}'.")
+        logger.warning(f"DataFrame is empty. Skipping save to table '{table_name}'.")
+        return False
+    try:
+        df.to_sql(
+            table_name, conn, if_exists=if_exists, index=index, index_label=index_label
+        )
+        logger.info(f"Successfully wrote {len(df)} records to table '{table_name}'.")
+        return True
+    except Exception as db_error:
+        logger.error(f"Error writing to table '{table_name}': {db_error}")
+        return False
 
 
 def main(strategies):
@@ -182,6 +211,7 @@ def main(strategies):
     trades_conn = sqlite3.connect(trades_list_db_name)
     results_db_name = os.path.join(price_data_dir, "backtest_results.db")
     results_conn = sqlite3.connect(results_db_name)
+    required_features = ["^VIX", "One_day_spy_return"]
 
     strategies = [strategies[1], strategies[2]]
     for idx, strategy in enumerate(strategies):
@@ -207,15 +237,15 @@ def main(strategies):
         Step 2: Define Walk-Forward Parameters
         """
         # Define in-sample and out-of-sample periods (in days)
-        in_sample_period = 251 * 15
-        out_sample_period = 22
+        in_sample_period = 365 * 10
+        out_sample_period = 30
         start_date = trades_df["buy_date"].min()
         end_date = trades_df["buy_date"].max()
 
         """
         Step 4: Walk-Forward Logic
         """
-
+        # Call the modified walk_forward_analysis which now returns the DataFrame
         walk_forward_results = walk_forward_analysis(
             trades_df,
             start_date,
@@ -223,49 +253,78 @@ def main(strategies):
             in_sample_period,
             out_sample_period,
             strategy_name,
-            results_conn,
+            required_features,
         )
+
         """
-        Step 5: Analyze Results
+        Step 5: Analyze Results and Save
         """
         if not walk_forward_results.empty:
-            try:
-                overall_accuracy = accuracy_score(
-                    walk_forward_results["actual_outcome"],
-                    walk_forward_results["predicted_outcome"],
+            # Prepare DataFrame for saving (set index)
+            if "trade_id" in walk_forward_results.columns:
+                results_to_save = walk_forward_results.set_index("trade_id")
+                index_label = "trade_id"
+                use_index = True
+            else:
+                logger.warning(
+                    f"'trade_id' column not found in results for {strategy_name}. Writing without index."
                 )
-                logger.info(
-                    f"{strategy_name} Overall Walk-Forward Accuracy: {overall_accuracy:.4f}"
-                )
+                results_to_save = walk_forward_results
+                index_label = None
+                use_index = False
 
-                overall_results_df = pd.DataFrame(
-                    {
-                        "strategy": [strategy_name],
-                        "accuracy": [overall_accuracy],
-                    }
-                )
-                try:
-                    overall_results_df.to_sql(
+            # Save walk-forward results
+            save_successful = save_results_to_db(
+                results_to_save,
+                strategy_name,
+                results_conn,
+                index=use_index,
+                index_label=index_label,
+                if_exists="replace",
+            )
+
+            if save_successful:
+                # Calculate overall metrics using the helper function
+                overall_accuracy = calculate_overall_metrics(walk_forward_results)
+
+                if overall_accuracy is not None:
+                    logger.info(
+                        f"{strategy_name} Overall Walk-Forward Accuracy: {overall_accuracy:.4f}"
+                    )
+                    # Prepare overall results DataFrame
+                    overall_results_df = pd.DataFrame(
+                        {
+                            "strategy": [strategy_name],
+                            "accuracy": [overall_accuracy],
+                            "required_features": required_features,
+                            # add regime data
+                        }
+                    )
+                    # Save overall results using the helper function
+                    save_results_to_db(
+                        overall_results_df,
                         "overall_results",
                         results_conn,
-                        if_exists="append",
                         index=False,
+                        if_exists="replace",
                     )
-                except Exception as db_error:
+                else:
                     logger.error(
-                        f"Error writing overall results to DB for {strategy_name}: {db_error}"
+                        f"Could not calculate overall accuracy for {strategy_name}."
                     )
-            except Exception as analysis_error:
+            else:
                 logger.error(
-                    f"Error during overall analysis for {strategy_name}: {analysis_error}"
+                    f"Skipping overall analysis for {strategy_name} due to failure saving walk-forward results."
                 )
+
         else:
             logger.warning(
-                f"Skipping overall analysis for {strategy_name} due to no results generated or DB write failure."
+                f"Skipping results analysis and saving for {strategy_name} due to empty walk_forward_results."
             )
-        end_time = time.time()  # Record the end time
-        elapsed_time = end_time - start_time  # Calculate elapsed time
-        logger.info(f"Execution time for strategy: {elapsed_time:.2f} seconds")
+
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        logger.info(f"Execution time for {strategy_name}: {elapsed_time:.2f} seconds")
 
     trades_conn.close()
     results_conn.close()
