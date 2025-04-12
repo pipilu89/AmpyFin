@@ -311,8 +311,8 @@ strategies = (
 )
 
 strategies_test = (
-    overlap_studies
-    # + momentum_indicators
+    # overlap_studies
+    momentum_indicators
     # + volume_indicators
     # + cycle_indicators
     # + price_transforms

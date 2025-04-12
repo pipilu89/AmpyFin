@@ -122,19 +122,55 @@ def predict_random_forest_classifier(rf_classifier, sample_df):
     Args:
         rf_classifier (RandomForestClassifier): The trained RandomForestClassifier.
         sample_df (pd.DataFrame): DataFrame containing the sample data for prediction.
+                                  It should contain the features the model was trained on.
 
     Returns:
         tuple: A tuple containing:
-            - int: The predicted class (0 or 1). 1 is positive return, 0 is negative/neutral return.
-            - float: The probability of predicting class 1 (positive return).
+            - np.ndarray: An array of predicted classes (0 or 1) for each sample.
+            - np.ndarray: An array of probabilities of predicting class 1 for each sample.
     """
-    # Get probabilities for each class [prob_class_0, prob_class_1]
-    probabilities = rf_classifier.predict_proba(sample_df)
-    # Probability of class 1 (positive return)
-    prob_class_1 = probabilities[0, 1]
-    # Determine prediction based on probability threshold (e.g., 0.5)
-    prediction = 1 if prob_class_1 > 0.5 else 0
-    return prediction, prob_class_1
+    # Ensure sample_df contains the necessary feature columns used during training
+    required_features = rf_classifier.feature_names_in_
+    if not all(feature in sample_df.columns for feature in required_features):
+        missing = set(required_features) - set(sample_df.columns)
+        raise ValueError(f"Input DataFrame is missing required features: {missing}")
+
+    # Get predictions for all samples directly
+    predictions = rf_classifier.predict(
+        sample_df[required_features]
+    )  # Use only required features
+
+    # Get probabilities for all samples
+    probabilities = rf_classifier.predict_proba(
+        sample_df[required_features]
+    )  # Use only required features
+
+    # Extract probability of class 1 for all samples
+    if probabilities.shape[1] == 2:
+        # Find the column index corresponding to class 1
+        try:
+            class_1_index = np.where(rf_classifier.classes_ == 1)[0][0]
+            prob_class_1 = probabilities[:, class_1_index]
+        except IndexError:
+            # Handle case where class 1 was not present during training (should be caught by shape[1]==1 ideally)
+            prob_class_1 = np.zeros(probabilities.shape[0])
+
+    elif probabilities.shape[1] == 1:
+        # Handle single-class case (model always predicts the same class)
+        known_class = rf_classifier.classes_[0]
+        if known_class == 1:
+            # The single column is the probability of class 1
+            prob_class_1 = probabilities[:, 0]
+        else:  # known_class == 0
+            # The single column is the probability of class 0, so prob_class_1 is 0 for all samples
+            prob_class_1 = np.zeros(probabilities.shape[0])
+    else:
+        # Unexpected shape
+        raise ValueError(
+            f"Unexpected shape for probabilities array: {probabilities.shape}"
+        )
+
+    return predictions, prob_class_1  # Return arrays
 
 
 def train_and_store_classifiers(trades_data_df, logger):
