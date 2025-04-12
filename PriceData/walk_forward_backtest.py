@@ -1,4 +1,5 @@
 from datetime import datetime
+import re
 import sqlite3
 import time
 import pandas as pd
@@ -17,6 +18,8 @@ from random_forest import (
 )
 from helper_files.client_helper import strategies, strategies_test
 from helper_files.client_helper import setup_logging
+
+from config import PRICE_DB_PATH
 
 
 def walk_forward_analysis(
@@ -70,7 +73,7 @@ def walk_forward_analysis(
             continue
 
         # Prepare features from OUT-OF-SAMPLE data for prediction
-        required_features = ["^VIX", "One_day_spy_return"]
+        # required_features = ["^VIX", "One_day_spy_return"]
         if not all(col in out_sample_trades.columns for col in required_features):
             logger.error(
                 f"Missing required feature columns in out-of-sample data for window starting {current_date}. Skipping."
@@ -109,6 +112,22 @@ def walk_forward_analysis(
         out_sample_start_str = out_sample_trades["buy_date"].min().strftime("%Y-%m-%d")
         out_sample_end_str = out_sample_trades["buy_date"].max().strftime("%Y-%m-%d")
 
+        current_accuracy = None
+        try:
+            current_accuracy = accuracy_score(
+                out_sample_trades["returnB"],
+                prediction,
+            )
+
+            logger.debug(
+                f"{strategy_name} in: {in_sample_start_str}-{in_sample_end_str} out: {out_sample_start_str}-{out_sample_end_str} Accuracy: {current_accuracy:.4f}"
+            )
+
+        except Exception as acc_error:
+            logger.warning(
+                f"Could not calculate accuracy for window starting {current_date}: {acc_error}"
+            )
+
         results_df = pd.DataFrame(
             {
                 "date": out_sample_trades["buy_date"],
@@ -125,25 +144,16 @@ def walk_forward_analysis(
                 "out_sample_start": out_sample_start_str,
                 "out_sample_end": out_sample_end_str,
                 "actual_outcome": out_sample_trades["returnB"],
+                "current_accuracy": (
+                    np.round(current_accuracy, 3)
+                    if current_accuracy is not None
+                    else None
+                ),
             },
             index=out_sample_trades.index,
         )
 
         all_results.append(results_df)
-
-        try:
-            current_accuracy = accuracy_score(
-                results_df["actual_outcome"], results_df["predicted_outcome"]
-            )
-
-            logger.info(
-                f"{strategy_name} in: {in_sample_start_str}-{in_sample_end_str} out: {out_sample_start_str}-{out_sample_end_str} Accuracy: {current_accuracy:.4f}"
-            )
-
-        except Exception as acc_error:
-            logger.warning(
-                f"Could not calculate accuracy for window starting {current_date}: {acc_error}"
-            )
 
         current_date += pd.Timedelta(days=out_sample_period)
 
@@ -188,7 +198,6 @@ def save_results_to_db(
     """Saves a DataFrame to a specified table in the SQLite database."""
     if df.empty:
         logger.warning(f"DataFrame is empty. Skipping save to table '{table_name}'.")
-        logger.warning(f"DataFrame is empty. Skipping save to table '{table_name}'.")
         return False
     try:
         df.to_sql(
@@ -201,134 +210,216 @@ def save_results_to_db(
         return False
 
 
+def prepare_sp_return_data():
+    """
+    load ^GSPC historical data from price_data.db
+
+    """
+    with sqlite3.connect(PRICE_DB_PATH) as conn:
+        query = """
+            SELECT * FROM '^GSPC'
+        """
+        df = pd.read_sql(query, conn)
+
+    # Ensure 'Date' is datetime and normalize it
+    df["Date"] = pd.to_datetime(df["Date"]).dt.normalize()
+    df.set_index("Date", inplace=True)
+
+    periods_list = [1, 5, 10, 20, 30, 60, 90, 120, 180, 365]
+    for period in periods_list:
+        df[f"spy_return({period})"] = df["Close"].pct_change(periods=period)
+    # Calculate daily returns
+    # df["One_day_spy_return"] = df["Close"].pct_change()
+    df.dropna(inplace=True)
+
+    # Save to SQLite database
+    # with sqlite3.connect(price_data_db_name) as conn:
+    #     df.to_sql("spy_returns", conn, if_exists="replace", index=False)
+    return df
+
+
 def main(strategies):
     """
     Step 1: Set Up Database Connections
     """
-    # Connect to SQLite databases
+    # Define database paths
     price_data_dir = "PriceData"
     trades_list_db_name = os.path.join(price_data_dir, "trades_list_vectorised.db")
-    trades_conn = sqlite3.connect(trades_list_db_name)
     results_db_name = os.path.join(price_data_dir, "backtest_results.db")
-    results_conn = sqlite3.connect(results_db_name)
     required_features = ["^VIX", "One_day_spy_return"]
 
-    strategies = [strategies[1], strategies[2]]
-    for idx, strategy in enumerate(strategies):
-        start_time = time.time()
-        strategy_name = strategy.__name__
-        logger.info(f"{strategy_name} ({idx + 1}/{len(strategies)})")
-        # Load trades data
-        trades_df = pd.DataFrame()
-        try:
-            trades_df = pd.read_sql(f"SELECT * FROM {strategy_name}", trades_conn)
-        except Exception as e:
-            logger.error(
-                f"Error loading trades data for {strategy_name}, skipping: {e}"
-            )
-            continue
-        trades_df["returnB"] = np.where(trades_df["ratio"] > 1, 1, 0)
+    strategies = [strategies[1]]
 
-        # make sure trade_df['buy_date'] is in datetime format
-        trades_df["buy_date"] = pd.to_datetime(trades_df["buy_date"])
-        trades_df["sell_date"] = pd.to_datetime(trades_df["sell_date"])
+    # Use with statements for automatic connection management
+    with sqlite3.connect(trades_list_db_name) as trades_conn, sqlite3.connect(
+        results_db_name
+    ) as results_conn:
 
-        """
-        Step 2: Define Walk-Forward Parameters
-        """
-        # Define in-sample and out-of-sample periods (in days)
-        in_sample_period = 365 * 10
-        out_sample_period = 30
-        start_date = trades_df["buy_date"].min()
-        end_date = trades_df["buy_date"].max()
-
-        """
-        Step 4: Walk-Forward Logic
-        """
-        # Call the modified walk_forward_analysis which now returns the DataFrame
-        walk_forward_results = walk_forward_analysis(
-            trades_df,
-            start_date,
-            end_date,
-            in_sample_period,
-            out_sample_period,
-            strategy_name,
-            required_features,
-        )
-
-        """
-        Step 5: Analyze Results and Save
-        """
-        if not walk_forward_results.empty:
-            # Prepare DataFrame for saving (set index)
-            if "trade_id" in walk_forward_results.columns:
-                results_to_save = walk_forward_results.set_index("trade_id")
-                index_label = "trade_id"
-                use_index = True
-            else:
-                logger.warning(
-                    f"'trade_id' column not found in results for {strategy_name}. Writing without index."
+        for idx, strategy in enumerate(strategies):
+            start_time = time.time()
+            strategy_name = strategy.__name__
+            logger.info(f"{strategy_name} ({idx + 1}/{len(strategies)})")
+            # Load trades data
+            trades_df = pd.DataFrame()
+            try:
+                trades_df = pd.read_sql(f"SELECT * FROM {strategy_name}", trades_conn)
+            except Exception as e:
+                logger.error(
+                    f"Error loading trades data for {strategy_name}, skipping: {e}"
                 )
-                results_to_save = walk_forward_results
-                index_label = None
-                use_index = False
+                continue
+            trades_df["returnB"] = np.where(trades_df["ratio"] > 1, 1, 0)
 
-            # Save walk-forward results
-            save_successful = save_results_to_db(
-                results_to_save,
-                strategy_name,
-                results_conn,
-                index=use_index,
-                index_label=index_label,
-                if_exists="replace",
+            # make sure trade_df['buy_date'] is in datetime format and normalize
+            trades_df["buy_date"] = pd.to_datetime(trades_df["buy_date"]).dt.normalize()
+            trades_df["sell_date"] = pd.to_datetime(
+                trades_df["sell_date"]
+            ).dt.normalize()
+
+            """
+            Step 2: Define Walk-Forward Parameters
+            """
+            # Define in-sample and out-of-sample periods (in days)
+            in_sample_period = 365 * 10
+            out_sample_period = 30
+            start_date = trades_df["buy_date"].min()
+            end_date = trades_df["buy_date"].max()
+
+            """
+            step 3: Join regime data to trades_df
+            """
+            spy_df = prepare_sp_return_data()
+            # join spy_df to trades_df on buy_date
+            trades_df = trades_df.join(
+                # spy_df[["One_day_spy_return"]], on="buy_date", how="left"
+                spy_df[
+                    [
+                        "spy_return(1)",
+                        "spy_return(5)",
+                        "spy_return(10)",
+                        "spy_return(20)",
+                        "spy_return(30)",
+                        "spy_return(60)",
+                        "spy_return(90)",
+                        "spy_return(120)",
+                        "spy_return(180)",
+                        "spy_return(365)",
+                    ]
+                ],
+                on="buy_date",
+                how="left",
             )
 
-            if save_successful:
-                # Calculate overall metrics using the helper function
-                overall_accuracy = calculate_overall_metrics(walk_forward_results)
+            # print(trades_df.columns)
+            # print(trades_df)
+            # return
 
-                if overall_accuracy is not None:
-                    logger.info(
-                        f"{strategy_name} Overall Walk-Forward Accuracy: {overall_accuracy:.4f}"
+            required_features = [
+                "^VIX",
+                "spy_return(1)",
+                "spy_return(5)",
+                "spy_return(10)",
+                "spy_return(20)",
+                "spy_return(30)",
+                "spy_return(60)",
+                "spy_return(90)",
+                "spy_return(120)",
+                "spy_return(180)",
+                "spy_return(365)",
+            ]
+
+            missing_features = [
+                f for f in required_features if f not in trades_df.columns
+            ]
+            if missing_features:
+                logger.error(
+                    f"Missing required features after join for {strategy_name}: {missing_features}. Skipping."
+                )
+                continue
+
+            """
+            Step 4: Walk-Forward Logic
+            """
+            # Call the modified walk_forward_analysis which now returns the DataFrame
+            walk_forward_results = walk_forward_analysis(
+                trades_df,
+                start_date,
+                end_date,
+                in_sample_period,
+                out_sample_period,
+                strategy_name,
+                required_features,
+            )
+
+            """
+            Step 5: Analyze Results and Save
+            """
+            if not walk_forward_results.empty:
+                # Prepare DataFrame for saving (set index)
+                if "trade_id" in walk_forward_results.columns:
+                    results_to_save = walk_forward_results.set_index("trade_id")
+                    index_label = "trade_id"
+                    use_index = True
+                else:
+                    logger.warning(
+                        f"'trade_id' column not found in results for {strategy_name}. Writing without index."
                     )
-                    # Prepare overall results DataFrame
-                    overall_results_df = pd.DataFrame(
-                        {
-                            "strategy": [strategy_name],
-                            "accuracy": [overall_accuracy],
-                            "required_features": required_features,
-                            # add regime data
-                        }
-                    )
-                    # Save overall results using the helper function
-                    save_results_to_db(
-                        overall_results_df,
-                        "overall_results",
-                        results_conn,
-                        index=False,
-                        if_exists="replace",
-                    )
+                    results_to_save = walk_forward_results
+                    index_label = None
+                    use_index = False
+
+                save_successful = save_results_to_db(
+                    results_to_save,
+                    strategy_name,
+                    results_conn,
+                    index=use_index,
+                    index_label=index_label,
+                    if_exists="replace",
+                )
+
+                if save_successful:
+                    overall_accuracy = calculate_overall_metrics(walk_forward_results)
+
+                    if overall_accuracy is not None:
+                        logger.info(
+                            f"{strategy_name} Overall Walk-Forward Accuracy: {overall_accuracy:.4f}"
+                        )
+                        overall_results_df = pd.DataFrame(
+                            {
+                                "strategy": [strategy_name],
+                                "accuracy": [np.round(overall_accuracy, 4)],
+                                "required_features": [str(required_features)],
+                                # add regime data
+                            }
+                        )
+                        save_results_to_db(
+                            overall_results_df,
+                            "overall_results",
+                            results_conn,
+                            index=False,
+                            if_exists="append",
+                        )
+                    else:
+                        logger.error(
+                            f"Could not calculate overall accuracy for {strategy_name}."
+                        )
                 else:
                     logger.error(
-                        f"Could not calculate overall accuracy for {strategy_name}."
+                        f"Skipping overall analysis for {strategy_name} due to failure saving walk-forward results."
                     )
+
             else:
-                logger.error(
-                    f"Skipping overall analysis for {strategy_name} due to failure saving walk-forward results."
+                logger.warning(
+                    f"Skipping results analysis and saving for {strategy_name} due to empty walk_forward_results."
                 )
 
-        else:
-            logger.warning(
-                f"Skipping results analysis and saving for {strategy_name} due to empty walk_forward_results."
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            logger.info(
+                f"Execution time for {strategy_name}: {elapsed_time:.2f} seconds"
             )
 
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-        logger.info(f"Execution time for {strategy_name}: {elapsed_time:.2f} seconds")
-
-    trades_conn.close()
-    results_conn.close()
-    logger.info("Database connections closed.")
+    logger.info("Database connections automatically closed.")
 
 
 if __name__ == "__main__":
