@@ -181,7 +181,7 @@ def walk_forward_analysis(
     return final_results_df
 
 
-def calculate_overall_metrics(results_df: pd.DataFrame) -> float | None:
+def calculate_overall_metrics(results_df: pd.DataFrame):
     """Calculates overall accuracy from the results DataFrame."""
     if (
         results_df.empty
