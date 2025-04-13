@@ -14,7 +14,6 @@ stats
 PyWavelets
 ripser
 datetime
-TA-Lib
 pandas-ta
 git+https://github.com/NitinDatta8/quantstats.git
 wandb
@@ -24,5 +23,6 @@ isort==6.0.1
 flake8==7.1.2
 openpyxl
 tqdm
-notebook
+TA-Lib
+# notebook
 # numba
