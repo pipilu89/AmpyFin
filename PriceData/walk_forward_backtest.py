@@ -660,7 +660,7 @@ if __name__ == "__main__":
     # strategies = [momentum_indicators[9]]  # MACD_indicator
     # strategies = [momentum_indicators[10]]  # MACDEXT_indicator
     # strategies = [momentum_indicators[13]]  # PLUS_MINUS_DI_indicator
-    strategies = [momentum_indicators[22]]  # RSI_indicator
+    # strategies = [momentum_indicators[22]]  # RSI_indicator
 
     baseline_loop(strategies)
     main(strategies)
