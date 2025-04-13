@@ -256,7 +256,7 @@ def prepare_feature_return_data(
     ticker_list: list[str], periods_list: list[int]
 ) -> pd.DataFrame:
     """
-    load ^GSPC historical data from price_data.db
+    prepare features for rf training
 
     """
     df_dict = {}
@@ -312,6 +312,22 @@ def prepare_feature_return_data(
     # with sqlite3.connect(price_data_db_name) as conn:
     #     df_dict[ticker].to_sql("spy_returns", conn, if_exists="replace", index=False)
     return df_combined
+
+
+def get_oscillator_features(ticker: str) -> pd.DataFrame:
+    with sqlite3.connect(PRICE_DB_PATH) as conn:
+        query = f"""
+            SELECT * FROM '{ticker}'
+        """
+        df = pd.read_sql(query, conn)
+    # Ensure 'Date' is datetime and normalize it
+    df["Date"] = pd.to_datetime(df["Date"]).dt.normalize()
+    df.set_index("Date", inplace=True)
+    df.drop(columns=["Open", "High", "Low", "Volume"], inplace=True)
+
+    # rename close to ticker
+    df.rename(columns={"Close": ticker}, inplace=True)
+    return df
 
 
 # not needed?/
@@ -387,6 +403,41 @@ def baseline_loop(strategies: list) -> None:
             )
 
 
+def remove_duplicate_overall_results(db_path: str):
+    """
+    Removes duplicate rows from the 'overall_results' table based on
+    'strategy' and 'required_features', keeping the first entry.
+    """
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            # SQL query to delete duplicates, keeping the row with the minimum ROWID for each group
+            # ROWID is a special column in SQLite that uniquely identifies rows in a table (unless declared WITHOUT ROWID)
+            delete_query = """
+            DELETE FROM overall_results
+            WHERE ROWID NOT IN (
+                SELECT MIN(ROWID)
+                FROM overall_results
+                GROUP BY strategy, required_features
+            );
+            """
+            cursor.execute(delete_query)
+            rows_deleted = cursor.rowcount
+            conn.commit()
+            logger.info(
+                f"Removed {rows_deleted} duplicate rows from 'overall_results' table."
+            )
+            return True
+    except sqlite3.Error as e:
+        logger.error(
+            f"Database error while removing duplicates from 'overall_results': {e}"
+        )
+        return False
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while removing duplicates: {e}")
+        return False
+
+
 def main(strategies):
     """
     Step 1: Set Up Database Connections
@@ -440,20 +491,29 @@ def main(strategies):
                 "CL=F",
                 "GC=F",
                 "HG=F",
+                "^GSPC",
+            ]
+            # periods_list = [1, 5, 10, 20, 30, 60, 90, 120, 180, 365]
+            periods_list = [1, 5, 10, 20, 30]
+
+            # Oscillator features, dont need to calculate returns for these
+            oscillator_features_ticker_list = [
+                "^VIX",  # vix is already in trades_df
                 "^IRX",
                 "^FVX",
                 "^TNX",
                 "EURUSD=X",
                 "^SKEW",
             ]
-            # periods_list = [1, 5, 10, 20, 30, 60, 90, 120, 180, 365]
-            periods_list = [1, 5, 10, 20, 30]
+            # Add oscillator features to trades_df
 
             # generate required features based on features_ticker_list and periods_list
             required_features = []
             for ticker in features_ticker_list:
                 for period in periods_list:
                     required_features.append(f"{ticker}_return({period})")
+            for ticker in oscillator_features_ticker_list:
+                required_features.append(ticker)
 
             # required_features = [
             #     "^VIX",
@@ -469,7 +529,17 @@ def main(strategies):
                 features_ticker_list, periods_list
             )
 
+            for ticker in oscillator_features_ticker_list:
+                oscillator_features_df = get_oscillator_features(ticker)
+                # Join to trades_df on buy_date
+                features_df = features_df.join(
+                    oscillator_features_df, on="Date", how="left"
+                )
+
             # join features_df to trades_df on buy_date
+            # HACK drop ^VIX from trades_df to avoid duplicate column names
+            trades_df.drop(columns=["^VIX"], inplace=True, errors="ignore")
+
             trades_df = trades_df.join(
                 features_df[required_features],
                 on="buy_date",
@@ -545,6 +615,7 @@ def main(strategies):
                                 # add regime data
                             }
                         )
+
                         save_results_to_db(
                             overall_results_df,
                             "overall_results",
@@ -552,6 +623,7 @@ def main(strategies):
                             index=False,
                             if_exists="append",
                         )
+
                     else:
                         logger.error(
                             f"Could not calculate overall accuracy for {strategy_name}."
@@ -572,17 +644,21 @@ def main(strategies):
                 f"Execution time for {strategy_name}: {elapsed_time:.2f} seconds"
             )
 
+    # remove duplicates from overall_results table in db
+    logger.info("Attempting to remove duplicate overall results...")
+    remove_duplicate_overall_results(results_db_name)
+
     logger.info("Database connections automatically closed.")
 
 
 if __name__ == "__main__":
     logger = setup_logging("logs", "walk_forward.log", level=logging.INFO)
 
-    # strategies = [strategies[1]]  # keltner
+    strategies = [strategies[1]]  # keltner
     # strategies = [strategies[2]]  # bbands
     # strategies = [momentum_indicators[9]]  # MACD_indicator
     # strategies = [momentum_indicators[10]]  # MACDEXT_indicator
-    strategies = [momentum_indicators[13]]  # PLUS_MINUS_DI_indicator
+    # strategies = [momentum_indicators[13]]  # PLUS_MINUS_DI_indicator
     # strategies = [momentum_indicators[22]]  # RSI_indicator
 
     baseline_loop(strategies)
