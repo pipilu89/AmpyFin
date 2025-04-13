@@ -629,6 +629,48 @@ def download_and_store(df_tickers, options, pie_name):
         download_data_from_yf(df_benchmark, yf_period, options["benchmark"])
 
 
+def download_and_store_simple(ticker_list, price_data_db_name):
+    logger.info(f"start downloading data {len(ticker_list) = }")
+    yf_period = "max"
+    df = None  # Initialize df
+    try:
+        df = yf.download(
+            ticker_list,
+            group_by="Ticker",
+            period=yf_period,
+            interval="1d",
+            auto_adjust=True,
+            repair=True,
+            rounding=True,
+        )
+    except Exception as e:
+        logger.error(f"yf error {e}")
+
+    if df is not None:  # Check if df was assigned
+        # stack multi-level column index
+        df = (
+            df.stack(level=0, future_stack=True)
+            .rename_axis(["Date", "Ticker"])
+            .reset_index(level=1)
+        )
+
+        for ticker in ticker_list:
+            # drop_table(ticker)
+            # create_table_schema(ticker)
+            df_single_ticker = df[["Open", "High", "Low", "Close", "Volume"]].loc[
+                df["Ticker"] == ticker
+            ]
+            df_single_ticker = df_single_ticker.dropna()
+
+            # store ticker in price_data.db
+            with sqlite3.connect(price_data_db_name) as conn:
+                try:
+                    df_single_ticker.to_sql(ticker, conn, if_exists="replace")
+                    logger.info(f"OHLCV data saved to {price_data_db_name}")
+                except Exception as e:
+                    logger.error(f"error saving {ticker} OHLCV price data to db: {e}")
+
+
 """
 DATA CHECKS
 """
@@ -851,9 +893,11 @@ def check_data_if_missing_dl(df_tickers, period):
 if __name__ == "__main__":
     logger = setup_logging("logs", "store_price_data.log", level=logging.INFO)
 
-    df_tickers = ["CL=F", "GC=F", "HG=F", "^IRX", "^FVX", "^TNX", "EURUSD=X", "^SKEW"]
+    ticker_list = ["CL=F", "GC=F", "HG=F", "^IRX", "^FVX", "^TNX", "EURUSD=X", "^SKEW"]
     # df_tickers = train_tickers + regime_tickers
     # df_tickers = ["APP"]
+
+    download_and_store_simple(ticker_list, PRICE_DB_PATH)
 
     options = {
         # "asset_class": "us_equities",
@@ -874,7 +918,7 @@ if __name__ == "__main__":
     # drop table "^GSPC"
     # drop_table("^GSPC")
 
-    download_and_store(df_tickers, options, pie_name)
+    # download_and_store(df_tickers, options, pie_name)
 
     # recreate ^GSPC 1 day return column.
     # df_sp500 = pd.read_sql('SELECT * FROM "^GSPC"', con, index_col="Date")
