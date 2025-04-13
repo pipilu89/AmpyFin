@@ -851,8 +851,10 @@ def check_data_if_missing_dl(df_tickers, period):
 if __name__ == "__main__":
     logger = setup_logging("logs", "store_price_data.log", level=logging.INFO)
 
-    df_tickers = train_tickers + regime_tickers
+    df_tickers = ["CL=F", "GC=F", "HG=F", "^IRX", "^FVX", "^TNX", "EURUSD=X", "^SKEW"]
+    # df_tickers = train_tickers + regime_tickers
     # df_tickers = ["APP"]
+
     options = {
         # "asset_class": "us_equities",
         # "period": "105d",  # yf download period
@@ -870,32 +872,19 @@ if __name__ == "__main__":
     pie_name = "ampy"
 
     # drop table "^GSPC"
-    drop_table("^GSPC")
+    # drop_table("^GSPC")
 
     download_and_store(df_tickers, options, pie_name)
 
     # recreate ^GSPC 1 day return column.
-    df_sp500 = pd.read_sql('SELECT * FROM "^GSPC"', con, index_col="Date")
-    df_sp500["One_day_spy_return"] = df_sp500["Close"].pct_change().round(4) * 100
-    # Replace NaN values with 0 for the first row
-    df_sp500["One_day_spy_return"] = df_sp500["One_day_spy_return"].fillna(0)
-    df_sp500.to_sql(
-        name="^GSPC",
-        con=con,
-        if_exists="replace",
-        index=True,
-        dtype={"Date": "TEXT PRIMARY KEY NOT NULL"},
-    )
-
-    # create ticker price history from db.
-    # table_name = "AAPL"
-    # begin_date = "2021-01-04"
-    # end_date = "2021-01-29"
-
-    # ticker_price_history = {}
-    # for ticker in df_tickers:
-    #     ticker_price_history[ticker] = sql_to_df_with_date_range(
-    #         ticker, begin_date, end_date
-    #     )
-
-    # print(ticker_price_history)
+    # df_sp500 = pd.read_sql('SELECT * FROM "^GSPC"', con, index_col="Date")
+    # df_sp500["One_day_spy_return"] = df_sp500["Close"].pct_change().round(4) * 100
+    # # Replace NaN values with 0 for the first row
+    # df_sp500["One_day_spy_return"] = df_sp500["One_day_spy_return"].fillna(0)
+    # df_sp500.to_sql(
+    #     name="^GSPC",
+    #     con=con,
+    #     if_exists="replace",
+    #     index=True,
+    #     dtype={"Date": "TEXT PRIMARY KEY NOT NULL"},
+    # )

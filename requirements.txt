@@ -25,3 +25,4 @@ flake8==7.1.2
 openpyxl
 tqdm
 notebook
+# numba

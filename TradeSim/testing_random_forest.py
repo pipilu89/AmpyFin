@@ -9,7 +9,7 @@ import sqlite3
 import logging
 
 import certifi
-from numpy import int64
+import numpy as np
 import pandas as pd
 from pandas.tseries.holiday import USFederalHolidayCalendar
 from pandas.tseries.offsets import CustomBusinessDay
@@ -567,7 +567,7 @@ def test_random_forest(
                             accuracy = round(
                                 rf_dict[strategy_name]["accuracy"], 2
                             )  # Keep accuracy for logging/potential future use
-                            probability = round(probability, 4)  # Round probability
+                            probability = np.round(probability, 4)  # Round probability
 
                             logger.info(
                                 f"Prediction {date.strftime('%Y-%m-%d')} {strategy_name} {ticker}: {prediction} (Prob: {probability:.4f}), Acc: {accuracy}, VIX: {daily_vix_df:.2f}, SPY: {One_day_spy_return:.2f}, Action: {action}"
@@ -1324,7 +1324,7 @@ if __name__ == "__main__":
                     accuracy = round(
                         rf_dict[strategy_name]["accuracy"], 2
                     )  # Keep accuracy for logging/potential future use
-                    probability = round(probability, 4)  # Round probability
+                    probability = np.round(probability, 4)  # Round probability
 
                     logger.info(
                         f"Prediction {date.strftime('%Y-%m-%d')} {strategy_name} {ticker}: {prediction} (Prob: {probability:.4f}), Acc: {accuracy}, VIX: {daily_vix_df:.2f}, SPY: {One_day_spy_return:.2f}, Action: {action}"

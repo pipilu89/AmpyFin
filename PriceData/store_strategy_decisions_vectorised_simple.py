@@ -5,6 +5,7 @@ import logging
 import sqlite3
 import pandas as pd
 import time
+import timeit
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -81,5 +82,13 @@ if __name__ == "__main__":
     logger = setup_logging("logs", "store_data.log", level=logging.INFO)
     try:
         main()
+        # np_time = timeit.timeit(lambda: main(), number=1)
+
+        print(
+            "Time for np.select version (10 iterations): {:.6f} seconds".format(np_time)
+        )
+        # print("Time for numba version (10 iterations): {:.6f} seconds".format(numba_time))
+        # print(f"Speedup factor: {np_time/numba_time:.2f}x")
+
     except Exception as e:
         logger.error(f"An error occurred: {e}")

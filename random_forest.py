@@ -59,6 +59,51 @@ def train_random_forest_classifier(trades_data):
     return rf_classifier, accuracy, precision, recall
 
 
+def train_random_forest_classifier_features(trades_data, required_features):
+    """
+    Trains a RandomForestClassifier on the given trades data.
+
+    Args:
+        trades_data (pd.DataFrame): DataFrame containing trade data with 'ratio', 'current_vix', and other features.
+        required_features (list): List of feature names to be used for training.
+
+    Returns:
+        tuple: A tuple containing the trained RandomForestClassifier, accuracy, precision, and recall.
+    """
+    # Create the 'return' column where 1 = +ve return, 0 = neutral or -ve.
+    trades_data["return"] = np.where(trades_data["ratio"] > 1, 1, 0)
+
+    # Features and target variable
+    # X = trades_data[
+    #     ["^VIX", "One_day_spy_return"]
+    X = trades_data[required_features]  # Using only 'current_vix' as a feature
+    y = trades_data["return"]
+
+    # Split data into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
+
+    # Initialize RandomForestClassifier
+    rf_classifier = RandomForestClassifier(
+        n_estimators=100, random_state=42, n_jobs=-1
+    )  # added n_jobs
+
+    # Fit the classifier to the training data
+    rf_classifier.fit(X_train, y_train)
+
+    # Make predictions
+    y_pred = rf_classifier.predict(X_test)
+
+    # Calculate and print metrics
+    accuracy = accuracy_score(y_test, y_pred)
+    precision = precision_score(y_test, y_pred)
+    recall = recall_score(y_test, y_pred)
+    # classification_rep = classification_report(y_test, y_pred)
+
+    return rf_classifier, accuracy, precision, recall
+
+
 def train_random_forest_classifier_RandomizedSearchCV(
     trades_data,
     param_dist={"n_estimators": randint(50, 500), "max_depth": randint(1, 20)},

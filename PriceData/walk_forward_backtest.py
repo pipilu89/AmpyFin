@@ -7,7 +7,7 @@ import os, sys
 import logging
 import numpy as np
 from typing import Literal
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score
 
 # Add parent directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -15,8 +15,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from random_forest import (
     predict_random_forest_classifier,
     train_random_forest_classifier,
+    train_random_forest_classifier_features,
 )
-from helper_files.client_helper import strategies, strategies_test
+from helper_files.client_helper import strategies, strategies_test, momentum_indicators
 from helper_files.client_helper import setup_logging
 
 from config import PRICE_DB_PATH
@@ -62,8 +63,13 @@ def walk_forward_analysis(
 
         # Train Random Forest Classifier
         try:
+            # rf_classifier, train_accuracy, precision, recall = (
+            #     train_random_forest_classifier(in_sample_trades)
+            # )
             rf_classifier, train_accuracy, precision, recall = (
-                train_random_forest_classifier(in_sample_trades)
+                train_random_forest_classifier_features(
+                    in_sample_trades, required_features
+                )
             )
         except Exception as train_error:
             logger.error(
@@ -113,14 +119,21 @@ def walk_forward_analysis(
         out_sample_end_str = out_sample_trades["buy_date"].max().strftime("%Y-%m-%d")
 
         current_accuracy = None
+        current_baseline_accuracy = None
         try:
             current_accuracy = accuracy_score(
                 out_sample_trades["returnB"],
                 prediction,
             )
+            current_baseline_accuracy = accuracy_score(
+                out_sample_trades["returnB"],
+                out_sample_trades["baseline_pred"],
+            )
+
+            current_baseline_accuracy = np.round(current_baseline_accuracy, 3)
 
             logger.debug(
-                f"{strategy_name} in: {in_sample_start_str}-{in_sample_end_str} out: {out_sample_start_str}-{out_sample_end_str} Accuracy: {current_accuracy:.4f}"
+                f"{strategy_name} in: {in_sample_start_str}-{in_sample_end_str} out: {out_sample_start_str}-{out_sample_end_str} Accuracy: {current_accuracy:.3f} Baseline: {current_baseline_accuracy:.3f}"
             )
 
         except Exception as acc_error:
@@ -144,7 +157,8 @@ def walk_forward_analysis(
                 "out_sample_start": out_sample_start_str,
                 "out_sample_end": out_sample_end_str,
                 "actual_outcome": out_sample_trades["returnB"],
-                "current_accuracy": (
+                "current_base_accuracy": current_baseline_accuracy,
+                "current_rf_accuracy": (
                     np.round(current_accuracy, 3)
                     if current_accuracy is not None
                     else None
@@ -238,6 +252,141 @@ def prepare_sp_return_data():
     return df
 
 
+def prepare_feature_return_data(
+    ticker_list: list[str], periods_list: list[int]
+) -> pd.DataFrame:
+    """
+    load ^GSPC historical data from price_data.db
+
+    """
+    df_dict = {}
+    df_combined = pd.DataFrame()
+
+    for ticker in ticker_list:
+        with sqlite3.connect(PRICE_DB_PATH) as conn:
+            query = f"""
+                SELECT * FROM '{ticker}'
+            """
+            df = pd.read_sql(query, conn)
+        df_dict[ticker] = df
+
+        # Ensure 'Date' is datetime and normalize it
+        df_dict[ticker]["Date"] = pd.to_datetime(df_dict[ticker]["Date"]).dt.normalize()
+        df_dict[ticker].set_index("Date", inplace=True)
+
+        for period in periods_list:
+            df_dict[ticker][f"{ticker}_return({period})"] = (
+                df_dict[ticker]["Close"].pct_change(periods=period).round(3)
+            )
+            # replace inf with NaN
+            df_dict[ticker].replace([np.inf, -np.inf], np.nan, inplace=True)
+            logger.warning(
+                f"Replacing infinite values with NaN for {ticker} return period {period}."
+            )
+
+            # if np.isinf(feature_columns.values).any():
+            #     logger.warning(f"Replacing infinite values with NaN for window starting {current_date}")
+            #     in_sample_trades.replace([np.inf, -np.inf], np.nan, inplace=True)
+
+        df_dict[ticker].dropna(inplace=True)
+
+        # drop multiple columns
+        df_dict[ticker].drop(
+            columns=["Open", "High", "Low", "Close", "Volume"], inplace=True
+        )
+
+        # combine all dataframes into one
+
+        if ticker == ticker_list[0]:
+            df_combined = df_dict[ticker]
+        else:
+            df_combined = df_combined.join(df_dict[ticker], how="outer")
+
+        logger.info(f"Prepared data for {ticker}: {len(df_dict[ticker])} records.")
+
+    # logger.info(df_combined.columns)
+    # logger.info(f"Combined data shape: {df_combined.shape}")
+    # logger.info(df_combined)
+
+    # Save to SQLite database
+    # with sqlite3.connect(price_data_db_name) as conn:
+    #     df_dict[ticker].to_sql("spy_returns", conn, if_exists="replace", index=False)
+    return df_combined
+
+
+# not needed?/
+def baseline_accuracy(trades_df: pd.DataFrame) -> float:
+    """Calculates the baseline accuracy of the trades DataFrame."""
+    if trades_df.empty or "returnB" not in trades_df.columns:
+        logger.warning(
+            "Cannot calculate baseline accuracy: DataFrame is empty or missing 'returnB' column."
+        )
+        return 0.0
+
+    # Calculate baseline accuracy as the proportion of positive outcomes
+    baseline_accuracy = trades_df["returnB"].mean()
+    return float(baseline_accuracy)  # Cast to standard Python float
+
+
+def baseline_loop(strategies: list) -> None:
+    # Define database paths
+    price_data_dir = "PriceData"
+    trades_list_db_name = os.path.join(price_data_dir, "trades_list_vectorised.db")
+    results_db_name = os.path.join(price_data_dir, "backtest_results2.db")
+
+    # Use with statements for automatic connection management
+    with sqlite3.connect(trades_list_db_name) as trades_conn, sqlite3.connect(
+        results_db_name
+    ) as results_conn:
+
+        # strategies = [strategies[1]]  # keltner
+        # strategies = [strategies[2]]  # bbands
+
+        for idx, strategy in enumerate(strategies):
+            # start_time = time.time()
+            strategy_name = strategy.__name__
+            logger.info(f"{strategy_name} ({idx + 1}/{len(strategies)})")
+            # Load trades data
+            trades_df = pd.DataFrame()
+            try:
+                trades_df = pd.read_sql(f"SELECT * FROM {strategy_name}", trades_conn)
+            except Exception as e:
+                logger.error(
+                    f"Error loading trades data for {strategy_name}, skipping: {e}"
+                )
+                continue
+            trades_df["returnB"] = np.where(trades_df["ratio"] > 1, 1, 0)
+            trades_df["baseline_pred"] = 1
+            # baseline_accuracy_value = baseline_accuracy(trades_df)
+            baseline_accuracy_value = accuracy_score(
+                trades_df["returnB"], trades_df["baseline_pred"]
+            )
+            baseline_precision_value = precision_score(
+                trades_df["returnB"], trades_df["baseline_pred"]
+            )
+            baseline_recall_value = recall_score(
+                trades_df["returnB"], trades_df["baseline_pred"]
+            )
+            logger.info(
+                f"{strategy_name} Baseline Accuracy: {baseline_accuracy_value:.4f}. Precision: {baseline_precision_value:.4f}. Recall: {baseline_recall_value:.4f}"
+            )
+            baseline_results_df = pd.DataFrame(
+                {
+                    "strategy": [strategy_name],
+                    "accuracy": [np.round(baseline_accuracy_value, 4)],
+                    "required_features": [0],
+                    # add regime data
+                }
+            )
+            save_results_to_db(
+                baseline_results_df,
+                "overall_results",
+                results_conn,
+                index=False,
+                if_exists="append",
+            )
+
+
 def main(strategies):
     """
     Step 1: Set Up Database Connections
@@ -245,10 +394,8 @@ def main(strategies):
     # Define database paths
     price_data_dir = "PriceData"
     trades_list_db_name = os.path.join(price_data_dir, "trades_list_vectorised.db")
-    results_db_name = os.path.join(price_data_dir, "backtest_results.db")
-    required_features = ["^VIX", "One_day_spy_return"]
-
-    strategies = [strategies[1]]
+    results_db_name = os.path.join(price_data_dir, "backtest_results2.db")
+    # required_features = ["^VIX", "One_day_spy_return"]
 
     # Use with statements for automatic connection management
     with sqlite3.connect(trades_list_db_name) as trades_conn, sqlite3.connect(
@@ -269,6 +416,7 @@ def main(strategies):
                 )
                 continue
             trades_df["returnB"] = np.where(trades_df["ratio"] > 1, 1, 0)
+            trades_df["baseline_pred"] = 1
 
             # make sure trade_df['buy_date'] is in datetime format and normalize
             trades_df["buy_date"] = pd.to_datetime(trades_df["buy_date"]).dt.normalize()
@@ -281,31 +429,49 @@ def main(strategies):
             """
             # Define in-sample and out-of-sample periods (in days)
             in_sample_period = 365 * 10
-            out_sample_period = 30
+            out_sample_period = 30 * 3
             start_date = trades_df["buy_date"].min()
             end_date = trades_df["buy_date"].max()
 
             """
             step 3: Join regime data to trades_df
             """
-            spy_df = prepare_sp_return_data()
-            # join spy_df to trades_df on buy_date
+            features_ticker_list = [
+                "CL=F",
+                "GC=F",
+                "HG=F",
+                "^IRX",
+                "^FVX",
+                "^TNX",
+                "EURUSD=X",
+                "^SKEW",
+            ]
+            # periods_list = [1, 5, 10, 20, 30, 60, 90, 120, 180, 365]
+            periods_list = [1, 5, 10, 20, 30]
+
+            # generate required features based on features_ticker_list and periods_list
+            required_features = []
+            for ticker in features_ticker_list:
+                for period in periods_list:
+                    required_features.append(f"{ticker}_return({period})")
+
+            # required_features = [
+            #     "^VIX",
+            #     "spy_return(1)",
+            #     "spy_return(5)",
+            #     "spy_return(10)",
+            #     "spy_return(20)",
+            #     "spy_return(30)",
+            # ]
+
+            # features_df = prepare_sp_return_data()
+            features_df = prepare_feature_return_data(
+                features_ticker_list, periods_list
+            )
+
+            # join features_df to trades_df on buy_date
             trades_df = trades_df.join(
-                # spy_df[["One_day_spy_return"]], on="buy_date", how="left"
-                spy_df[
-                    [
-                        "spy_return(1)",
-                        "spy_return(5)",
-                        "spy_return(10)",
-                        "spy_return(20)",
-                        "spy_return(30)",
-                        "spy_return(60)",
-                        "spy_return(90)",
-                        "spy_return(120)",
-                        "spy_return(180)",
-                        "spy_return(365)",
-                    ]
-                ],
+                features_df[required_features],
                 on="buy_date",
                 how="left",
             )
@@ -313,20 +479,6 @@ def main(strategies):
             # print(trades_df.columns)
             # print(trades_df)
             # return
-
-            required_features = [
-                "^VIX",
-                "spy_return(1)",
-                "spy_return(5)",
-                "spy_return(10)",
-                "spy_return(20)",
-                "spy_return(30)",
-                "spy_return(60)",
-                "spy_return(90)",
-                "spy_return(120)",
-                "spy_return(180)",
-                "spy_return(365)",
-            ]
 
             missing_features = [
                 f for f in required_features if f not in trades_df.columns
@@ -340,7 +492,7 @@ def main(strategies):
             """
             Step 4: Walk-Forward Logic
             """
-            # Call the modified walk_forward_analysis which now returns the DataFrame
+            # Call the modified walk_forward_analysis which returns the DataFrame
             walk_forward_results = walk_forward_analysis(
                 trades_df,
                 start_date,
@@ -379,10 +531,11 @@ def main(strategies):
 
                 if save_successful:
                     overall_accuracy = calculate_overall_metrics(walk_forward_results)
+                    basline_accuracy_value = baseline_accuracy(trades_df)
 
                     if overall_accuracy is not None:
                         logger.info(
-                            f"{strategy_name} Overall Walk-Forward Accuracy: {overall_accuracy:.4f}"
+                            f"{strategy_name} Overall Walk-Forward Accuracy: {overall_accuracy:.4f}. Baseline: {basline_accuracy_value:.4f}"
                         )
                         overall_results_df = pd.DataFrame(
                             {
@@ -424,4 +577,13 @@ def main(strategies):
 
 if __name__ == "__main__":
     logger = setup_logging("logs", "walk_forward.log", level=logging.INFO)
+
+    # strategies = [strategies[1]]  # keltner
+    # strategies = [strategies[2]]  # bbands
+    # strategies = [momentum_indicators[9]]  # MACD_indicator
+    # strategies = [momentum_indicators[10]]  # MACDEXT_indicator
+    strategies = [momentum_indicators[13]]  # PLUS_MINUS_DI_indicator
+    # strategies = [momentum_indicators[22]]  # RSI_indicator
+
+    baseline_loop(strategies)
     main(strategies)
