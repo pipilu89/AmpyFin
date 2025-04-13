@@ -666,7 +666,7 @@ def download_and_store_simple(ticker_list, price_data_db_name):
             with sqlite3.connect(price_data_db_name) as conn:
                 try:
                     df_single_ticker.to_sql(ticker, conn, if_exists="replace")
-                    logger.info(f"OHLCV data saved to {price_data_db_name}")
+                    logger.info(f"{ticker} OHLCV data saved to {price_data_db_name}")
                 except Exception as e:
                     logger.error(f"error saving {ticker} OHLCV price data to db: {e}")
 
@@ -893,42 +893,8 @@ def check_data_if_missing_dl(df_tickers, period):
 if __name__ == "__main__":
     logger = setup_logging("logs", "store_price_data.log", level=logging.INFO)
 
-    ticker_list = ["CL=F", "GC=F", "HG=F", "^IRX", "^FVX", "^TNX", "EURUSD=X", "^SKEW"]
-    # df_tickers = train_tickers + regime_tickers
-    # df_tickers = ["APP"]
+    # ticker_list = ["CL=F", "GC=F", "HG=F", "^IRX", "^FVX", "^TNX", "EURUSD=X", "^SKEW"]
+    ticker_list = train_tickers + regime_tickers
+    # ticker_list = ["APP"]
 
     download_and_store_simple(ticker_list, PRICE_DB_PATH)
-
-    options = {
-        # "asset_class": "us_equities",
-        # "period": "105d",  # yf download period
-        # "regression_period": 90,
-        # "ma_period": 100,
-        # "gap_threshold": 1,
-        # "volume_threshold": 5000,
-        "trend_symbol": "",
-        # "trend_period": 200,
-        # "equityQty": 25,
-        # "rebalance_freq": "weekly",
-        # "benchmark": "^STOXX",
-        "backtest_offset_yf_period": "max",
-    }
-    pie_name = "ampy"
-
-    # drop table "^GSPC"
-    # drop_table("^GSPC")
-
-    # download_and_store(df_tickers, options, pie_name)
-
-    # recreate ^GSPC 1 day return column.
-    # df_sp500 = pd.read_sql('SELECT * FROM "^GSPC"', con, index_col="Date")
-    # df_sp500["One_day_spy_return"] = df_sp500["Close"].pct_change().round(4) * 100
-    # # Replace NaN values with 0 for the first row
-    # df_sp500["One_day_spy_return"] = df_sp500["One_day_spy_return"].fillna(0)
-    # df_sp500.to_sql(
-    #     name="^GSPC",
-    #     con=con,
-    #     if_exists="replace",
-    #     index=True,
-    #     dtype={"Date": "TEXT PRIMARY KEY NOT NULL"},
-    # )

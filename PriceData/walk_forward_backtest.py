@@ -19,6 +19,7 @@ from random_forest import (
 )
 from helper_files.client_helper import strategies, strategies_test, momentum_indicators
 from helper_files.client_helper import setup_logging
+from control import features_ticker_list, oscillator_features_ticker_list
 
 from config import PRICE_DB_PATH
 
@@ -654,12 +655,12 @@ def main(strategies):
 if __name__ == "__main__":
     logger = setup_logging("logs", "walk_forward.log", level=logging.INFO)
 
-    strategies = [strategies[1]]  # keltner
+    # strategies = [strategies[1]]  # keltner
     # strategies = [strategies[2]]  # bbands
     # strategies = [momentum_indicators[9]]  # MACD_indicator
     # strategies = [momentum_indicators[10]]  # MACDEXT_indicator
     # strategies = [momentum_indicators[13]]  # PLUS_MINUS_DI_indicator
-    # strategies = [momentum_indicators[22]]  # RSI_indicator
+    strategies = [momentum_indicators[22]]  # RSI_indicator
 
     baseline_loop(strategies)
     main(strategies)

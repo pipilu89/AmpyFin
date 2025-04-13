@@ -63,7 +63,22 @@ so please understand the time it takes to train.
 """
 
 # Random forest variables
-regime_tickers = ["^VIX", "^GSPC"]
+# regime_tickers = ["^VIX", "^GSPC"]
+features_ticker_list = [
+    "CL=F",
+    "GC=F",
+    "HG=F",
+    "^GSPC",
+]
+oscillator_features_ticker_list = [
+    "^VIX",  # vix is already in trades_df
+    "^IRX",
+    "^FVX",
+    "^TNX",
+    "EURUSD=X",
+    "^SKEW",
+]
+regime_tickers = features_ticker_list + oscillator_features_ticker_list
 prediction_modifier = 1
 prediction_threshold = 0.5
 
