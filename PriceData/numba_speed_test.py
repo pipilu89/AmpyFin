@@ -91,48 +91,38 @@ def test_signal_performance(condition_buy, condition_sell):
     return signals_numba
 
 
-def test_signal_performance2():
-    # tickers_list = ["AAPL"]  # test
-    ticker = "AAPL"  # test
-    con_price_data = sqlite3.connect(PRICE_DB_PATH)
-    ticker_price_history = pd.read_sql_query(
-        "SELECT * FROM '{tab}'".format(tab=ticker),
-        con_price_data,
-        index_col="Date",
-    )
-    con_price_data.close()
+def test_signal_performance2(ticker_price_history):
+
+    # --- Check for Correctness ---
+    signals_np = generate_signals_np(condition_buy, condition_sell)
+
+    # Compile the Numba function (the first call includes compilation overhead)
+    signals_numba = generate_signals_numba(condition_buy, condition_sell)
+
+    # Verify that both outputs are identical
+    if np.array_equal(signals_np, signals_numba):
+        print("Signal arrays are equal: Correct!")
+    else:
+        print("Signal arrays differ: There is an error.")
+
+    # --- Profile the Performance ---
+    # Run the Numba function once more to eliminate compilation time in timing
+    _ = generate_signals_numba(condition_buy, condition_sell)
 
     # strategy_result = strategy(ticker_price_history.copy())
     def run_strats_np():
         strategy_result = BBANDS_indicator(ticker_price_history.copy())
-        strategy_result = BBANDS_indicator(ticker_price_history.copy())
-        strategy_result = BBANDS_indicator(ticker_price_history.copy())
-        strategy_result = BBANDS_indicator(ticker_price_history.copy())
-        strategy_result = BBANDS_indicator(ticker_price_history.copy())
-        strategy_result = DEMA_indicator(ticker_price_history.copy())
-        strategy_result = DEMA_indicator(ticker_price_history.copy())
-        strategy_result = DEMA_indicator(ticker_price_history.copy())
-        strategy_result = DEMA_indicator(ticker_price_history.copy())
         strategy_result = DEMA_indicator(ticker_price_history.copy())
 
     def run_strats_numba():
         strategy_result = BBANDS_indicator_numba(ticker_price_history.copy())
-        strategy_result = BBANDS_indicator_numba(ticker_price_history.copy())
-        strategy_result = BBANDS_indicator_numba(ticker_price_history.copy())
-        strategy_result = BBANDS_indicator_numba(ticker_price_history.copy())
-        strategy_result = BBANDS_indicator_numba(ticker_price_history.copy())
-        strategy_result = DEMA_indicator_numba(ticker_price_history.copy())
-        strategy_result = DEMA_indicator_numba(ticker_price_history.copy())
-        strategy_result = DEMA_indicator_numba(ticker_price_history.copy())
-        strategy_result = DEMA_indicator_numba(ticker_price_history.copy())
-        strategy_result = DEMA_indicator_numba(ticker_price_history.copy())
         strategy_result = DEMA_indicator_numba(ticker_price_history.copy())
 
-    numba_time = timeit.timeit(lambda: run_strats_numba(), number=10)
-    np_time = timeit.timeit(lambda: run_strats_np(), number=10)
+    np_time = timeit.timeit(lambda: run_strats_np(), number=500)
+    numba_time = timeit.timeit(lambda: run_strats_numba(), number=500)
 
-    print("Time for np.select version (10 iterations): {:.6f} seconds".format(np_time))
-    print("Time for numba version (10 iterations): {:.6f} seconds".format(numba_time))
+    print("Time for np.select version (50 iterations): {:.6f} seconds".format(np_time))
+    print("Time for numba version (50 iterations): {:.6f} seconds".format(numba_time))
     print(f"Speedup factor: {np_time/numba_time:.2f}x")
 
     return
@@ -143,8 +133,10 @@ def BBANDS_indicator_numba(data, timeperiod=20):
     """Vectorized Bollinger Bands (BBANDS) indicator signals."""
     upper, middle, lower = ta.BBANDS(data["Close"], timeperiod=timeperiod)
     data["BBANDS_indicator"] = generate_signals_numba(
-        condition_buy=data["Close"].values < lower.values,  # Use .values
-        condition_sell=data["Close"].values > upper.values,  # Use .values
+        condition_buy=(data["Close"] < lower).values,
+        condition_sell=(data["Close"] > upper).values,
+        # condition_buy=data["Close"].values < lower.values,  # Use .values
+        # condition_sell=data["Close"].values > upper.values,  # Use .values
     )
     return data["BBANDS_indicator"]
 
@@ -153,8 +145,8 @@ def DEMA_indicator_numba(data, timeperiod=30):
     """Vectorized Double Exponential Moving Average (DEMA) indicator signals."""
     dema = ta.DEMA(data["Close"], timeperiod=timeperiod)
     data["DEMA_indicator"] = generate_signals_numba(
-        condition_buy=data["Close"].values > dema.values,  # Use .values
-        condition_sell=data["Close"].values < dema.values,  # Use .values
+        condition_buy=(data["Close"] > dema).values,
+        condition_sell=(data["Close"] < dema).values,  # Use .values
     )
     return data["DEMA_indicator"]
 
@@ -195,4 +187,20 @@ if __name__ == "__main__":
 
     # Run performance test
     # test_signal_performance(condition_buy, condition_sell)
-    test_signal_performance2()
+
+    price_data_dir = "PriceData"
+    PRICE_DB_PATH = os.path.join(price_data_dir, "price_data.db")
+
+    ticker_price_history = pd.DataFrame()
+    tickers_list = ["AAPL", "MSFT"]
+    # ticker = "AAPL"  # test
+
+    for ticker in tickers_list:
+        with sqlite3.connect(PRICE_DB_PATH) as conn:
+            ticker_price_history = pd.read_sql_query(
+                f"SELECT * FROM '{ticker}'",
+                conn,
+                index_col="Date",
+            )
+
+        test_signal_performance2(ticker_price_history)
