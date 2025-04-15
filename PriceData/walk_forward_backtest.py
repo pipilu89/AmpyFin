@@ -662,5 +662,7 @@ if __name__ == "__main__":
     # strategies = [momentum_indicators[13]]  # PLUS_MINUS_DI_indicator
     # strategies = [momentum_indicators[22]]  # RSI_indicator
 
+    # TODO: add wandb logging
+    # optimise: move features prep to before startegy loop.
     baseline_loop(strategies)
     main(strategies)
