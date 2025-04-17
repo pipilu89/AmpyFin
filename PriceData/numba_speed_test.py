@@ -28,6 +28,30 @@ def generate_signals_numba(condition_buy, condition_sell, default=0):
     return result
 
 
+def convert_to_values(condition_buy, condition_sell):
+    condition_buy = condition_buy.values
+    condition_sell = condition_sell.values
+    return condition_buy, condition_sell
+
+
+def to_values(x):
+    return x.values if hasattr(x, "values") else x
+
+
+# def convert_to_values(x):
+#     return x.values
+
+
+def parent(condition_buy, condition_sell):
+    # condition_buy, condition_sell = convert_to_values(condition_buy, condition_sell)
+    condition_buy = to_values(condition_buy)
+    condition_sell = to_values(condition_sell)
+    # condition_buy = condition_buy.values
+    # condition_sell = condition_sell.values
+    result = generate_signals_numba(condition_buy, condition_sell, default=0)
+    return result
+
+
 # --- Helper Function for Common Logic ---
 def generate_signals_orig(condition_buy, condition_sell, default="Hold"):
     """Uses np.select to generate signals based on boolean conditions."""
@@ -113,16 +137,20 @@ def test_signal_performance2(ticker_price_history):
     def run_strats_np():
         strategy_result = BBANDS_indicator(ticker_price_history.copy())
         strategy_result = DEMA_indicator(ticker_price_history.copy())
+        strategy_result = CDL2CROWS_indicator(ticker_price_history.copy())
 
     def run_strats_numba():
         strategy_result = BBANDS_indicator_numba(ticker_price_history.copy())
         strategy_result = DEMA_indicator_numba(ticker_price_history.copy())
+        strategy_result = CDL2CROWS_indicator_numba(ticker_price_history.copy())
 
-    np_time = timeit.timeit(lambda: run_strats_np(), number=500)
-    numba_time = timeit.timeit(lambda: run_strats_numba(), number=500)
+    numba_time = timeit.timeit(lambda: run_strats_numba(), number=5000)
+    np_time = timeit.timeit(lambda: run_strats_np(), number=5000)
 
-    print("Time for np.select version (50 iterations): {:.6f} seconds".format(np_time))
-    print("Time for numba version (50 iterations): {:.6f} seconds".format(numba_time))
+    print(
+        "Time for np.select version (5000 iterations): {:.6f} seconds".format(np_time)
+    )
+    print("Time for numba version (5000 iterations): {:.6f} seconds".format(numba_time))
     print(f"Speedup factor: {np_time/numba_time:.2f}x")
 
     return
@@ -132,9 +160,12 @@ def test_signal_performance2(ticker_price_history):
 def BBANDS_indicator_numba(data, timeperiod=20):
     """Vectorized Bollinger Bands (BBANDS) indicator signals."""
     upper, middle, lower = ta.BBANDS(data["Close"], timeperiod=timeperiod)
-    data["BBANDS_indicator"] = generate_signals_numba(
-        condition_buy=(data["Close"] < lower).values,
-        condition_sell=(data["Close"] > upper).values,
+    # data["BBANDS_indicator"] = generate_signals_numba(
+    data["BBANDS_indicator"] = parent(
+        condition_buy=(data["Close"] < lower),
+        condition_sell=(data["Close"] > upper),
+        # condition_buy=(data["Close"] < lower).to_numpy(),
+        # condition_sell=(data["Close"] > upper).to_numpy(),
         # condition_buy=data["Close"].values < lower.values,  # Use .values
         # condition_sell=data["Close"].values > upper.values,  # Use .values
     )
@@ -144,9 +175,14 @@ def BBANDS_indicator_numba(data, timeperiod=20):
 def DEMA_indicator_numba(data, timeperiod=30):
     """Vectorized Double Exponential Moving Average (DEMA) indicator signals."""
     dema = ta.DEMA(data["Close"], timeperiod=timeperiod)
-    data["DEMA_indicator"] = generate_signals_numba(
-        condition_buy=(data["Close"] > dema).values,
-        condition_sell=(data["Close"] < dema).values,  # Use .values
+    data["DEMA_indicator"] = parent(
+        # data["DEMA_indicator"] = generate_signals_numba(
+        condition_buy=(data["Close"] > dema),
+        condition_sell=(data["Close"] < dema),
+        # condition_buy=(data["Close"] > dema).to_numpy(),
+        # condition_sell=(data["Close"] < dema).to_numpy(),  # Use .values
+        # condition_buy=(data["Close"] > dema).values,
+        # condition_sell=(data["Close"] < dema).values,  # Use .values
     )
     return data["DEMA_indicator"]
 
@@ -169,6 +205,37 @@ def DEMA_indicator(data, timeperiod=30):
         condition_sell=data["Close"] < dema,
     )
     return data["DEMA_indicator"]
+
+
+def _pattern_signals_np(pattern_series):
+    """Helper for standard pattern recognition signals."""
+    return generate_signals_np(
+        condition_buy=pattern_series > 0,
+        condition_sell=pattern_series < 0,
+    )
+
+
+def _pattern_signals_numba(pattern_series):
+    """Helper for standard pattern recognition signals."""
+    # return _generate_signals(
+    return parent(
+        condition_buy=pattern_series > 0,
+        condition_sell=pattern_series < 0,
+    )
+
+
+def CDL2CROWS_indicator_numba(data):
+    """Vectorized Two Crows (CDL2CROWS) indicator signals."""
+    pattern = ta.CDL2CROWS(data["Open"], data["High"], data["Low"], data["Close"])
+    data["CDL2CROWS_indicator"] = _pattern_signals_numba(pattern)
+    return data["CDL2CROWS_indicator"]
+
+
+def CDL2CROWS_indicator(data):
+    """Vectorized Two Crows (CDL2CROWS) indicator signals."""
+    pattern = ta.CDL2CROWS(data["Open"], data["High"], data["Low"], data["Close"])
+    data["CDL2CROWS_indicator"] = _pattern_signals_np(pattern)
+    return data["CDL2CROWS_indicator"]
 
 
 # Example usage:
