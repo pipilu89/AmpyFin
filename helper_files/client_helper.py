@@ -330,6 +330,16 @@ strategies_test2 = (
     + pattern_recognition
     + statistical_functions
 )
+strategies_top10_acc = [
+    RSI_indicator,
+    ULTOSC_indicator,
+    MFI_indicator,
+    BBANDS_indicator,
+    CCI_indicator,
+    WILLR_indicator,
+    STOCH_indicator,
+    STOCHF_indicator,
+]
 
 
 # MongoDB connection helper

@@ -46,7 +46,11 @@ from control import (
     prediction_threshold,
 )
 
-from helper_files.client_helper import get_ndaq_tickers, store_dict_as_json, strategies
+from helper_files.client_helper import (
+    get_ndaq_tickers,
+    strategies_top10_acc,
+    strategies,
+)
 from helper_files.train_client_helper import (
     calculate_metrics,
     generate_tear_sheet,
@@ -1079,11 +1083,12 @@ if __name__ == "__main__":
     account = initialize_test_account()
 
     start_date = datetime.strptime(test_period_start, "%Y-%m-%d")
-    test_period_end = "2025-01-06"
+    # test_period_end = "2025-01-06"
     end_date = datetime.strptime(test_period_end, "%Y-%m-%d")
     accuracy_threshold = 0.75
     prediction_threshold = 0.75
-    experiment_name = f"{len(train_tickers)}_{test_period_start}_{test_period_end}_{train_stop_loss}_{train_take_profit}_thres{prediction_threshold}"
+    use_rf_model_predictions = True
+    experiment_name = f"{use_rf_model_predictions = }_{len(train_tickers)}_{test_period_start}_{test_period_end}_{train_stop_loss}_{train_take_profit}_thres{prediction_threshold}"
 
     # Create a US business day calendar
     us_business_day = CustomBusinessDay(calendar=USFederalHolidayCalendar())
@@ -1211,12 +1216,16 @@ if __name__ == "__main__":
     # logger.info(f"{test_date_range = }")
 
     # strategies = [strategies[2]]
+    strategies = strategies_top10_acc
+
     for date in test_date_range:
         prediction_results_list = []
         date_missing = False
         for idx, strategy in enumerate(strategies):
             strategy_name = strategy.__name__
-            logger.info(f"{strategy_name} {idx + 1}/{len(strategies)}")
+            logger.info(
+                f"{date.strftime("%Y-%m-%d")} {strategy_name} {idx + 1}/{len(strategies)}"
+            )
 
             # get strategy decisions from strategy_decisions_final.db
             query = f"SELECT * FROM {strategy_name}"
@@ -1230,32 +1239,6 @@ if __name__ == "__main__":
                 )
                 date_missing = True
                 continue
-
-            # load rf model
-            # Check if model is ALREADY LOADED in memory (in rf_dict)
-            if strategy_name in rf_dict:
-                logger.info(f"Model for {strategy_name} already loaded in memory.")
-                if rf_dict[strategy_name] is None:
-                    logger.error(f"Model for {strategy_name} is None, skipping...")
-                    continue
-            else:
-                if check_model_exists(strategy_name):
-                    rf_dict[strategy_name] = load_rf_model(strategy_name, logger)
-                    if rf_dict[strategy_name] is None:
-                        logger.error(
-                            f"Model for {strategy_name} could not be loaded, skipping..."
-                        )
-                        continue
-                else:
-                    logger.error(
-                        f"Model for {strategy_name} does not exist, skipping..."
-                    )
-                    continue
-
-            assert isinstance(
-                rf_dict[strategy_name], dict
-            ), "loaded_model is not a dictionary, model loading failed."
-            # logger.info(f"{rf_dict}")
 
             for ticker in train_tickers:
                 try:
@@ -1275,6 +1258,9 @@ if __name__ == "__main__":
                         date.strftime("%Y-%m-%d")
                     ]["Close"]
                     current_price = round(current_price, 2)
+                    # logger.info(
+                    #     f"Current price: {ticker} {current_price} on {date.strftime('%Y-%m-%d')}."
+                    # )
                 except KeyError:
                     logger.warning(
                         f"Current price not found for {ticker} on {date.strftime('%Y-%m-%d')}."
@@ -1290,50 +1276,85 @@ if __name__ == "__main__":
                 # logger.info(f"{account = }")
 
                 if action == "Buy":
+                    prediction = 1
+                    accuracy = 1
+                    probability = 1
+
                     # only load rf_model if buy signal
+                    if use_rf_model_predictions:
+                        # Check if model is ALREADY LOADED in memory (in rf_dict)
+                        if strategy_name in rf_dict:
+                            logger.info(
+                                f"Model for {strategy_name} already loaded in memory."
+                            )
+                            if rf_dict[strategy_name] is None:
+                                logger.error(
+                                    f"Model for {strategy_name} is None, skipping..."
+                                )
+                                continue
+                        else:
+                            if check_model_exists(strategy_name):
+                                rf_dict[strategy_name] = load_rf_model(
+                                    strategy_name, logger
+                                )
+                                if rf_dict[strategy_name] is None:
+                                    logger.error(
+                                        f"Model for {strategy_name} could not be loaded, skipping..."
+                                    )
+                                    continue
+                            else:
+                                logger.error(
+                                    f"Model for {strategy_name} does not exist, skipping..."
+                                )
+                                continue
 
-                    # daily_vix_df = ticker_price_history["^VIX"].loc[date_str]["Close"]
-                    daily_vix_df = ticker_price_history["^VIX"].loc[
-                        date.strftime("%Y-%m-%d")
-                    ]["Close"]
-                    assert daily_vix_df is not None, "daily_vix_df is None"
-                    One_day_spy_return = ticker_price_history["^GSPC"].loc[
-                        date.strftime("%Y-%m-%d")
-                    ]["One_day_spy_return"]
-                    assert One_day_spy_return is not None, "One_day_spy_return is None"
+                        assert isinstance(
+                            rf_dict[strategy_name], dict
+                        ), "loaded_model is not a dictionary, model loading failed."
+                        # logger.info(f"{rf_dict}")
 
-                    data = {
-                        "^VIX": [daily_vix_df],
-                        "One_day_spy_return": [One_day_spy_return],
-                    }
-                    sample_df = pd.DataFrame(data, index=[0])
+                        # prepare regime data for prediction
+                        daily_vix_df = ticker_price_history["^VIX"].loc[
+                            date.strftime("%Y-%m-%d")
+                        ]["Close"]
+                        assert daily_vix_df is not None, "daily_vix_df is None"
+                        One_day_spy_return = ticker_price_history["^GSPC"].loc[
+                            date.strftime("%Y-%m-%d")
+                        ]["One_day_spy_return"]
+                        assert (
+                            One_day_spy_return is not None
+                        ), "One_day_spy_return is None"
 
-                    """
-                    Load rf model. Pre-compute from strategy_decisions_intermediate.db. create new db with test dates?
-                    """
+                        data = {
+                            "^VIX": [daily_vix_df],
+                            "One_day_spy_return": [One_day_spy_return],
+                        }
+                        sample_df = pd.DataFrame(data, index=[0])
 
-                    # Get prediction (0 or 1) and probability of class 1 (positive return)
-                    prediction, probability = predict_random_forest_classifier(
-                        rf_dict[strategy_name]["rf_classifier"],
-                        sample_df,
-                    )
+                        # Get prediction (0 or 1) and probability of class 1 (positive return)
+                        prediction, probability = predict_random_forest_classifier(
+                            rf_dict[strategy_name]["rf_classifier"],
+                            sample_df,
+                        )
 
-                    if prediction != 1:
-                        action = "hold"  # Override original 'Buy' if RF doesn't confirm
+                        if prediction != 1:
+                            action = (
+                                "hold"  # Override original 'Buy' if RF doesn't confirm
+                            )
 
-                    accuracy = round(
-                        rf_dict[strategy_name]["accuracy"], 2
-                    )  # Keep accuracy for logging/potential future use
-                    probability = np.round(probability, 4)  # Round probability
+                        accuracy = round(
+                            rf_dict[strategy_name]["accuracy"], 2
+                        )  # Keep accuracy for logging/potential future use
+                        probability = np.round(probability[0], 4)  # Round probability
+                        logger.info(f"{probability = }")
 
-                    logger.info(
-                        f"Prediction {date.strftime('%Y-%m-%d')} {strategy_name} {ticker}: {prediction} (Prob: {probability:.4f}), Acc: {accuracy}, VIX: {daily_vix_df:.2f}, SPY: {One_day_spy_return:.2f}, Action: {action}"
-                    )
+                        logger.info(
+                            f"Prediction {date.strftime('%Y-%m-%d')} {strategy_name} {ticker}: {prediction} (Prob: {probability:.4f}), Acc: {accuracy}, VIX: {daily_vix_df:.2f}, SPY: {One_day_spy_return:.2f}, Action: {action}"
+                        )
 
                     # Only add to results if the original action was Buy and RF prediction is 1
-                    if (
-                        action == "Buy"
-                    ):  # Check if action is still Buy (meaning RF predicted 1)
+                    if action == "Buy":
+
                         prediction_results_list.append(
                             {
                                 "strategy_name": strategy_name,
@@ -1346,8 +1367,7 @@ if __name__ == "__main__":
                             }
                         )
 
-                    # execute sell orders
-
+                # execute sell orders
                 if action == "sell":
                     account = execute_sell_orders(
                         action,
@@ -1385,7 +1405,7 @@ if __name__ == "__main__":
                     prediction_results_df.to_sql(
                         f"predictions_{experiment_name}",
                         con_trading_account,
-                        if_exists="append",
+                        if_exists="replace",
                         index=True,
                         dtype={"trade_id": "TEXT PRIMARY KEY"},
                     )

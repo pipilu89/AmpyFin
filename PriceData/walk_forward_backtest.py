@@ -8,6 +8,7 @@ import logging
 import numpy as np
 from typing import Literal
 from sklearn.metrics import accuracy_score, precision_score, recall_score
+import wandb
 
 # Add parent directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -20,8 +21,8 @@ from random_forest import (
 from helper_files.client_helper import strategies, strategies_test, momentum_indicators
 from helper_files.client_helper import setup_logging
 from control import features_ticker_list, oscillator_features_ticker_list
-
-from config import PRICE_DB_PATH
+from variables_rf import config_dict
+from config import PRICE_DB_PATH, environment
 
 
 def walk_forward_analysis(
@@ -55,13 +56,21 @@ def walk_forward_analysis(
         in_sample_trades = trades.loc[in_sample_mask]
         out_sample_trades = trades.loc[out_sample_mask]
 
+        # Log the in-sample and out-of-sample periods
+        in_sample_start_str = in_sample_trades["buy_date"].min().strftime("%Y-%m-%d")
+        in_sample_end_str = in_sample_trades["buy_date"].max().strftime("%Y-%m-%d")
+        out_sample_start_str = out_sample_trades["buy_date"].min().strftime("%Y-%m-%d")
+        out_sample_end_str = out_sample_trades["buy_date"].max().strftime("%Y-%m-%d")
+
         if in_sample_trades.empty or out_sample_trades.empty:
             logger.warning(
                 f"Skipping window starting {current_date} due to empty in-sample or out-sample data."
             )
             current_date += pd.Timedelta(days=out_sample_period)
             continue
-
+        """
+        TRAINING RF MODEL
+        """
         # Train Random Forest Classifier
         try:
             # rf_classifier, train_accuracy, precision, recall = (
@@ -79,6 +88,9 @@ def walk_forward_analysis(
             current_date += pd.Timedelta(days=out_sample_period)
             continue
 
+        """
+        PREDICTIONS
+        """
         # Prepare features from OUT-OF-SAMPLE data for prediction
         # required_features = ["^VIX", "One_day_spy_return"]
         if not all(col in out_sample_trades.columns for col in required_features):
@@ -101,6 +113,43 @@ def walk_forward_analysis(
             current_date += pd.Timedelta(days=out_sample_period)
             continue
 
+        """
+        BASELINE ACCURACY
+        The basic accuracy of the strategy signal
+        """
+        current_baseline_accuracy = None
+        try:
+            current_baseline_accuracy = accuracy_score(
+                out_sample_trades["returnB"],
+                out_sample_trades["baseline_pred"],
+            )
+
+            current_baseline_accuracy = np.round(current_baseline_accuracy, 3)
+            logger.info(
+                f"{strategy_name} in: {in_sample_start_str}-{in_sample_end_str} out: {out_sample_start_str}-{out_sample_end_str} Baseline accuracy: {current_baseline_accuracy:.3f}"
+            )
+        except Exception as acc_error:
+            logger.warning(
+                f"Could not calculate baseline accuracy for window starting {current_date}: {acc_error}"
+            )
+
+        """
+        PORTFOLIO ALLOCATION
+        Equal Weighting: Allocate the portfolio equally across all strategies, ensuring that each strategy has an equal influence.
+        out_sample trades data used to measure and rank base_accuracy of strategies
+        in_sample trades data used to test portfolio value of top 10 accurate strategies, using equal weigting allocation.
+        first just use static top10.
+        """
+
+        """
+        RESULTS - portfolio value
+        """
+        # todo: measure performance using portfolio value
+
+        """
+        RESULTS - accuracy
+        measure accuracy of predictions
+        """
         # Ensure prediction is array-like before checking length
         if not isinstance(prediction, (list, np.ndarray)):
             prediction = np.array([prediction])  # Convert scalar to array
@@ -113,25 +162,25 @@ def walk_forward_analysis(
             current_date += pd.Timedelta(days=out_sample_period)
             continue
 
-        # Log the in-sample and out-of-sample periods
-        in_sample_start_str = in_sample_trades["buy_date"].min().strftime("%Y-%m-%d")
-        in_sample_end_str = in_sample_trades["buy_date"].max().strftime("%Y-%m-%d")
-        out_sample_start_str = out_sample_trades["buy_date"].min().strftime("%Y-%m-%d")
-        out_sample_end_str = out_sample_trades["buy_date"].max().strftime("%Y-%m-%d")
+        # # Log the in-sample and out-of-sample periods
+        # in_sample_start_str = in_sample_trades["buy_date"].min().strftime("%Y-%m-%d")
+        # in_sample_end_str = in_sample_trades["buy_date"].max().strftime("%Y-%m-%d")
+        # out_sample_start_str = out_sample_trades["buy_date"].min().strftime("%Y-%m-%d")
+        # out_sample_end_str = out_sample_trades["buy_date"].max().strftime("%Y-%m-%d")
 
         current_accuracy = None
-        current_baseline_accuracy = None
+        # current_baseline_accuracy = None
         try:
             current_accuracy = accuracy_score(
                 out_sample_trades["returnB"],
                 prediction,
             )
-            current_baseline_accuracy = accuracy_score(
-                out_sample_trades["returnB"],
-                out_sample_trades["baseline_pred"],
-            )
+            # current_baseline_accuracy = accuracy_score(
+            #     out_sample_trades["returnB"],
+            #     out_sample_trades["baseline_pred"],
+            # )
 
-            current_baseline_accuracy = np.round(current_baseline_accuracy, 3)
+            # current_baseline_accuracy = np.round(current_baseline_accuracy, 3)
 
             logger.debug(
                 f"{strategy_name} in: {in_sample_start_str}-{in_sample_end_str} out: {out_sample_start_str}-{out_sample_end_str} Accuracy: {current_accuracy:.3f} Baseline: {current_baseline_accuracy:.3f}"
@@ -395,6 +444,7 @@ def baseline_loop(strategies: list) -> None:
                     # add regime data
                 }
             )
+
             save_results_to_db(
                 baseline_results_df,
                 "overall_results",
@@ -654,6 +704,9 @@ def main(strategies):
 
 if __name__ == "__main__":
     logger = setup_logging("logs", "walk_forward.log", level=logging.INFO)
+    price_data_dir = "PriceData"
+    results_db_name = os.path.join(price_data_dir, "backtest_results2.db")
+    # remove_duplicate_overall_results(results_db_name)
 
     # strategies = [strategies[1]]  # keltner
     # strategies = [strategies[2]]  # bbands
@@ -663,6 +716,42 @@ if __name__ == "__main__":
     # strategies = [momentum_indicators[22]]  # RSI_indicator
 
     # TODO: add wandb logging
+
+    # Initialize W&B run
+    if environment == "dev":
+        wandb_mode = "disabled"
+        # wandb_mode = "online"
+        # wandb_mode = 'offline'
+        # wandb_mode = 'dryrun'
+        # wandb_mode = 'async'
+    else:
+        wandb_mode = "online"
+
+    wandb.init(
+        project=config_dict["project_name"],
+        config=config_dict,
+        name=config_dict["experiment_name"],
+        mode=wandb_mode,
+    )
+
     # optimise: move features prep to before startegy loop.
     baseline_loop(strategies)
-    main(strategies)
+    # main(strategies)
+
+    # Calculate final metrics and generate tear sheet
+    # metrics = calculate_metrics(account_values)
+    # wandb.log(metrics)
+
+    # results_dir = "results"
+    # result_filename = f"{config_dict['experiment_name']}.json"
+    # results_file_path = os.path.join(results_dir, result_filename)
+    # with open(results_file_path, "w") as json_file:
+    #     json.dump(results, json_file, indent=4)
+
+    # Create an artifact
+    # artifact = wandb.Artifact(result_filename, type="results")
+    # artifact.add_file(results_file_path)
+
+    # Log artifact to the current run
+    # wandb.log_artifact(artifact)
+    wandb.finish()

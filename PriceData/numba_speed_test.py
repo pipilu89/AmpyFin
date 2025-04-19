@@ -28,26 +28,13 @@ def generate_signals_numba(condition_buy, condition_sell, default=0):
     return result
 
 
-def convert_to_values(condition_buy, condition_sell):
-    condition_buy = condition_buy.values
-    condition_sell = condition_sell.values
-    return condition_buy, condition_sell
-
-
 def to_values(x):
     return x.values if hasattr(x, "values") else x
 
 
-# def convert_to_values(x):
-#     return x.values
-
-
-def parent(condition_buy, condition_sell):
-    # condition_buy, condition_sell = convert_to_values(condition_buy, condition_sell)
+def generate_signals_numba_wrapper(condition_buy, condition_sell):
     condition_buy = to_values(condition_buy)
     condition_sell = to_values(condition_sell)
-    # condition_buy = condition_buy.values
-    # condition_sell = condition_sell.values
     result = generate_signals_numba(condition_buy, condition_sell, default=0)
     return result
 
@@ -58,11 +45,6 @@ def generate_signals_orig(condition_buy, condition_sell, default="Hold"):
     conditions = [condition_buy, condition_sell]
     choices = ["Buy", "Sell"]
     return np.select(conditions, choices, default=default)
-
-
-def generate_signals(condition_buy, condition_sell, default=0):
-    """Uses Numba-accelerated method to generate signals based on boolean conditions."""
-    return generate_signals_numba(condition_buy, condition_sell, default)
 
 
 # Original numpy version for comparison
@@ -160,14 +142,9 @@ def test_signal_performance2(ticker_price_history):
 def BBANDS_indicator_numba(data, timeperiod=20):
     """Vectorized Bollinger Bands (BBANDS) indicator signals."""
     upper, middle, lower = ta.BBANDS(data["Close"], timeperiod=timeperiod)
-    # data["BBANDS_indicator"] = generate_signals_numba(
-    data["BBANDS_indicator"] = parent(
+    data["BBANDS_indicator"] = generate_signals_numba_wrapper(
         condition_buy=(data["Close"] < lower),
         condition_sell=(data["Close"] > upper),
-        # condition_buy=(data["Close"] < lower).to_numpy(),
-        # condition_sell=(data["Close"] > upper).to_numpy(),
-        # condition_buy=data["Close"].values < lower.values,  # Use .values
-        # condition_sell=data["Close"].values > upper.values,  # Use .values
     )
     return data["BBANDS_indicator"]
 
@@ -175,7 +152,7 @@ def BBANDS_indicator_numba(data, timeperiod=20):
 def DEMA_indicator_numba(data, timeperiod=30):
     """Vectorized Double Exponential Moving Average (DEMA) indicator signals."""
     dema = ta.DEMA(data["Close"], timeperiod=timeperiod)
-    data["DEMA_indicator"] = parent(
+    data["DEMA_indicator"] = generate_signals_numba_wrapper(
         # data["DEMA_indicator"] = generate_signals_numba(
         condition_buy=(data["Close"] > dema),
         condition_sell=(data["Close"] < dema),
@@ -218,7 +195,7 @@ def _pattern_signals_np(pattern_series):
 def _pattern_signals_numba(pattern_series):
     """Helper for standard pattern recognition signals."""
     # return _generate_signals(
-    return parent(
+    return generate_signals_numba_wrapper(
         condition_buy=pattern_series > 0,
         condition_sell=pattern_series < 0,
     )

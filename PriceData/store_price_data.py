@@ -684,6 +684,8 @@ def download_and_store_simple(ticker_list, price_data_db_name):
                 df["Ticker"] == ticker
             ]
             df_single_ticker = df_single_ticker.dropna()
+            df_single_ticker.index = df_single_ticker.index.strftime("%Y-%m-%d")
+            logger.info(f"{df_single_ticker}")
 
             # store ticker in price_data.db
             if df_single_ticker.empty:
@@ -692,7 +694,12 @@ def download_and_store_simple(ticker_list, price_data_db_name):
             else:
                 with sqlite3.connect(price_data_db_name) as conn:
                     try:
-                        df_single_ticker.to_sql(ticker, conn, if_exists="replace")
+                        df_single_ticker.to_sql(
+                            ticker,
+                            conn,
+                            if_exists="replace",
+                            dtype={"Date": "TEXT PRIMARY KEY NOT NULL"},
+                        )
                         tickers_saved.append(ticker)
                     except Exception as e:
                         logger.error(
@@ -936,8 +943,8 @@ if __name__ == "__main__":
 
     # ticker_list = ["CL=F", "GC=F", "HG=F", "^IRX", "^FVX", "^TNX", "EURUSD=X", "^SKEW"]
     ticker_list = train_tickers + regime_tickers
-    ticker_list = ["APP", "zxz", "AAPL"]
-    PRICE_DB_PATH = ""
+    # ticker_list = ["APP", "AAPL"]
+    # PRICE_DB_PATH = ""
 
     ticker_download_threshold = 90  # %, retry if downloaded tickers pct less than this.
     max_retries = 3

@@ -2,7 +2,7 @@ import sys
 
 project_name = "AmpyFin_Random_Forest"
 # experiment_name = "24year_sp500"
-experiment_name = "10year_sp500"
+experiment_name = "baseline_v_rf"
 # general parameters
 """
 time_delta_mode can be multiplicative, additive, or balanced.
