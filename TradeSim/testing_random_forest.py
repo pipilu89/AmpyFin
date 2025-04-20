@@ -1470,7 +1470,7 @@ if __name__ == "__main__":
 
     # setup dates
     start_date = datetime.strptime(test_period_start, "%Y-%m-%d")
-    test_period_end = "2025-01-06"
+    # test_period_end = "2025-01-06"
     end_date = datetime.strptime(test_period_end, "%Y-%m-%d")
 
     # Create a US business day calendar
@@ -1493,6 +1493,8 @@ if __name__ == "__main__":
     experiment_name = f"test"
     account_values = pd.Series(index=pd.date_range(start=start_date, end=end_date))
     rf_dict = {}
+
+    # TODO? delete existing experiment tables from trading_account db?
 
     # get price history for tickers
     ticker_price_history = {}

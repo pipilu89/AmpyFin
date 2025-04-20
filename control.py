@@ -90,7 +90,7 @@ prediction_threshold = 0.5
 
 train_period_start = "1991-01-01"
 train_period_end = "2024-12-31"
-test_period_start = "2025-01-01"
+test_period_start = "2000-01-01"
 test_period_end = "2025-04-08"
 
 train_tickers_5 = ["AAPL", "MSFT", "META", "AMD", "ELV"]
