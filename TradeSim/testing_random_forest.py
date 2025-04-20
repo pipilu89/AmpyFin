@@ -89,7 +89,9 @@ def initialize_test_account():
     }
 
 
-def check_stop_loss_take_profit(account, ticker, current_price, current_date):
+def check_stop_loss_take_profit(
+    account, ticker, current_price, current_date, trading_account_db_name
+):
     """
     Checks and executes stop loss and take profit orders for a given ticker.
 
@@ -138,7 +140,7 @@ def check_stop_loss_take_profit(account, ticker, current_price, current_date):
                     trade_df.index.name = "trade_id"
 
                     insert_trade_into_tranding_account_db(
-                        trade_df, con_trading_account, experiment_name
+                        trade_df, trading_account_db_name, experiment_name
                     )
 
                     account["cash"] += holding["quantity"] * current_price
@@ -176,7 +178,9 @@ def check_stop_loss_take_profit(account, ticker, current_price, current_date):
                     trade_df.index.name = "trade_id"
 
                     insert_trade_into_tranding_account_db(
-                        trade_df, con_trading_account, experiment_name
+                        trade_df,
+                        trading_account_db_name,
+                        experiment_name,
                     )
 
                     account["cash"] += holding["quantity"] * current_price
@@ -257,7 +261,7 @@ def execute_buy_orders(
         trade_df.index.name = "trade_id"
 
         insert_trade_into_tranding_account_db(
-            trade_df, con_trading_account, experiment_name
+            trade_df, trading_account_db_name, experiment_name
         )
 
         account["cash"] -= quantity * current_price
@@ -337,7 +341,7 @@ def execute_sell_orders(
         trade_df.index.name = "trade_id"
 
         insert_trade_into_tranding_account_db(
-            trade_df, con_trading_account, experiment_name
+            trade_df, trading_account_db_name, experiment_name
         )
 
         account["cash"] += quantity * current_price
@@ -499,7 +503,11 @@ def test_random_forest(
 
                 # Check stop loss and take profit
                 account = check_stop_loss_take_profit(
-                    account, ticker, current_price, current_date
+                    account,
+                    ticker,
+                    current_price,
+                    current_date,
+                    trading_account_db_name,
                 )
 
                 # Get strategy decisions
@@ -1048,14 +1056,14 @@ def generate_predictions(trades_for_prediction_df, strategy, logger):
 
 
 def insert_trade_into_tranding_account_db(
-    trades_df, con_trading_account, experiment_name
+    trades_df, trading_account_db_name, experiment_name
 ):
     """
     Inserts trades into the trading account database.
 
     Parameters:
     - trades_df (pd.DataFrame): DataFrame containing trade data.
-    - con_trading_account (sqlite3.Connection): SQLite connection to the trading account database.
+    - trading_account_db_name (str): path to the trading account database.
     - experiment_name (str): Name of the experiment for which the trades are being inserted.
 
     Returns:
@@ -1066,29 +1074,110 @@ def insert_trade_into_tranding_account_db(
         logger.warning("No trades to insert into the database.")
         return
     try:
-        trades_df.to_sql(
-            f"trades_{experiment_name}",
-            con_trading_account,
-            if_exists="append",
-            index=True,
-            dtype={"trade_id": "TEXT PRIMARY KEY"},
-        )
+        with sqlite3.connect(trading_account_db_name) as conn:
+            trades_df.to_sql(
+                f"trades_{experiment_name}",
+                conn,
+                if_exists="append",
+                index=True,
+                dtype={"trade_id": "TEXT PRIMARY KEY"},
+            )
     except Exception as e:
         logger.error(f"Error saving trades to database: {e}")
 
 
+# needed?
+def loop_strategies_get_predictions(strategies_list, trading_account_db_name):
+    """ "
+    not sure if needed any more
+    """
+    trades_with_prediction_all_startegies_df = pd.DataFrame()
+    # strategies_list = [strategies_list[0]]
+    for strategy in strategies_list:
+        logger.info(f"{strategy}")
+        """
+        1. Generate predictions
+        """
+        # slice trades_list.db with test date
+        with sqlite3.connect(trading_account_db_name) as conn:
+            query = f"SELECT * FROM {strategy} WHERE buy_date >= ? AND buy_date <= ?"
+            trades_for_prediction_df = pd.read_sql(
+                query, conn, params=(start_date, end_date), index_col=["trade_id"]
+            )
+        # logger.info(f"{trades_for_prediction_df}")
+        if trades_for_prediction_df.empty:
+            logger.info(f"No trades found for {strategy} in the given date range.")
+            continue
+
+        trades_with_prediction_df = generate_predictions(
+            trades_for_prediction_df, strategy, logger
+        )
+        # logger.info(f"DataFrame with predictions: {trades_with_prediction_df}")
+        # logger.info(f"{trades_with_prediction_df.info() = }")
+
+        trades_with_prediction_all_startegies_df = pd.concat(
+            [
+                trades_with_prediction_all_startegies_df.copy(),
+                trades_with_prediction_df,
+            ],
+            axis=0,
+        )
+
+        # logger.info(f"DataFrame with predictions: {trades_with_prediction_df}")
+        # logger.info(f"{trades_with_prediction_df.info() = }")
+        if trades_with_prediction_df is not None:
+            logger.info(f"{len(trades_with_prediction_df) = }")
+        # logger.info(f"{len(trades_with_prediction_all_startegies_df) = }")
+
+    logger.info(f"")
+    logger.info(f"===SUMMARY===")
+    logger.info(f"{len(trades_with_prediction_all_startegies_df) = }")
+
+    trades_with_positive_prediction_df = trades_with_prediction_all_startegies_df[
+        trades_with_prediction_all_startegies_df["prediction"] == 1
+    ]
+    logger.info(f"{trades_with_positive_prediction_df = }")
+    logger.info(f"{len(trades_with_positive_prediction_df) = }")
+
+    positive_prediction_and_threshold_df = trades_with_prediction_all_startegies_df[
+        (trades_with_prediction_all_startegies_df["prediction"] == 1)
+        & (trades_with_prediction_all_startegies_df["accuracy"] > accuracy_threshold)
+    ]
+    logger.info(f"{positive_prediction_and_threshold_df = }")
+    logger.info(f"{len(positive_prediction_and_threshold_df) = }")
+
+    # HACK: rename col Ticker to ticker
+    trades_with_prediction_all_startegies_df.rename(
+        columns={"Ticker": "ticker"}, inplace=True
+    )
+
+    with sqlite3.connect(trading_account_db_name) as conn:
+        trades_with_prediction_all_startegies_df.to_sql(
+            "trades_with_prediction_all_strategies",
+            conn,
+            if_exists="replace",
+            index=True,
+        )
+
+
 if __name__ == "__main__":
     logger = setup_logging("logs", "testing.log", level=logging.INFO)
-    # Initialize testing variables
-    account = initialize_test_account()
 
+    # setup database connections
+    strategy_decisions_final_db_name = os.path.join(
+        "PriceData", "strategy_decisions_final.db"
+    )
+    trading_account_db_name = os.path.join("PriceData", "trading_account.db")
+    # trades_list_db_name = os.path.join("PriceData", "trades_list_vectorised.db")
+    # con_tl = sqlite3.connect(trades_list_db_name)
+    # con_sd_final = sqlite3.connect(strategy_decisions_final_db_name)
+    # con_trading_account = sqlite3.connect(trading_account_db_name)
+    # con_pd = sqlite3.connect(PRICE_DB_PATH)
+
+    # setup dates
     start_date = datetime.strptime(test_period_start, "%Y-%m-%d")
-    # test_period_end = "2025-01-06"
+    test_period_end = "2025-01-06"
     end_date = datetime.strptime(test_period_end, "%Y-%m-%d")
-    accuracy_threshold = 0.75
-    prediction_threshold = 0.75
-    use_rf_model_predictions = True
-    experiment_name = f"{use_rf_model_predictions = }_{len(train_tickers)}_{test_period_start}_{test_period_end}_{train_stop_loss}_{train_take_profit}_thres{prediction_threshold}"
 
     # Create a US business day calendar
     us_business_day = CustomBusinessDay(calendar=USFederalHolidayCalendar())
@@ -1096,127 +1185,55 @@ if __name__ == "__main__":
     test_date_range = pd.bdate_range(
         start=start_date, end=end_date, freq=us_business_day
     )
-
-    account_values = pd.Series(index=pd.date_range(start=start_date, end=end_date))
-    # account_values = pd.Series(dtype=float, index=test_date_range)
-
-    logger.info(f"Testing period: {start_date} to {end_date}")
-
-    trades_list_db_name = os.path.join("PriceData", "trades_list_vectorised.db")
-    con_tl = sqlite3.connect(trades_list_db_name)
-    strategy_decisions_final_db_name = os.path.join(
-        "PriceData", "strategy_decisions_final.db"
-    )
-    con_sd_final = sqlite3.connect(strategy_decisions_final_db_name)
-
-    trading_account_db_name = os.path.join("PriceData", "trading_account.db")
-    con_trading_account = sqlite3.connect(trading_account_db_name)
-    con_pd = sqlite3.connect(PRICE_DB_PATH)
-
-    strategies_list = get_tables_list(con_tl, logger)
-    # removes 'summary' table from list if it exists
-    if "summary" in strategies_list:
-        strategies_list.remove("summary")
-
-    # first get the precomputed decisions from the database
-    # date > strategy > ticker > action
-    # action = precomputed_decisions
-
-    def loop_strategies_get_predictions():
-        trades_with_prediction_all_startegies_df = pd.DataFrame()
-        # strategies_list = [strategies_list[0]]
-        for strategy in strategies_list:
-            logger.info(f"{strategy}")
-            """
-            1. Generate predictions
-            """
-            # slice trades_list.db with test date
-            query = f"SELECT * FROM {strategy} WHERE buy_date >= ? AND buy_date <= ?"
-            trades_for_prediction_df = pd.read_sql(
-                query, con_tl, params=(start_date, end_date), index_col=["trade_id"]
-            )
-            # logger.info(f"{trades_for_prediction_df}")
-            if trades_for_prediction_df.empty:
-                logger.info(f"No trades found for {strategy} in the given date range.")
-                continue
-
-            trades_with_prediction_df = generate_predictions(
-                trades_for_prediction_df, strategy, logger
-            )
-            # logger.info(f"DataFrame with predictions: {trades_with_prediction_df}")
-            # logger.info(f"{trades_with_prediction_df.info() = }")
-
-            trades_with_prediction_all_startegies_df = pd.concat(
-                [
-                    trades_with_prediction_all_startegies_df.copy(),
-                    trades_with_prediction_df,
-                ],
-                axis=0,
-            )
-
-            # logger.info(f"DataFrame with predictions: {trades_with_prediction_df}")
-            # logger.info(f"{trades_with_prediction_df.info() = }")
-            if trades_with_prediction_df is not None:
-                logger.info(f"{len(trades_with_prediction_df) = }")
-            # logger.info(f"{len(trades_with_prediction_all_startegies_df) = }")
-
-        logger.info(f"")
-        logger.info(f"===SUMMARY===")
-        logger.info(f"{len(trades_with_prediction_all_startegies_df) = }")
-
-        trades_with_positive_prediction_df = trades_with_prediction_all_startegies_df[
-            trades_with_prediction_all_startegies_df["prediction"] == 1
-        ]
-        logger.info(f"{trades_with_positive_prediction_df = }")
-        logger.info(f"{len(trades_with_positive_prediction_df) = }")
-
-        positive_prediction_and_threshold_df = trades_with_prediction_all_startegies_df[
-            (trades_with_prediction_all_startegies_df["prediction"] == 1)
-            & (
-                trades_with_prediction_all_startegies_df["accuracy"]
-                > accuracy_threshold
-            )
-        ]
-        logger.info(f"{positive_prediction_and_threshold_df = }")
-        logger.info(f"{len(positive_prediction_and_threshold_df) = }")
-
-        # HACK: rename col Ticker to ticker
-        trades_with_prediction_all_startegies_df.rename(
-            columns={"Ticker": "ticker"}, inplace=True
-        )
-
-        trades_with_prediction_all_startegies_df.to_sql(
-            "trades_with_prediction_all_strategies",
-            con_trading_account,
-            if_exists="replace",
-            index=True,
-        )
-
-    # loop_strategies_get_predictions()
-
-    # get price history for tickers in trades_with_prediction_all_startegies_df
-    ticker_price_history = {}
-    rf_dict = {}
-
+    # logger.info(f"Testing period: {start_date} to {end_date}")
     logger.info(f"{test_period_start = } {test_period_end = }")
-    for ticker in train_tickers + regime_tickers:
-        # query = f"SELECT * FROM '{ticker}' WHERE Date >= {test_period_start} AND Date <= {test_period_end}"
-        # ticker_price_history[ticker] = pd.read_sql(query, con_pd, index_col=["Date"])
 
-        query = f"SELECT * FROM '{ticker}' WHERE Date >= ? AND Date <= ?"
-        ticker_price_history[ticker] = pd.read_sql(
-            # query, con_pd, params=(start_date, end_date), index_col=["Date"]
-            query,
-            con_pd,
-            params=(start_date, end_date),
-            index_col=["Date"],
-        )
-
-    # logger.info(f"{ticker_price_history = }")
-    # logger.info(f"{test_date_range = }")
-
+    # Initialize testing variables
     # strategies = [strategies[2]]
     strategies = strategies_top10_acc
+    account = initialize_test_account()
+    accuracy_threshold = 0.75
+    prediction_threshold = 0.75
+    use_rf_model_predictions = False
+    # experiment_name = f"{use_rf_model_predictions = }_{len(train_tickers)}_{test_period_start}_{test_period_end}_{train_stop_loss}_{train_take_profit}_thres{prediction_threshold}"
+    experiment_name = f"test"
+    account_values = pd.Series(index=pd.date_range(start=start_date, end=end_date))
+    rf_dict = {}
+
+    # get price history for tickers
+    ticker_price_history = {}
+    try:
+        with sqlite3.connect(PRICE_DB_PATH) as conn:
+            for ticker in train_tickers + regime_tickers:
+                query = f"SELECT * FROM '{ticker}' WHERE Date >= ? AND Date <= ?"
+                ticker_price_history[ticker] = pd.read_sql(
+                    query,
+                    conn,
+                    params=(start_date, end_date),
+                    index_col=["Date"],
+                )
+    except Exception as e:
+        logger.error(f"Error getting price data from {PRICE_DB_PATH}: {e}")
+
+    # get strategy decisions from strategy_decisions_final.db
+    precomputed_decisions = {}
+    try:
+        with sqlite3.connect(strategy_decisions_final_db_name) as conn:
+            for idx, strategy in enumerate(strategies):
+                strategy_name = strategy.__name__
+                # query = f"SELECT * FROM '{strategy_name}' WHERE Date >= ? AND Date <= ?"
+                query = f"SELECT * FROM '{strategy_name}' "
+                precomputed_decisions[strategy_name] = pd.read_sql(
+                    query,
+                    conn,
+                    # params=(start_date, end_date),
+                    index_col=["Date"],
+                )
+            # logger.info(f"{precomputed_decisions = }")
+    except Exception as e:
+        logger.error(
+            f"Error getting strategy decisions from {strategy_decisions_final_db_name}: {e}"
+        )
 
     for date in test_date_range:
         prediction_results_list = []
@@ -1227,13 +1244,11 @@ if __name__ == "__main__":
                 f"{date.strftime("%Y-%m-%d")} {strategy_name} {idx + 1}/{len(strategies)}"
             )
 
-            # get strategy decisions from strategy_decisions_final.db
-            query = f"SELECT * FROM {strategy_name}"
-            precomputed_decisions = pd.read_sql(query, con_sd_final, index_col=["Date"])
-            # logger.info(f"{precomputed_decisions = }")
-
             # check if current date is in precomputed_decisions
-            if date.strftime("%Y-%m-%d") not in precomputed_decisions.index:
+            if (
+                date.strftime("%Y-%m-%d")
+                not in precomputed_decisions[strategy_name].index
+            ):
                 logger.warning(
                     f"Date {date.strftime('%Y-%m-%d')} not found in precomputed decisions for {strategy_name}."
                 )
@@ -1243,9 +1258,11 @@ if __name__ == "__main__":
             for ticker in train_tickers:
                 try:
                     # Attempt to get the shifted decision
-                    action = precomputed_decisions.shift(1).loc[
-                        date.strftime("%Y-%m-%d"), ticker
-                    ]
+                    action = (
+                        precomputed_decisions[strategy_name]
+                        .shift(1)
+                        .loc[date.strftime("%Y-%m-%d"), ticker]
+                    )
                 except KeyError:
                     # Log a warning and default action if the key is not found
                     logger.warning(
@@ -1271,11 +1288,12 @@ if __name__ == "__main__":
                 #     f"{ticker} - {date.strftime("%Y-%m-%d")} - {action} - current_price: {current_price}"
                 # )
                 account = check_stop_loss_take_profit(
-                    account, ticker, current_price, date
+                    account, ticker, current_price, date, trading_account_db_name
                 )
                 # logger.info(f"{account = }")
 
                 if action == "Buy":
+                    # used if use_rf_model_predictions == False. ie baseline test.
                     prediction = 1
                     accuracy = 1
                     probability = 1
@@ -1382,7 +1400,6 @@ if __name__ == "__main__":
         if not date_missing:
 
             # # Calculate holdings value by strategy. needed to ensure cash allocation constraints are met.
-            # update in ticker loop?
             holdings_value_by_strategy = get_holdings_value_by_strategy(
                 account, ticker_price_history, date
             )
@@ -1400,17 +1417,18 @@ if __name__ == "__main__":
             prediction_results_df.set_index("prediction_id", inplace=True)
             # Ensure the DataFrame is not empty
             if not prediction_results_df.empty:
-                logger.info(f"{prediction_results_df = }")
+                logger.info(f"{len(prediction_results_df) = }")
                 try:
-                    prediction_results_df.to_sql(
-                        f"predictions_{experiment_name}",
-                        con_trading_account,
-                        if_exists="replace",
-                        index=True,
-                        dtype={"trade_id": "TEXT PRIMARY KEY"},
-                    )
+                    with sqlite3.connect(trading_account_db_name) as conn:
+                        prediction_results_df.to_sql(
+                            f"predictions_{experiment_name}",
+                            conn,
+                            if_exists="replace",
+                            index=True,
+                            dtype={"trade_id": "TEXT PRIMARY KEY"},
+                        )
                 except Exception as e:
-                    logger.error(f"Error saving trades to database: {e}")
+                    logger.error(f"Error saving predictions to database: {e}")
             else:
                 logger.warning("No prediction_results_df to insert into the database.")
 
@@ -1450,28 +1468,12 @@ if __name__ == "__main__":
             # logger.info(f"{total_value = }")
             logger.info(f"total_portfolio_value: {round(total_value, 2)}")
 
-    # convert account['trades'] to dataframe
-    # trades_df = pd.DataFrame(account["trades"])
-    # logger.info(f"{trades_df = }")
-    # if not trades_df.empty:
-    #     try:
-    #         trades_df.to_sql(
-    #             f"trades_{experiment_name}",
-    #             con_trading_account,
-    #             if_exists="replace",
-    #             index=True,
-    #         )
-    #     except Exception as e:
-    #         logger.error(f"Error saving trades to database: {e}")
-
-    # add trades to transaction table
-
-    # Log daily results
+    # Log final results
     logger.info("-------------------------------------------------")
-    logger.info(f"Account Cash: ${account['cash']: ,.2f}")
     logger.info(f"Trades: {account['trades']}")
     # logger.info(f"Trades: {len(account['trades'])}")
     logger.info(f"Holdings: {account['holdings']}")
+    logger.info(f"Account Cash: ${account['cash']: ,.2f}")
     logger.info(f"Total Portfolio Value: ${account['total_portfolio_value']: ,.2f}")
     # logger.info(f"Active Count: {active_count}")
     logger.info("-------------------------------------------------")
