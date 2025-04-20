@@ -1490,7 +1490,7 @@ if __name__ == "__main__":
     prediction_threshold = 0.75
     use_rf_model_predictions = False
     # experiment_name = f"{use_rf_model_predictions = }_{len(train_tickers)}_{test_period_start}_{test_period_end}_{train_stop_loss}_{train_take_profit}_thres{prediction_threshold}"
-    experiment_name = f"test"
+    experiment_name = f"baseline_{test_period_start}_{test_period_end}"
     account_values = pd.Series(index=pd.date_range(start=start_date, end=end_date))
     rf_dict = {}
 
