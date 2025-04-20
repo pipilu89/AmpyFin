@@ -84,9 +84,9 @@ if __name__ == "__main__":
         main()
         # np_time = timeit.timeit(lambda: main(), number=1)
 
-        print(
-            "Time for np.select version (10 iterations): {:.6f} seconds".format(np_time)
-        )
+        # print(
+        #     "Time for np.select version (10 iterations): {:.6f} seconds".format(np_time)
+        # )
         # print("Time for numba version (10 iterations): {:.6f} seconds".format(numba_time))
         # print(f"Speedup factor: {np_time/numba_time:.2f}x")
 
