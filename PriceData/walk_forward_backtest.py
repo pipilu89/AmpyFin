@@ -736,7 +736,7 @@ if __name__ == "__main__":
 
     # optimise: move features prep to before startegy loop.
     baseline_loop(strategies)
-    # main(strategies)
+    main(strategies)
 
     # Calculate final metrics and generate tear sheet
     # metrics = calculate_metrics(account_values)
