@@ -14,3 +14,6 @@
 # Ignore all wandb experiment data.
 /wandb/*
 !/wandb/.keep
+
+# Ignore generated SQLite dbs
+*.db
