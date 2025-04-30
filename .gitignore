@@ -1,5 +1,10 @@
 config.py
+
+# Ignore all logfiles.
+/log/*
+!/log/.keep
 *.log
+
 .env
 .vscode/
 **/__pycache__/

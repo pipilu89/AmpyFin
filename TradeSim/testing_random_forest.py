@@ -19,8 +19,15 @@ from pymongo import MongoClient
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from helper_files.client_helper import setup_logging
-from random_forest import predict_random_forest_classifier, train_and_store_classifiers
-from PriceData.store_rf_models import get_tables_list, check_model_exists, load_rf_model
+from random_forest import (
+    predict_random_forest_classifier,
+    train_and_store_classifiers,
+)
+from PriceData.store_rf_models import (
+    get_tables_list,
+    check_model_exists,
+    load_rf_model,
+)
 
 
 # from variables import config_dict
@@ -119,9 +126,7 @@ def check_stop_loss_take_profit(
                     #     }
                     # )
 
-                    trade_id_value = (
-                        f"{ticker}_{strategy_name}_{current_date.strftime('%Y-%m-%d')}"
-                    )
+                    trade_id_value = f"{ticker}_{strategy_name}_{current_date.strftime('%Y-%m-%d')}"
 
                     trade_df = pd.DataFrame(
                         {
@@ -157,9 +162,7 @@ def check_stop_loss_take_profit(
                     #     }
                     # )
 
-                    trade_id_value = (
-                        f"{ticker}_{strategy_name}_{current_date.strftime('%Y-%m-%d')}"
-                    )
+                    trade_id_value = f"{ticker}_{strategy_name}_{current_date.strftime('%Y-%m-%d')}"
 
                     trade_df = pd.DataFrame(
                         {
@@ -222,7 +225,10 @@ def execute_buy_orders(
     ) > train_trade_liquidity_limit:
         if buy_heap and float(account["cash"]) > train_trade_liquidity_limit:
             heap = buy_heap
-        elif suggestion_heap and float(account["cash"]) > train_trade_liquidity_limit:
+        elif (
+            suggestion_heap
+            and float(account["cash"]) > train_trade_liquidity_limit
+        ):
             heap = suggestion_heap
         else:
             break
@@ -243,7 +249,9 @@ def execute_buy_orders(
 
         # insert trade into trading account database
         # Calculate trade_id first
-        trade_id_value = f"{ticker}_{strategy_name}_{current_date.strftime('%Y-%m-%d')}"
+        trade_id_value = (
+            f"{ticker}_{strategy_name}_{current_date.strftime('%Y-%m-%d')}"
+        )
 
         trade_df = pd.DataFrame(
             {
@@ -276,7 +284,9 @@ def execute_buy_orders(
                 "take_profit": 0,
             }
 
-        account["holdings"][ticker][strategy_name]["quantity"] += round(quantity, 2)
+        account["holdings"][ticker][strategy_name]["quantity"] += round(
+            quantity, 2
+        )
         account["holdings"][ticker][strategy_name]["price"] = current_price
         account["holdings"][ticker][strategy_name]["stop_loss"] = round(
             current_price * (1 - train_stop_loss), 2
@@ -323,7 +333,9 @@ def execute_sell_orders(
         #     }
         # )
 
-        trade_id_value = f"{ticker}_{strategy_name}_{current_date.strftime('%Y-%m-%d')}"
+        trade_id_value = (
+            f"{ticker}_{strategy_name}_{current_date.strftime('%Y-%m-%d')}"
+        )
 
         trade_df = pd.DataFrame(
             {
@@ -408,12 +420,14 @@ def test_random_forest(
     try:
         # Load the trades data
         trades_data_df = pd.read_csv(
-            os.path.join(results_dir, f"{config_dict['experiment_name']}_trades.csv")
+            os.path.join(
+                results_dir, f"{config_dict['experiment_name']}_trades.csv"
+            )
         )
 
         # train random forest classifier based on training trades list
-        trained_classifiers, strategies_with_enough_data = train_and_store_classifiers(
-            trades_data_df, logger
+        trained_classifiers, strategies_with_enough_data = (
+            train_and_store_classifiers(trades_data_df, logger)
         )
 
     except Exception as e:
@@ -426,7 +440,9 @@ def test_random_forest(
     # Get rank coefficients from database. needed?
     db = mongo_client.trading_simulator
     r_t_c = db.rank_to_coefficient
-    rank_to_coefficient = {doc["rank"]: doc["coefficient"] for doc in r_t_c.find({})}
+    rank_to_coefficient = {
+        doc["rank"]: doc["coefficient"] for doc in r_t_c.find({})
+    }
     logger.info("Rank coefficients retrieved from database.")
 
     # Initialize testing variables
@@ -440,7 +456,10 @@ def test_random_forest(
     logger.info("Loading saved training results...")
     try:
         with open(
-            os.path.join(results_dir, f"{config_dict['experiment_name']}.json"), "r"
+            os.path.join(
+                results_dir, f"{config_dict['experiment_name']}.json"
+            ),
+            "r",
         ) as json_file:
             results = json.load(json_file)
             trading_simulator = results["trading_simulator"]
@@ -464,7 +483,9 @@ def test_random_forest(
     start_date = datetime.strptime(test_period_start, "%Y-%m-%d")
     end_date = datetime.strptime(test_period_end, "%Y-%m-%d")
     current_date = start_date
-    account_values = pd.Series(index=pd.date_range(start=start_date, end=end_date))
+    account_values = pd.Series(
+        index=pd.date_range(start=start_date, end=end_date)
+    )
     logger.info(f"Testing period: {start_date} to {end_date}")
     if not train_tickers:
         train_tickers = get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY)
@@ -512,7 +533,9 @@ def test_random_forest(
 
                 # Get strategy decisions
                 decisions_and_quantities = []
-                portfolio_qty = account["holdings"].get(ticker, {}).get("quantity", 0)
+                portfolio_qty = (
+                    account["holdings"].get(ticker, {}).get("quantity", 0)
+                )
 
                 for strategy in strategies:
                     strategy_name = strategy.__name__
@@ -538,8 +561,14 @@ def test_random_forest(
                             precomputed_decisions[strategy_name]["Strategy"]
                             == strategy_name
                         )
-                        & (precomputed_decisions[strategy_name]["Ticker"] == ticker)
-                        & (precomputed_decisions[strategy_name]["Date"] == date_str)
+                        & (
+                            precomputed_decisions[strategy_name]["Ticker"]
+                            == ticker
+                        )
+                        & (
+                            precomputed_decisions[strategy_name]["Date"]
+                            == date_str
+                        )
                     ]["Action"].values
 
                     if len(action) == 0:
@@ -557,9 +586,9 @@ def test_random_forest(
                     # Get prediction from random forest classifier
                     if strategy_name in strategies_with_enough_data:
                         if action == "Buy":
-                            daily_vix_df = ticker_price_history["^VIX"].loc[date_str][
-                                "Close"
-                            ]
+                            daily_vix_df = ticker_price_history["^VIX"].loc[
+                                date_str
+                            ]["Close"]
                             data = {"current_vix": [daily_vix_df]}
                             sample_df = pd.DataFrame(data, index=[0])
 
@@ -568,9 +597,11 @@ def test_random_forest(
                             """
 
                             # Get prediction (0 or 1) and probability of class 1 (positive return)
-                            prediction, probability = predict_random_forest_classifier(
-                                rf_dict[strategy_name]["rf_classifier"],
-                                sample_df,
+                            prediction, probability = (
+                                predict_random_forest_classifier(
+                                    rf_dict[strategy_name]["rf_classifier"],
+                                    sample_df,
+                                )
                             )
 
                             if prediction != 1:
@@ -579,7 +610,9 @@ def test_random_forest(
                             accuracy = round(
                                 rf_dict[strategy_name]["accuracy"], 2
                             )  # Keep accuracy for logging/potential future use
-                            probability = np.round(probability, 4)  # Round probability
+                            probability = np.round(
+                                probability, 4
+                            )  # Round probability
 
                             logger.info(
                                 f"Prediction {current_date.strftime('%Y-%m-%d')} {strategy_name} {ticker}: {prediction} (Prob: {probability:.4f}), Acc: {accuracy}, VIX: {daily_vix_df:.2f}, Action: {action}"
@@ -665,7 +698,11 @@ def test_random_forest(
         # logger.info(f"{trading_simulator = }")
         # Update trading_simulator portfolio values
         active_count, trading_simulator = local_update_portfolio_values(
-            current_date, strategies, trading_simulator, ticker_price_history, logger
+            current_date,
+            strategies,
+            trading_simulator,
+            ticker_price_history,
+            logger,
         )
 
         # Update time delta needed?
@@ -688,7 +725,9 @@ def test_random_forest(
         logger.info(f"Account Cash: ${account['cash']: ,.2f}")
         # logger.info(f"Trades: {account['trades']}")
         logger.info(f"Holdings: {account['holdings']}")
-        logger.info(f"Total Portfolio Value: ${account['total_portfolio_value']: ,.2f}")
+        logger.info(
+            f"Total Portfolio Value: ${account['total_portfolio_value']: ,.2f}"
+        )
         logger.info(f"Active Count: {active_count}")
         logger.info("-------------------------------------------------")
 
@@ -703,7 +742,9 @@ def test_random_forest(
     logger.info(metrics)
 
     try:
-        generate_tear_sheet(account_values, filename=f"{benchmark_asset}_vs_strategy")
+        generate_tear_sheet(
+            account_values, filename=f"{benchmark_asset}_vs_strategy"
+        )
         logger.info("Tear sheet generated.")
     except Exception as e:
         logger.error(f"Error generating tear sheet: {e}")
@@ -712,7 +753,9 @@ def test_random_forest(
     logger.info("Testing Completed.")
     logger.info("-------------------------------------------------")
     logger.info(f"Account Cash: ${account['cash']: ,.2f}")
-    logger.info(f"Total Portfolio Value: ${account['total_portfolio_value']: ,.2f}")
+    logger.info(
+        f"Total Portfolio Value: ${account['total_portfolio_value']: ,.2f}"
+    )
     logger.info("-------------------------------------------------")
 
 
@@ -750,10 +793,14 @@ def test_random_forest_v2(
     start_date = datetime.strptime(test_period_start, "%Y-%m-%d")
     end_date = datetime.strptime(test_period_end, "%Y-%m-%d")
     current_date = start_date
-    account_values = pd.Series(index=pd.date_range(start=start_date, end=end_date))
+    account_values = pd.Series(
+        index=pd.date_range(start=start_date, end=end_date)
+    )
     logger.info(f"Testing period: {start_date} to {end_date}")
 
-    trades_list_db_name = os.path.join("PriceData", "trades_list_vectorised.db")
+    trades_list_db_name = os.path.join(
+        "PriceData", "trades_list_vectorised.db"
+    )
     con_tl = sqlite3.connect(trades_list_db_name)
 
     strategies_list = get_tables_list(con_tl, logger)
@@ -767,7 +814,9 @@ def test_random_forest_v2(
         1. Generate predictions
         """
         # slice trades_list.db with test date
-        query = f"SELECT * FROM strategy1 WHERE buy_date >= ? AND buy_date <= ?"
+        query = (
+            f"SELECT * FROM strategy1 WHERE buy_date >= ? AND buy_date <= ?"
+        )
         trades_for_prediction_df = pd.read_sql(
             query, con_tl, params=(start_date, end_date)
         )
@@ -782,7 +831,9 @@ def test_random_forest_v2(
     logger.info(metrics)
 
     try:
-        generate_tear_sheet(account_values, filename=f"{benchmark_asset}_vs_strategy")
+        generate_tear_sheet(
+            account_values, filename=f"{benchmark_asset}_vs_strategy"
+        )
         logger.info("Tear sheet generated.")
     except Exception as e:
         logger.error(f"Error generating tear sheet: {e}")
@@ -791,12 +842,16 @@ def test_random_forest_v2(
     logger.info("Testing Completed.")
     logger.info("-------------------------------------------------")
     logger.info(f"Account Cash: ${account['cash']: ,.2f}")
-    logger.info(f"Total Portfolio Value: ${account['total_portfolio_value']: ,.2f}")
+    logger.info(
+        f"Total Portfolio Value: ${account['total_portfolio_value']: ,.2f}"
+    )
     logger.info("-------------------------------------------------")
     con_tl.close()
 
 
-def get_holdings_value_by_strategy(account, ticker_price_history, current_date):
+def get_holdings_value_by_strategy(
+    account, ticker_price_history, current_date
+):
     """
     Calculates the current value of existing holdings by strategy.
 
@@ -875,7 +930,9 @@ def strategy_and_ticker_cash_allocation(
     confirmed_buys_df["score"] = confirmed_buys_df["probability"]
 
     # Sort by the new probability-based score
-    confirmed_buys_df = confirmed_buys_df.sort_values(by=["score"], ascending=False)
+    confirmed_buys_df = confirmed_buys_df.sort_values(
+        by=["score"], ascending=False
+    )
     # logger.info(
     #     f"strategy_and_ticker_cash_allocation: Sorted confirmed buys by probability score:\n{confirmed_buys_df[['strategy_name', 'ticker', 'probability', 'score']]}"
     # )
@@ -909,7 +966,10 @@ def strategy_and_ticker_cash_allocation(
     )
 
     qualifying_strategies_df = qualifying_strategies_df.merge(
-        holdings_value_df, left_on="strategy_name", right_index=True, how="left"
+        holdings_value_df,
+        left_on="strategy_name",
+        right_index=True,
+        how="left",
     )
 
     qualifying_strategies_df["holdings_value"] = qualifying_strategies_df[
@@ -921,9 +981,11 @@ def strategy_and_ticker_cash_allocation(
     )
 
     # Adjust by number_of_tickers_in_qualifying_strategies
-    qualifying_strategies_df["ticker_count"] = qualifying_strategies_df.groupby(
-        "strategy_name"
-    )["ticker"].transform("count")
+    qualifying_strategies_df["ticker_count"] = (
+        qualifying_strategies_df.groupby("strategy_name")["ticker"].transform(
+            "count"
+        )
+    )
 
     # Max available cash for each strategy divided by the number of tickers in that strategy
     qualifying_strategies_df["max_s_t_cash"] = (
@@ -934,7 +996,9 @@ def strategy_and_ticker_cash_allocation(
     # Calculate probability adjusted investment (using 'score' which is now probability)
     qualifying_strategies_df["prob_adj_investment"] = (
         qualifying_strategies_df["max_s_t_cash"]
-        * qualifying_strategies_df["score"]  # Use score (probability) for weighting
+        * qualifying_strategies_df[
+            "score"
+        ]  # Use score (probability) for weighting
     )
 
     # Calculate investment considering asset limit
@@ -950,7 +1014,9 @@ def strategy_and_ticker_cash_allocation(
         # Calculate the remaining cash available for this ticker after considering existing holdings
         existing_holding_value = sum(
             holding["quantity"] * group.iloc[0]["current_price"]
-            for strategy, holding in account["holdings"].get(ticker, {}).items()
+            for strategy, holding in account["holdings"]
+            .get(ticker, {})
+            .items()
         )
         remaining_cash = min(
             max(0, asset_limit_value - existing_holding_value), available_cash
@@ -1013,7 +1079,9 @@ def create_buy_heap(buy_df):
     return buy_heap
 
 
-def update_account_portfolio_values(account, ticker_price_history, current_date):
+def update_account_portfolio_values(
+    account, ticker_price_history, current_date
+):
     # Calculate and update total portfolio value
     total_value = account["cash"]
     for ticker, account_strategies in account["holdings"].items():
@@ -1083,7 +1151,7 @@ def insert_trade_into_tranding_account_db(
                 dtype={"trade_id": "TEXT PRIMARY KEY"},
             )
     except Exception as e:
-        logger.error(f"Error saving trades to database: {e}")
+        logger.error(f"Error saving trades to database: {trades_df=} {e}")
 
 
 # needed?
@@ -1102,11 +1170,16 @@ def loop_strategies_get_predictions(strategies_list, trading_account_db_name):
         with sqlite3.connect(trading_account_db_name) as conn:
             query = f"SELECT * FROM {strategy} WHERE buy_date >= ? AND buy_date <= ?"
             trades_for_prediction_df = pd.read_sql(
-                query, conn, params=(start_date, end_date), index_col=["trade_id"]
+                query,
+                conn,
+                params=(start_date, end_date),
+                index_col=["trade_id"],
             )
         # logger.info(f"{trades_for_prediction_df}")
         if trades_for_prediction_df.empty:
-            logger.info(f"No trades found for {strategy} in the given date range.")
+            logger.info(
+                f"No trades found for {strategy} in the given date range."
+            )
             continue
 
         trades_with_prediction_df = generate_predictions(
@@ -1133,16 +1206,23 @@ def loop_strategies_get_predictions(strategies_list, trading_account_db_name):
     logger.info(f"===SUMMARY===")
     logger.info(f"{len(trades_with_prediction_all_startegies_df) = }")
 
-    trades_with_positive_prediction_df = trades_with_prediction_all_startegies_df[
-        trades_with_prediction_all_startegies_df["prediction"] == 1
-    ]
+    trades_with_positive_prediction_df = (
+        trades_with_prediction_all_startegies_df[
+            trades_with_prediction_all_startegies_df["prediction"] == 1
+        ]
+    )
     logger.info(f"{trades_with_positive_prediction_df = }")
     logger.info(f"{len(trades_with_positive_prediction_df) = }")
 
-    positive_prediction_and_threshold_df = trades_with_prediction_all_startegies_df[
-        (trades_with_prediction_all_startegies_df["prediction"] == 1)
-        & (trades_with_prediction_all_startegies_df["accuracy"] > accuracy_threshold)
-    ]
+    positive_prediction_and_threshold_df = (
+        trades_with_prediction_all_startegies_df[
+            (trades_with_prediction_all_startegies_df["prediction"] == 1)
+            & (
+                trades_with_prediction_all_startegies_df["accuracy"]
+                > accuracy_threshold
+            )
+        ]
+    )
     logger.info(f"{positive_prediction_and_threshold_df = }")
     logger.info(f"{len(positive_prediction_and_threshold_df) = }")
 
@@ -1216,7 +1296,11 @@ def main_test_loop(
                 #     f"{ticker} - {date.strftime("%Y-%m-%d")} - {action} - current_price: {current_price}"
                 # )
                 account = check_stop_loss_take_profit(
-                    account, ticker, current_price, date, trading_account_db_name
+                    account,
+                    ticker,
+                    current_price,
+                    date,
+                    trading_account_db_name,
                 )
                 # logger.info(f"{account = }")
 
@@ -1278,20 +1362,22 @@ def main_test_loop(
                         sample_df = pd.DataFrame(data, index=[0])
 
                         # Get prediction (0 or 1) and probability of class 1 (positive return)
-                        prediction, probability = predict_random_forest_classifier(
-                            rf_dict[strategy_name]["rf_classifier"],
-                            sample_df,
+                        prediction, probability = (
+                            predict_random_forest_classifier(
+                                rf_dict[strategy_name]["rf_classifier"],
+                                sample_df,
+                            )
                         )
 
                         if prediction != 1:
-                            action = (
-                                "hold"  # Override original 'Buy' if RF doesn't confirm
-                            )
+                            action = "hold"  # Override original 'Buy' if RF doesn't confirm
 
                         accuracy = round(
                             rf_dict[strategy_name]["accuracy"], 2
                         )  # Keep accuracy for logging/potential future use
-                        probability = np.round(probability[0], 4)  # Round probability
+                        probability = np.round(
+                            probability[0], 4
+                        )  # Round probability
                         logger.info(f"{probability = }")
 
                         logger.info(
@@ -1334,15 +1420,20 @@ def main_test_loop(
             logger.info(f"{holdings_value_by_strategy = }")
 
             prediction_results_df = pd.DataFrame(prediction_results_list)
-            prediction_results_df["Date"] = date.strftime("%Y-%m-%d")
-            prediction_results_df["prediction_id"] = (
-                prediction_results_df["ticker"]
-                + "_"
-                + prediction_results_df["strategy_name"]
-                + "_"
-                + prediction_results_df["Date"]
-            )
-            prediction_results_df.set_index("prediction_id", inplace=True)
+            if prediction_results_list:
+                prediction_results_df["Date"] = date.strftime("%Y-%m-%d")
+                prediction_results_df["prediction_id"] = (
+                    prediction_results_df["ticker"]
+                    + "_"
+                    + prediction_results_df["strategy_name"]
+                    + "_"
+                    + prediction_results_df["Date"]
+                )
+                prediction_results_df.set_index("prediction_id", inplace=True)
+            else:
+                logger.info(
+                    f"no prediction results (no buy signals?) {len(prediction_results_list)=}"
+                )
             # Ensure the DataFrame is not empty
             if not prediction_results_df.empty:
                 logger.info(f"{len(prediction_results_df) = }")
@@ -1358,7 +1449,9 @@ def main_test_loop(
                 except Exception as e:
                     logger.error(f"Error saving predictions to database: {e}")
             else:
-                logger.warning("No prediction_results_df to insert into the database.")
+                logger.warning(
+                    "No prediction_results_df to insert into the database."
+                )
 
             buy_df = strategy_and_ticker_cash_allocation(
                 prediction_results_df,
@@ -1398,7 +1491,9 @@ def main_test_loop(
 
     # Log final results
     # Convert account_values (Series) to DataFrame with Date as index and a column for portfolio value
-    account_values_df = account_values.dropna().to_frame(name="total_portfolio_value")
+    account_values_df = account_values.dropna().to_frame(
+        name="total_portfolio_value"
+    )
     account_values_df.index.name = "Date"
     # logger.info(f"{account_values_df=}")
     insert_account_values_into_db(
@@ -1410,7 +1505,9 @@ def main_test_loop(
     # logger.info(f"Trades: {len(account['trades'])}")
     logger.info(f"Holdings: {account['holdings']}")
     logger.info(f"Account Cash: ${account['cash']: ,.2f}")
-    logger.info(f"Total Portfolio Value: ${account['total_portfolio_value']: ,.2f}")
+    logger.info(
+        f"Total Portfolio Value: ${account['total_portfolio_value']: ,.2f}"
+    )
     logger.info(f"Account Values: {account_values}")
     # logger.info(f"Active Count: {active_count}")
     logger.info("-------------------------------------------------")
@@ -1420,7 +1517,8 @@ def main_test_loop(
         metrics = calculate_metrics(account_values)
         logger.info(metrics)
         generate_tear_sheet(
-            account_values, filename=f"{benchmark_asset}_vs_strategy_{experiment_name}"
+            account_values,
+            filename=f"{benchmark_asset}_vs_strategy_{experiment_name}",
         )
         logger.info("Tear sheet generated.")
     except Exception as e:
@@ -1491,7 +1589,9 @@ if __name__ == "__main__":
     use_rf_model_predictions = False
     # experiment_name = f"{use_rf_model_predictions = }_{len(train_tickers)}_{test_period_start}_{test_period_end}_{train_stop_loss}_{train_take_profit}_thres{prediction_threshold}"
     experiment_name = f"baseline_{test_period_start}_{test_period_end}"
-    account_values = pd.Series(index=pd.date_range(start=start_date, end=end_date))
+    account_values = pd.Series(
+        index=pd.date_range(start=start_date, end=end_date)
+    )
     rf_dict = {}
 
     # TODO? delete existing experiment tables from trading_account db?
@@ -1501,7 +1601,9 @@ if __name__ == "__main__":
     try:
         with sqlite3.connect(PRICE_DB_PATH) as conn:
             for ticker in train_tickers + regime_tickers:
-                query = f"SELECT * FROM '{ticker}' WHERE Date >= ? AND Date <= ?"
+                query = (
+                    f"SELECT * FROM '{ticker}' WHERE Date >= ? AND Date <= ?"
+                )
                 ticker_price_history[ticker] = pd.read_sql(
                     query,
                     conn,
