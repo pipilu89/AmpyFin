@@ -1,3 +1,6 @@
+import os
+
+os.makedirs("log", exist_ok=True)
 """
 Logging configuration for the AmpyFin project.
 
