@@ -7,8 +7,10 @@ import pickle
 import time
 from pydantic import NonNegativeInt
 from scipy.stats import randint
+import logging.config
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from log_config import LOG_CONFIG
 from random_forest import (
     predict_random_forest_classifier,
     train_random_forest_classifier_RandomizedSearchCV,
@@ -16,7 +18,7 @@ from random_forest import (
 )
 
 
-from helper_files.client_helper import setup_logging, strategies_test, strategies
+from helper_files.client_helper import strategies_test, strategies
 
 from control import (
     test_period_end,
@@ -43,7 +45,9 @@ def store_rf_model_to_disk(rf_classifier, strategy_name, price_data_dir):
         with open(model_path, "wb") as file:
             pickle.dump(rf_classifier, file)
 
-        logger.info(f"Classifier for strategy {strategy_name} saved to {model_path}")
+        logger.info(
+            f"Classifier for strategy {strategy_name} saved to {model_path}"
+        )
         return model_path
     except Exception as e:
         logger.error(f"Error saving the model: {e}")
@@ -81,7 +85,9 @@ def check_model_exists(strategy_name):
     price_data_dir = "PriceData"
     rf_dir = "rf_models"
     model_filename = f"{strategy_name}_rf_classifier.pkl"
-    if not os.path.exists(os.path.join(price_data_dir, rf_dir, model_filename)):
+    if not os.path.exists(
+        os.path.join(price_data_dir, rf_dir, model_filename)
+    ):
         return False
     return True
 
@@ -103,8 +109,8 @@ def train_rf_model(trades_data_df, strategy_name):
                 )
             )
         else:
-            rf_classifier, accuracy, precision, recall = train_random_forest_classifier(
-                trades_data_df
+            rf_classifier, accuracy, precision, recall = (
+                train_random_forest_classifier(trades_data_df)
             )
 
         rf_dict = {
@@ -115,20 +121,26 @@ def train_rf_model(trades_data_df, strategy_name):
         }
         logger.info(f"{rf_dict = }")
         assert rf_classifier is not None, "rf_classifier is None"
-        logger.info(f"Classifier for strategy {strategy_name} trained successfully.")
+        logger.info(
+            f"Classifier for strategy {strategy_name} trained successfully."
+        )
         logger.info(
             f"{strategy_name}: accuracy = {accuracy:.2f}, precision = {precision:.2f}, recall = {recall:.2f}"
         )
         return rf_dict
     except Exception as e:
-        logger.error(f"Error training classifier for strategy {strategy_name}: {e}")
+        logger.error(
+            f"Error training classifier for strategy {strategy_name}: {e}"
+        )
 
 
 def main():
     start_time = time.time()
 
     price_data_dir = "PriceData"
-    trades_list_db_name = os.path.join(price_data_dir, "trades_list_vectorised.db")
+    trades_list_db_name = os.path.join(
+        price_data_dir, "trades_list_vectorised.db"
+    )
     con_tl = sqlite3.connect(trades_list_db_name)
 
     """
@@ -137,7 +149,9 @@ def main():
     """
     train_model = False
     save_model = False
-    overwrite_model = False  # if model file exist, do we retrain and save model?
+    overwrite_model = (
+        False  # if model file exist, do we retrain and save model?
+    )
     load_model = True
     model_predict = True  # need to either train or load a model first
 
@@ -165,7 +179,9 @@ def main():
             if overwrite_model and save_model:
                 logger.warning(f"Model file exists, overwriting...")
             elif not overwrite_model and save_model:
-                logger.info(f"Model for {strategy_name} already exists, skipping...")
+                logger.info(
+                    f"Model for {strategy_name} already exists, skipping..."
+                )
                 continue
 
         """
@@ -196,11 +212,17 @@ def main():
             rf_dict = train_rf_model(trades_data_df, strategy_name)
 
         if save_model:
-            model_path = store_rf_model_to_disk(rf_dict, strategy_name, price_data_dir)
-            assert model_path is not None, "Model path is None, model saving failed."
+            model_path = store_rf_model_to_disk(
+                rf_dict, strategy_name, price_data_dir
+            )
+            assert (
+                model_path is not None
+            ), "Model path is None, model saving failed."
         if load_model:
             if not check_model_exists(strategy_name):
-                logger.info(f"Model for {strategy_name} does not exist, skipping...")
+                logger.info(
+                    f"Model for {strategy_name} does not exist, skipping..."
+                )
                 continue
             rf_dict = load_rf_model(strategy_name, logger)
             if rf_dict is None:
@@ -240,7 +262,13 @@ def main():
     if prediction_results:
         prediction_results_df = pd.DataFrame(
             prediction_results,
-            columns=["strategy", "prediction", "accuracy", "precision", "recall"],
+            columns=[
+                "strategy",
+                "prediction",
+                "accuracy",
+                "precision",
+                "recall",
+            ],
         )
         logger.info(f"{prediction_results_df}")
     end_time = time.time()  # Record the end time
@@ -249,5 +277,11 @@ def main():
 
 
 if __name__ == "__main__":
-    logger = setup_logging("logs", "rf_models.log", level=logging.INFO)
+    # Get the current filename without extension
+    module_name = os.path.splitext(os.path.basename(__file__))[0]
+    log_filename = f"log/{module_name}.log"
+    LOG_CONFIG["handlers"]["file_dynamic"]["filename"] = log_filename
+
+    logging.config.dictConfig(LOG_CONFIG)
+    logger = logging.getLogger(__name__)
     main()

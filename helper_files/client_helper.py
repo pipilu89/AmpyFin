@@ -210,7 +210,12 @@ momentum_indicators = [
     ULTOSC_indicator,
     WILLR_indicator,
 ]
-volume_indicators = [AD_indicator, ADOSC_indicator, OBV_indicator, VWAP_indicator]
+volume_indicators = [
+    AD_indicator,
+    ADOSC_indicator,
+    OBV_indicator,
+    VWAP_indicator,
+]
 cycle_indicators = [
     HT_DCPERIOD_indicator,
     HT_DCPHASE_indicator,
@@ -368,7 +373,9 @@ def place_order(trading_client, symbol, side, quantity, mongo_client):
     qty = round(quantity, 3)
     current_price = get_latest_price(symbol)
     stop_loss_price = round(current_price * (1 - stop_loss), 2)  # 3% loss
-    take_profit_price = round(current_price * (1 + take_profit), 2)  # 5% profit
+    take_profit_price = round(
+        current_price * (1 + take_profit), 2
+    )  # 5% profit
 
     # Log trade details to MongoDB
     db = mongo_client.trades
@@ -387,7 +394,9 @@ def place_order(trading_client, symbol, side, quantity, mongo_client):
     limits = db.assets_limit
 
     if side == OrderSide.BUY:
-        assets.update_one({"symbol": symbol}, {"$inc": {"quantity": qty}}, upsert=True)
+        assets.update_one(
+            {"symbol": symbol}, {"$inc": {"quantity": qty}}, upsert=True
+        )
         limits.update_one(
             {"symbol": symbol},
             {
@@ -399,7 +408,9 @@ def place_order(trading_client, symbol, side, quantity, mongo_client):
             upsert=True,
         )
     elif side == OrderSide.SELL:
-        assets.update_one({"symbol": symbol}, {"$inc": {"quantity": -qty}}, upsert=True)
+        assets.update_one(
+            {"symbol": symbol}, {"$inc": {"quantity": -qty}}, upsert=True
+        )
         if assets.find_one({"symbol": symbol})["quantity"] == 0:
             assets.delete_one({"symbol": symbol})
             limits.delete_one({"symbol": symbol})
@@ -450,14 +461,17 @@ def get_ndaq_tickers(mongo_client, FINANCIAL_PREP_API_KEY):
 
             ndaq100_tickers.delete_many({})  # Clear existing data
             ndaq100_tickers.insert_many(ndaq_stocks)  # Insert new data
-            logging.info("Successfully inserted NASDAQ 100 tickers into MongoDB.")
+            logging.info(
+                "Successfully inserted NASDAQ 100 tickers into MongoDB."
+            )
         except Exception as e:
             logging.error(f"Error inserting tickers into MongoDB: {e}")
 
     call_ndaq_100()
 
     tickers = [
-        stock["symbol"] for stock in mongo_client.stock_list.ndaq100_tickers.find()
+        stock["symbol"]
+        for stock in mongo_client.stock_list.ndaq100_tickers.find()
     ]
 
     return tickers
@@ -473,7 +487,10 @@ def market_status(polygon_client):
     """
     try:
         status = polygon_client.get_market_status()
-        if status.exchanges.nasdaq == "open" and status.exchanges.nyse == "open":
+        if (
+            status.exchanges.nasdaq == "open"
+            and status.exchanges.nyse == "open"
+        ):
             return "open"
         elif status.early_hours:
             return "early_hours"
@@ -539,7 +556,9 @@ def dynamic_period_selector(ticker):
     # Select the period with the highest score
 
     optimal_period = (
-        min(volatility_scores, key=lambda x: x[1])[0] if volatility_scores else "1y"
+        min(volatility_scores, key=lambda x: x[1])[0]
+        if volatility_scores
+        else "1y"
     )
     return optimal_period
 
@@ -604,7 +623,9 @@ def save_df_to_csv(df, filename, folder, logger=None):
         except OSError as e:
             if logger:
                 logger.error(f"Failed to create directory {folder}: {e}")
-            raise FileNotFoundError(f"Failed to create directory: {folder}") from e
+            raise FileNotFoundError(
+                f"Failed to create directory: {folder}"
+            ) from e
 
     # Construct the full file path
     filepath = os.path.join(folder, filename)
@@ -649,42 +670,44 @@ def load_json_to_dict(folder_path, filename):
         print(f"Error: Invalid JSON format in {filepath}: {e}")
         return None, None
     except Exception as e:
-        print(f"Error: An unexpected error occurred while loading {filepath}: {e}")
+        print(
+            f"Error: An unexpected error occurred while loading {filepath}: {e}"
+        )
         return None, None
 
 
-def setup_logging(logs_dir, filename, level=logging.INFO):
-    """
-    Sets up logging to both a file and the console.
+# def setup_logging(logs_dir, filename, level=logging.INFO):
+#     """
+#     Sets up logging to both a file and the console.
 
-    Args:
-        logs_dir (str): The directory where the log file will be stored.
-        filename (str): The name of the log file.
-        level (int, optional): The logging level. Defaults to logging.INFO.
+#     Args:
+#         logs_dir (str): The directory where the log file will be stored.
+#         filename (str): The name of the log file.
+#         level (int, optional): The logging level. Defaults to logging.INFO.
 
-    Returns:
-        logging.Logger: Configured logger instance.
-    """
-    # Create the directory if it doesn't exist
-    if not os.path.exists(logs_dir):
-        os.makedirs(logs_dir)
+#     Returns:
+#         logging.Logger: Configured logger instance.
+#     """
+#     # Create the directory if it doesn't exist
+#     if not os.path.exists(logs_dir):
+#         os.makedirs(logs_dir)
 
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
+#     logger = logging.getLogger(__name__)
+#     logger.setLevel(logging.INFO)
 
-    formatter = logging.Formatter(
-        "%(asctime)s - %(levelname)s - %(funcName)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+#     formatter = logging.Formatter(
+#         "%(asctime)s - %(levelname)s - %(funcName)s - %(message)s",
+#         datefmt="%Y-%m-%d %H:%M:%S",
+#     )
 
-    # File handler
-    file_handler = logging.FileHandler(os.path.join(logs_dir, filename))
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
+#     # File handler
+#     file_handler = logging.FileHandler(os.path.join(logs_dir, filename))
+#     file_handler.setFormatter(formatter)
+#     logger.addHandler(file_handler)
 
-    # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
+#     # Console handler
+#     console_handler = logging.StreamHandler()
+#     console_handler.setFormatter(formatter)
+#     logger.addHandler(console_handler)
 
-    return logger
+#     return logger

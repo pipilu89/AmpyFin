@@ -6,9 +6,11 @@ import sys
 
 import pandas as pd
 import yfinance as yf
+import logging.config
 
 # Ensure sys.path manipulation is at the top, before other local imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from log_config import LOG_CONFIG
 
 from control import (
     trade_asset_limit,
@@ -79,7 +81,9 @@ def initialize_simulation(
         }
         for strategy in strategies:
             if strategy.__name__ in indicator_lookup:
-                ideal_period[strategy.__name__] = indicator_lookup[strategy.__name__]
+                ideal_period[strategy.__name__] = indicator_lookup[
+                    strategy.__name__
+                ]
                 # logger.info(f"Retrieved ideal period for {strategy.__name__}: {indicator_lookup[strategy.__name__]}")
             else:
                 logger.info(
@@ -90,14 +94,18 @@ def initialize_simulation(
     # load/save local copy of ideal_period
     ideal_period_dir = "results"
     ideal_period_filename = f"ideal_period.json"
-    ideal_period_filepath = os.path.join(ideal_period_dir, ideal_period_filename)
+    ideal_period_filepath = os.path.join(
+        ideal_period_dir, ideal_period_filename
+    )
     if not os.path.exists(ideal_period_filepath):
         ideal_period = get_ideal_period()
         store_dict_as_json(
             ideal_period, ideal_period_filename, ideal_period_dir, logger
         )
     else:
-        ideal_period = load_json_to_dict(ideal_period_dir, ideal_period_filename)
+        ideal_period = load_json_to_dict(
+            ideal_period_dir, ideal_period_filename
+        )
 
     # If no tickers provided, fetch Nasdaq tickers
     if not train_tickers:
@@ -113,7 +121,9 @@ def initialize_simulation(
 
     data_start_date = (start_date - timedelta(days=730)).strftime("%Y-%m-%d")
 
-    logger.info(f"Fetching historical data from {data_start_date} to {period_end}.")
+    logger.info(
+        f"Fetching historical data from {data_start_date} to {period_end}."
+    )
 
     def get_historical_data_from_yfinance():
         # Bulk download ticker data using yfinance (with threading enabled)
@@ -154,7 +164,9 @@ def initialize_simulation(
                     f"Error retrieving specific date range for {ticker} via bulk download, fetching max available data. Error: {str(e)}"
                 )
                 try:
-                    ticker_data = yf.Ticker(ticker).history(period="max", interval="1d")
+                    ticker_data = yf.Ticker(ticker).history(
+                        period="max", interval="1d"
+                    )
                     if ticker_data.empty:
                         logger.warning(
                             f"No data available for {ticker} even for max period."
@@ -165,7 +177,9 @@ def initialize_simulation(
                         )
                     ticker_price_history[ticker] = ticker_data
                 except Exception as e2:
-                    logger.error(f"Failed to retrieve data for {ticker}: {str(e2)}")
+                    logger.error(
+                        f"Failed to retrieve data for {ticker}: {str(e2)}"
+                    )
                     ticker_price_history[ticker] = None
 
     price_data_source = "db"
@@ -220,7 +234,9 @@ def initialize_simulation_old(
     }
     for strategy in strategies:
         if strategy.__name__ in indicator_lookup:
-            ideal_period[strategy.__name__] = indicator_lookup[strategy.__name__]
+            ideal_period[strategy.__name__] = indicator_lookup[
+                strategy.__name__
+            ]
             # logger.info(f"Retrieved ideal period for {strategy.__name__}: {indicator_lookup[strategy.__name__]}")
         else:
             logger.info(
@@ -241,7 +257,9 @@ def initialize_simulation_old(
 
     data_start_date = (start_date - timedelta(days=730)).strftime("%Y-%m-%d")
 
-    logger.info(f"Fetching historical data from {data_start_date} to {period_end}.")
+    logger.info(
+        f"Fetching historical data from {data_start_date} to {period_end}."
+    )
 
     # Bulk download ticker data using yfinance (with threading enabled)
     try:
@@ -281,7 +299,9 @@ def initialize_simulation_old(
                 f"Error retrieving specific date range for {ticker} via bulk download, fetching max available data. Error: {str(e)}"
             )
             try:
-                ticker_data = yf.Ticker(ticker).history(period="max", interval="1d")
+                ticker_data = yf.Ticker(ticker).history(
+                    period="max", interval="1d"
+                )
                 if ticker_data.empty:
                     logger.warning(
                         f"No data available for {ticker} even for max period."
@@ -292,7 +312,9 @@ def initialize_simulation_old(
                     )
                 ticker_price_history[ticker] = ticker_data
             except Exception as e2:
-                logger.error(f"Failed to retrieve data for {ticker}: {str(e2)}")
+                logger.error(
+                    f"Failed to retrieve data for {ticker}: {str(e2)}"
+                )
                 ticker_price_history[ticker] = None
 
     logger.info("Simulation initialization complete.")
@@ -335,10 +357,15 @@ def update_points_and_trades(
         strategy.__name__,
         ticker,
         round(current_price, 2),
-        round(trading_simulator[strategy.__name__]["holdings"][ticker]["price"], 2),
+        round(
+            trading_simulator[strategy.__name__]["holdings"][ticker]["price"],
+            2,
+        ),
         qty,
         round(ratio, 4),
-        round(trading_simulator[strategy.__name__]["holdings"][ticker]["vix"], 2),
+        round(
+            trading_simulator[strategy.__name__]["holdings"][ticker]["vix"], 2
+        ),
         round(
             trading_simulator[strategy.__name__]["holdings"][ticker][
                 "1day_sp500_return"
@@ -396,9 +423,15 @@ def update_points_and_trades(
             )
 
     trading_simulator[strategy.__name__]["holdings"][ticker]["quantity"] -= qty
-    if trading_simulator[strategy.__name__]["holdings"][ticker]["quantity"] == 0:
+    if (
+        trading_simulator[strategy.__name__]["holdings"][ticker]["quantity"]
+        == 0
+    ):
         del trading_simulator[strategy.__name__]["holdings"][ticker]
-    elif trading_simulator[strategy.__name__]["holdings"][ticker]["quantity"] < 0:
+    elif (
+        trading_simulator[strategy.__name__]["holdings"][ticker]["quantity"]
+        < 0
+    ):
         raise Exception("Quantity cannot be negative")
     trading_simulator[strategy.__name__]["total_trades"] += 1
 
@@ -434,12 +467,18 @@ def execute_trade(
         logger.debug(
             f"debug: buy {qty} {ticker} at {current_price}, {current_date} {strategy.__name__}"
         )
-        trading_simulator[strategy.__name__]["amount_cash"] -= qty * current_price
+        trading_simulator[strategy.__name__]["amount_cash"] -= (
+            qty * current_price
+        )
 
         if ticker in trading_simulator[strategy.__name__]["holdings"]:
-            trading_simulator[strategy.__name__]["holdings"][ticker]["quantity"] += qty
+            trading_simulator[strategy.__name__]["holdings"][ticker][
+                "quantity"
+            ] += qty
         else:
-            trading_simulator[strategy.__name__]["holdings"][ticker] = {"quantity": qty}
+            trading_simulator[strategy.__name__]["holdings"][ticker] = {
+                "quantity": qty
+            }
 
         trading_simulator[strategy.__name__]["holdings"][ticker][
             "price"
@@ -448,7 +487,9 @@ def execute_trade(
 
         # new add buy date
         date_str = current_date.strftime("%Y-%m-%d")
-        trading_simulator[strategy.__name__]["holdings"][ticker]["buy_date"] = date_str
+        trading_simulator[strategy.__name__]["holdings"][ticker][
+            "buy_date"
+        ] = date_str
         trading_simulator[strategy.__name__]["holdings"][ticker]["vix"] = (
             current_regime_data[0]
         )
@@ -464,7 +505,9 @@ def execute_trade(
         .get("quantity", 0)
         >= qty
     ):
-        trading_simulator[strategy.__name__]["amount_cash"] += qty * current_price
+        trading_simulator[strategy.__name__]["amount_cash"] += (
+            qty * current_price
+        )
         ratio = (
             current_price
             / trading_simulator[strategy.__name__]["holdings"][ticker]["price"]
@@ -515,12 +558,18 @@ def execute_trade_only_buy_one(
         logger.debug(
             f"debug: buy {qty} {ticker} at {current_price}, {current_date} {strategy.__name__}"
         )
-        trading_simulator[strategy.__name__]["amount_cash"] -= qty * current_price
+        trading_simulator[strategy.__name__]["amount_cash"] -= (
+            qty * current_price
+        )
 
         if ticker in trading_simulator[strategy.__name__]["holdings"]:
-            trading_simulator[strategy.__name__]["holdings"][ticker]["quantity"] += qty
+            trading_simulator[strategy.__name__]["holdings"][ticker][
+                "quantity"
+            ] += qty
         else:
-            trading_simulator[strategy.__name__]["holdings"][ticker] = {"quantity": qty}
+            trading_simulator[strategy.__name__]["holdings"][ticker] = {
+                "quantity": qty
+            }
 
         trading_simulator[strategy.__name__]["holdings"][ticker][
             "price"
@@ -529,7 +578,9 @@ def execute_trade_only_buy_one(
 
         # new add buy date
         date_str = current_date.strftime("%Y-%m-%d")
-        trading_simulator[strategy.__name__]["holdings"][ticker]["buy_date"] = date_str
+        trading_simulator[strategy.__name__]["holdings"][ticker][
+            "buy_date"
+        ] = date_str
         trading_simulator[strategy.__name__]["holdings"][ticker]["vix"] = (
             current_regime_data[0]
         )
@@ -546,7 +597,9 @@ def execute_trade_only_buy_one(
         # .get("quantity", 0)
         # >= qty
     ):
-        trading_simulator[strategy.__name__]["amount_cash"] += qty * current_price
+        trading_simulator[strategy.__name__]["amount_cash"] += (
+            qty * current_price
+        )
         ratio = (
             current_price
             / trading_simulator[strategy.__name__]["holdings"][ticker]["price"]
@@ -597,7 +650,9 @@ def simulate_trading_day(
     """
     # daily_regime_data = ticker_price_history[regime_tickers[0]].loc[date_str]
     # current_vix_data = daily_regime_data["Close"].values[0]
-    current_vix_data = ticker_price_history[regime_tickers[0]].at[date_str, "Close"]
+    current_vix_data = ticker_price_history[regime_tickers[0]].at[
+        date_str, "Close"
+    ]
 
     # df_daily_sp500 = ticker_price_history['^GSPC'].loc[date_str]
     # current_1day_sp500_return = df_daily_sp500['1day_return'].values[0]
@@ -651,7 +706,9 @@ def simulate_trading_day(
 
             # Get the previous row index. try using .shift?
             if current_position > 0:  # Ensure it's not the first row
-                previous_index = precomputed_decisions.index[current_position - 1]
+                previous_index = precomputed_decisions.index[
+                    current_position - 1
+                ]
                 # Access the value in the previous row for the same column (ticker)
                 action = precomputed_decisions.at[previous_index, ticker]
             else:
@@ -676,7 +733,9 @@ def simulate_trading_day(
                 .get(ticker, {})
                 .get("quantity", 0)
             )
-            total_portfolio_value = trading_simulator[strategy_name]["portfolio_value"]
+            total_portfolio_value = trading_simulator[strategy_name][
+                "portfolio_value"
+            ]
 
             # Compute trade decision and quantity based on precomputed action
             # if mode == "train":
@@ -740,7 +799,8 @@ def compute_trade_quantities(
 
     if action == "Buy":
         return "buy", min(
-            int(max_investment // current_price), int(account_cash // current_price)
+            int(max_investment // current_price),
+            int(account_cash // current_price),
         )
     elif action == "Sell" and portfolio_qty > 0:
         return "sell", min(portfolio_qty, max(1, int(portfolio_qty * 0.5)))
@@ -811,7 +871,9 @@ def precompute_strategy_decisions(
     for day_results in results:
         if day_results:  # Skip empty results
             date_str = day_results["date"]
-            for strategy_name, strategy_data in day_results["strategies"].items():
+            for strategy_name, strategy_data in day_results[
+                "strategies"
+            ].items():
                 for ticker, action in strategy_data.items():
                     data.append([strategy_name, ticker, date_str, action])
 
@@ -882,9 +944,13 @@ def precompute_strategy_decisions_json(
     for day_results in results:
         if day_results:  # Skip empty results
             date_str = day_results["date"]
-            for strategy_name, strategy_data in day_results["strategies"].items():
+            for strategy_name, strategy_data in day_results[
+                "strategies"
+            ].items():
                 for ticker, action in strategy_data.items():
-                    precomputed_decisions[strategy_name][ticker][date_str] = action
+                    precomputed_decisions[strategy_name][ticker][
+                        date_str
+                    ] = action
 
     logger.info(
         f"Strategy decision precomputation complete. Processed {len(results)} trading days."
@@ -989,29 +1055,21 @@ if __name__ == "__main__":
     import sys
 
     # Ensure sys.path manipulation is at the top, before other local imports
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    sys.path.append(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )
     from config import FINANCIAL_PREP_API_KEY, mongo_url
 
     ca = certifi.where()
 
     # Set up logging
-    logs_dir = "logs"
-    # Create the directory if it doesn't exist
-    if not os.path.exists(logs_dir):
-        os.makedirs(logs_dir)
+    # Get the current filename without extension
+    module_name = os.path.splitext(os.path.basename(__file__))[0]
+    log_filename = f"log/{module_name}.log"
+    LOG_CONFIG["handlers"]["file_dynamic"]["filename"] = log_filename
 
+    logging.config.dictConfig(LOG_CONFIG)
     logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
-    # logger.setLevel(logging.WARNING)
-
-    formatter = logging.Formatter(
-        "%(asctime)s - %(levelname)s - %(funcName)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-
-    file_handler = logging.FileHandler(os.path.join(logs_dir, "train_test.log"))
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
 
     mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
 
@@ -1019,7 +1077,6 @@ if __name__ == "__main__":
     period_end = "2021-01-01"
     train_tickers = ["AAPL", "MSFT", "GOOGL", "AMZN"]
     # FINANCIAL_PREP_API_KEY,
-    logger,
 
     ticker_price_history, ideal_period = initialize_simulation(
         period_start,
