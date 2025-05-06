@@ -1,28 +1,36 @@
-from datetime import datetime
+import logging
+import os
 import re
 import sqlite3
+import sys
 import time
-import pandas as pd
-import os, sys
-import logging
-import numpy as np
+from datetime import datetime
 from typing import Literal
+
+import numpy as np
+import pandas as pd
 from sklearn.metrics import accuracy_score, precision_score, recall_score
+
 import wandb
 
 # Add parent directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from variables_rf import config_dict
+
+from config import PRICE_DB_PATH, environment
+from control import features_ticker_list, oscillator_features_ticker_list
+from helper_files.client_helper import (
+    momentum_indicators,
+    setup_logging,
+    strategies,
+    strategies_test,
+)
 from random_forest import (
     predict_random_forest_classifier,
     train_random_forest_classifier,
     train_random_forest_classifier_features,
 )
-from helper_files.client_helper import strategies, strategies_test, momentum_indicators
-from helper_files.client_helper import setup_logging
-from control import features_ticker_list, oscillator_features_ticker_list
-from variables_rf import config_dict
-from config import PRICE_DB_PATH, environment
 
 
 def walk_forward_analysis(
@@ -265,7 +273,11 @@ def save_results_to_db(
         return False
     try:
         df.to_sql(
-            table_name, conn, if_exists=if_exists, index=index, index_label=index_label
+            table_name,
+            conn,
+            if_exists=if_exists,
+            index=index,
+            index_label=index_label,
         )
         logger.info(f"Successfully wrote {len(df)} records to table '{table_name}'.")
         return True

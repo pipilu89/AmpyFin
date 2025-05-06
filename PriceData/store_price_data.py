@@ -1,40 +1,38 @@
-from matplotlib import table
+import logging
+import os
+import sqlite3
+import sys
 
 # from numpy import empty
 import time
+
 import pandas as pd
 import yfinance as yf
-import sqlite3
-import os
-import sys
-from tqdm import tqdm
-from pandas.tseries.holiday import USFederalHolidayCalendar
+from dateutil.relativedelta import (
+    MO,
+)
+from matplotlib import table
+from pandas.tseries.holiday import (  # DateOffset,; MO,; https://www.tobiolabode.com/blog/2019/1/1/pandas-for-uk-hoildays
+    AbstractHolidayCalendar,
+    EasterMonday,
+    GoodFriday,
+    Holiday,
+    USFederalHolidayCalendar,
+    next_monday,
+    next_monday_or_tuesday,
+)
 from pandas.tseries.offsets import (
     CustomBusinessDay,
     DateOffset,
 )
-from dateutil.relativedelta import (
-    MO,
-)
-
-from pandas.tseries.holiday import (
-    AbstractHolidayCalendar,
-    # DateOffset,
-    EasterMonday,
-    GoodFriday,
-    Holiday,
-    # MO,
-    next_monday,
-    next_monday_or_tuesday,
-)  # https://www.tobiolabode.com/blog/2019/1/1/pandas-for-uk-hoildays
-import logging
+from tqdm import tqdm
 
 # Add parent directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from helper_files.client_helper import setup_logging
 from config import PRICE_DB_PATH
-from control import train_tickers, regime_tickers
+from control import regime_tickers, train_tickers
+from helper_files.client_helper import setup_logging
 
 # logger = setup_logging("logs", "store_price_data.log", level=logging.INFO)
 
@@ -769,7 +767,10 @@ def check_missing_dates(table_name, periods_int, exchange="NYSE"):
                 ),
                 Holiday("Christmas Day", month=12, day=25, observance=next_monday),
                 Holiday(
-                    "Boxing Day", month=12, day=26, observance=next_monday_or_tuesday
+                    "Boxing Day",
+                    month=12,
+                    day=26,
+                    observance=next_monday_or_tuesday,
                 ),
             ]
 
@@ -834,7 +835,10 @@ def check_missing_dates_start_end(table_name, start_date, end_date, exchange="us
                 ),
                 Holiday("Christmas Day", month=12, day=25, observance=next_monday),
                 Holiday(
-                    "Boxing Day", month=12, day=26, observance=next_monday_or_tuesday
+                    "Boxing Day",
+                    month=12,
+                    day=26,
+                    observance=next_monday_or_tuesday,
                 ),
             ]
 

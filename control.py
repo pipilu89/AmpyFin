@@ -85,13 +85,13 @@ prediction_threshold = 0.5
 # short test period
 # train_period_start = "2024-12-21"
 # train_period_end = "2024-12-31"
-# test_period_start = "2025-01-01"
-# test_period_end = "2025-02-01"
+test_period_start = "2025-01-05"
+test_period_end = "2025-02-10"
 
 train_period_start = "1991-01-01"
 train_period_end = "2024-12-31"
-test_period_start = "2000-01-01"
-test_period_end = "2025-04-08"
+# test_period_start = "2000-01-01"
+# test_period_end = "2025-04-08"
 
 train_tickers_5 = ["AAPL", "MSFT", "META", "AMD", "ELV"]
 train_tickers1 = ["GOOGL"]
@@ -707,6 +707,7 @@ sp500_tickers = [
 ]
 
 train_tickers = nsdaq_tickers
+# train_tickers = ["LIN"]
 """
 train_time_delta_mode can be multiplicative, additive, or balanced.
 Additive results in less overfitting but could result in underfitting as time goes on
