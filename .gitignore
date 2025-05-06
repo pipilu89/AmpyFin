@@ -1,19 +1,27 @@
-
+# Ignore all environment files.
+/.env*
 
 # Ignore all logfiles.
 /log/*
 !/log/.keep
-*.log
 
-.env
 .vscode/
 **/__pycache__/
 *.json
 **/.DS_Store
+.qodo
+
+# Ignore all wandb experiment data.
+/wandb/*
+!/wandb/.keep
+
+# Ignore generated SQLite dbs
+*.db
+
+#others
 *.csv
 todo.md
 ftp_downloads/
-wandb/
 tearsheets/
 *.xlsx
 *.db
