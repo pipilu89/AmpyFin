@@ -55,22 +55,22 @@ LOG_CONFIG = {
             "formatter": "simple_console",
             "stream": "ext://sys.stderr",
         },
-        # "file": {
-        #     "class": "logging.handlers.RotatingFileHandler",
-        #     "level": "DEBUG",
-        #     "formatter": "simple",
-        #     "filename": "log/main_log.log",
-        #     "maxBytes": 2000000,  # 2000000=2MB
-        #     "backupCount": 3,
-        # },
-        # "file_dbs": {
-        #     "class": "logging.handlers.RotatingFileHandler",
-        #     "level": "DEBUG",
-        #     "formatter": "simple",
-        #     "filename": "log/dbs_log.log",
-        #     "maxBytes": 2000000,
-        #     "backupCount": 3,
-        # },
+        "file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "level": "DEBUG",
+            "formatter": "simple",
+            "filename": "log/main_log.log",
+            "maxBytes": 2000000,  # 2000000=2MB
+            "backupCount": 3,
+        },
+        "file_dbs": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "level": "DEBUG",
+            "formatter": "simple",
+            "filename": "log/dbs_log.log",
+            "maxBytes": 2000000,
+            "backupCount": 3,
+        },
         "file_dynamic": {
             "class": "logging.handlers.RotatingFileHandler",
             "level": "INFO",
