@@ -60,7 +60,7 @@ LOG_CONFIG = {
             "level": "DEBUG",
             "formatter": "simple",
             "filename": "log/main_log.log",
-            "maxBytes": 2000000,  # 2000000=2MB
+            "maxBytes": 20000000,  # 20000000=20MB
             "backupCount": 3,
         },
         "file_dbs": {
@@ -68,7 +68,7 @@ LOG_CONFIG = {
             "level": "DEBUG",
             "formatter": "simple",
             "filename": "log/dbs_log.log",
-            "maxBytes": 2000000,
+            "maxBytes": 20000000,
             "backupCount": 3,
         },
         "file_dynamic": {
@@ -76,7 +76,7 @@ LOG_CONFIG = {
             "level": "INFO",
             "formatter": "simple",
             # "filename":  to be added dynamically
-            "maxBytes": 2000000,
+            "maxBytes": 20000000,
             "backupCount": 3,
             "mode": "w",  # 'w' overwrite file, 'a' append file.
         },
