@@ -35,6 +35,41 @@ Example with dynamic naming
     logger = logging.getLogger(__name__)
 """
 
+import json
+import logging
+
+
+class PrettyDictFormatter(logging.Formatter):
+    """
+    Pretty print dicts.
+
+    When logging, always pass the dictionary as the first argument to the logger method, not as a formatted string.
+    **Wrong:**
+    ````python
+    logger.info(f"account={account}")  # This converts the dict to a string before logging
+    ````
+
+    **Correct:**
+    ````python
+    logger.info(account)  # Pass the dict directly; PrettyDictFormatter will format it
+    ````
+
+    **Tip:**
+    If you want a label, use extra arguments or log two entries:
+    ````python
+    logger.info("account:")
+    logger.info(account)
+    ````
+
+    This ensures your custom formatter can detect and pretty-print the dict."""
+
+    def format(self, record):
+        # Pretty-print dict messages
+        if isinstance(record.msg, dict):
+            record.msg = json.dumps(record.msg, indent=4, sort_keys=True)
+        return super().format(record)
+
+
 LOG_CONFIG = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -42,6 +77,7 @@ LOG_CONFIG = {
         "simple": {
             "format": "%(asctime)s - %(levelname)s - %(name)s - %(funcName)s - %(message)s",  # noqa: E501
             "datefmt": "%Y-%m-%d %H:%M:%S %z",
+            "()": "log_config.PrettyDictFormatter",
         },
         "simple_console": {
             "format": "%(asctime)s - %(levelname)s - %(funcName)s - %(message)s",  # noqa: E501

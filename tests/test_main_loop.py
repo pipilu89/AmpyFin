@@ -1,18 +1,25 @@
-"""pytest ./tests/test_main_loop.py"""
+"""pytest ./tests/test_main_loop.py
+what functions should be called?
+what if no price/sd data?
+test these functions are called correctly
+separately check these function work
+check trading_account.db has orders (intergration test)
+"""
 
-import pytest
-import pandas as pd
-from datetime import datetime
-import os, sys
 import logging
 import logging.config
-from unittest.mock import Mock, MagicMock
+import os
+import sys
+from datetime import datetime
+from unittest.mock import MagicMock, Mock
+
+import pandas as pd
+import pytest
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from TradeSim.testing_random_forest import main_test_loop
-
 from log_config import LOG_CONFIG
+from TradeSim.testing_random_forest import main_test_loop
 
 # Get the current filename without extension
 module_name = os.path.splitext(os.path.basename(__file__))[0]
@@ -44,16 +51,16 @@ def test_data():
     ticker_price_history = {
         "AAPL": pd.DataFrame({"Close": [150]}, index=["2023-01-03"]),
         "^VIX": pd.DataFrame({"Close": [20]}, index=["2023-01-03"]),
-        "^GSPC": pd.DataFrame(
-            {"One_day_spy_return": [0.01]}, index=["2023-01-03"]
-        ),
+        "^GSPC": pd.DataFrame({"One_day_spy_return": [0.01]}, index=["2023-01-03"]),
     }
     # Minimal precomputed_decisions
     precomputed_decisions = {
         "strategy1": pd.DataFrame({"AAPL": ["Buy"]}, index=["2023-01-03"])
     }
 
-    yield logger, tickers_list, use_rf_model_predictions, rf_dict, experiment_name, test_date_range, account_values, trading_account_db_name, ticker_price_history, precomputed_decisions
+    trade_liquidity_limit_cash = 1000
+
+    yield logger, tickers_list, use_rf_model_predictions, rf_dict, experiment_name, test_date_range, account_values, trading_account_db_name, ticker_price_history, precomputed_decisions, trade_liquidity_limit_cash
 
 
 @pytest.fixture(scope="function")
@@ -63,9 +70,7 @@ def patched_functions(monkeypatch):
         lambda *a, **k: None,
     )
 
-    monkeypatch.setattr(
-        "TradeSim.testing_random_forest.strategies", [strategy1]
-    )
+    monkeypatch.setattr("TradeSim.testing_random_forest.strategies", [strategy1])
 
     monkeypatch.setattr(
         "TradeSim.testing_random_forest.create_buy_heap", lambda *a, **k: []
@@ -109,6 +114,7 @@ def test_main_test_loop_basic(monkeypatch, test_data, patched_functions):
         trading_account_db_name,
         ticker_price_history,
         precomputed_decisions,
+        trade_liquidity_limit_cash,
     ) = test_data
 
     # Minimal account
@@ -138,6 +144,19 @@ def test_main_test_loop_basic(monkeypatch, test_data, patched_functions):
         mock_strategy_and_ticker_cash_allocation,
     )
 
+    # execute orders need to return account
+    mock_execute_sell_orders = MagicMock(side_effect=lambda *args, **kwargs: args[0])
+    monkeypatch.setattr(
+        "TradeSim.testing_random_forest.execute_sell_orders",
+        mock_execute_sell_orders,
+    )
+
+    mock_execute_buy_orders = MagicMock(side_effect=lambda *args, **kwargs: args[2])
+    monkeypatch.setattr(
+        "TradeSim.testing_random_forest.execute_buy_orders",
+        mock_execute_buy_orders,
+    )
+
     result = main_test_loop(
         account,
         test_date_range,
@@ -149,6 +168,7 @@ def test_main_test_loop_basic(monkeypatch, test_data, patched_functions):
         trading_account_db_name,
         rf_dict,
         experiment_name,
+        trade_liquidity_limit_cash,
         logger,
     )
     assert isinstance(result, dict)
@@ -157,11 +177,11 @@ def test_main_test_loop_basic(monkeypatch, test_data, patched_functions):
     assert mock_get_holdings_value_by_strategy.call_count == 1
     assert mock_strategy_and_ticker_cash_allocation.call_count == 1
     assert mock_check_stop_loss_take_profit_rtn_order.call_count == 0
+    assert mock_execute_sell_orders.call_count == 0
+    assert mock_execute_buy_orders.call_count == 1
 
 
-def test_main_test_loop_account_has_holdings(
-    monkeypatch, test_data, patched_functions
-):
+def test_main_test_loop_account_has_holdings(monkeypatch, test_data, patched_functions):
     """If qty of ticker in holding should run sl_tp
     and if action = sell append sell orders"""
     (
@@ -175,6 +195,7 @@ def test_main_test_loop_account_has_holdings(
         trading_account_db_name,
         ticker_price_history,
         precomputed_decisions,
+        trade_liquidity_limit_cash,
     ) = test_data
 
     account = {
@@ -210,6 +231,19 @@ def test_main_test_loop_account_has_holdings(
         mock_strategy_and_ticker_cash_allocation,
     )
 
+    # execute orders need to return account
+    mock_execute_sell_orders = MagicMock(side_effect=lambda *args, **kwargs: args[0])
+    monkeypatch.setattr(
+        "TradeSim.testing_random_forest.execute_sell_orders",
+        mock_execute_sell_orders,
+    )
+
+    mock_execute_buy_orders = MagicMock(side_effect=lambda *args, **kwargs: args[2])
+    monkeypatch.setattr(
+        "TradeSim.testing_random_forest.execute_buy_orders",
+        mock_execute_buy_orders,
+    )
+
     result = main_test_loop(
         account,
         test_date_range,
@@ -221,6 +255,7 @@ def test_main_test_loop_account_has_holdings(
         trading_account_db_name,
         rf_dict,
         experiment_name,
+        trade_liquidity_limit_cash,
         logger,
     )
     assert isinstance(result, dict)
@@ -229,3 +264,5 @@ def test_main_test_loop_account_has_holdings(
     assert mock_get_holdings_value_by_strategy.call_count == 1
     assert mock_strategy_and_ticker_cash_allocation.call_count == 1
     assert mock_check_stop_loss_take_profit_rtn_order.call_count == 1
+    assert mock_execute_sell_orders.call_count == 0
+    assert mock_execute_buy_orders.call_count == 1
