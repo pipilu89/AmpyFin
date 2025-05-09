@@ -50,21 +50,37 @@ def initialize_test_account(start_cash):
     Initializes the test trading account with starting parameters
 
     account structure:
-    {'holdings':
-        {'LIN':
-            {'ULTOSC_indicator':
-                {'quantity': 12.09, 'price': 413.57, 'stop_loss': 372.21, 'take_profit': 620.36}
-            }
-        },
-    'cash': 44999.9387,
-    'trades': [],
-    'total_portfolio_value': np.float64(50466.9158)}
+        {
+            "holdings": {
+                "AAPL": {
+                    "strategy1": {
+                        "quantity": 10,
+                        "price": 100,
+                        "current_price": 150.0,
+                        "current_value": 1500.0,
+                    }
+                },
+                "MSFT": {
+                    "strategy2": {
+                        "quantity": 5,
+                        "price": 200,
+                        "current_price": 250.0,
+                        "current_value": 1250.0,
+                    }
+                },
+            },
+            "holdings_value_by_strategy": {
+                "strategy1": 1500.0,
+                "strategy2": 1250.0,
+            },
+            "cash": 10000,
+            "total_portfolio_value": 12750.0,
+        }
     """
     return {
         "holdings": {},
         "holdings_value_by_strategy": {},
         "cash": start_cash,
-        # "trades": [],
         "total_portfolio_value": start_cash,
     }
 
