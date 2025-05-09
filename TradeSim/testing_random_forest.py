@@ -45,7 +45,7 @@ from random_forest import (
 )
 
 
-def initialize_test_account():
+def initialize_test_account(start_cash):
     """
     Initializes the test trading account with starting parameters
 
@@ -63,9 +63,9 @@ def initialize_test_account():
     return {
         "holdings": {},
         "holdings_value_by_strategy": {},
-        "cash": train_start_cash,
+        "cash": start_cash,
         # "trades": [],
-        "total_portfolio_value": train_start_cash,
+        "total_portfolio_value": start_cash,
     }
 
 
@@ -94,7 +94,9 @@ def check_stop_loss_take_profit_rtn_order(
 
     if quantity > 0:
         stop_loss = account["holdings"][ticker][strategy_name].get("stop_loss")
-        take_profit = account["holdings"][ticker][strategy_name].get("take_profit")
+        take_profit = account["holdings"][ticker][strategy_name].get(
+            "take_profit"
+        )
         assert stop_loss is not None
         assert take_profit is not None
         if current_price < stop_loss:
@@ -147,7 +149,10 @@ def execute_buy_orders(
     ) > trade_liquidity_limit_cash:
         if buy_heap and float(account["cash"]) > trade_liquidity_limit_cash:
             heap = buy_heap
-        elif suggestion_heap and float(account["cash"]) > trade_liquidity_limit_cash:
+        elif (
+            suggestion_heap
+            and float(account["cash"]) > trade_liquidity_limit_cash
+        ):
             heap = suggestion_heap
         else:
             logger.info(
@@ -171,7 +176,9 @@ def execute_buy_orders(
 
         # insert trade into trading account database
         # Calculate trade_id first
-        trade_id_value = f"{ticker}_{strategy_name}_{current_date.strftime('%Y-%m-%d')}"
+        trade_id_value = (
+            f"{ticker}_{strategy_name}_{current_date.strftime('%Y-%m-%d')}"
+        )
 
         trade_df = pd.DataFrame(
             {
@@ -205,7 +212,9 @@ def execute_buy_orders(
                 "take_profit": 0,
             }
 
-        account["holdings"][ticker][strategy_name]["quantity"] += round(quantity, 2)
+        account["holdings"][ticker][strategy_name]["quantity"] += round(
+            quantity, 2
+        )
         account["holdings"][ticker][strategy_name]["price"] = current_price
         account["holdings"][ticker][strategy_name]["stop_loss"] = round(
             current_price * (1 - stop_loss_pct), 2
@@ -248,7 +257,9 @@ def execute_sell_orders(
     ):
         # quantity = max(quantity, 1)
         quantity = account["holdings"][ticker][strategy_name]["quantity"]
-        trade_id_value = f"{ticker}_{strategy_name}_{current_date.strftime('%Y-%m-%d')}"
+        trade_id_value = (
+            f"{ticker}_{strategy_name}_{current_date.strftime('%Y-%m-%d')}"
+        )
 
         trade_df = pd.DataFrame(
             {
@@ -283,7 +294,9 @@ def execute_sell_orders(
 
 
 # not needed? incorporated into update_account_portfolio_values
-def get_holdings_value_by_strategy(account, ticker_price_history, current_date):
+def get_holdings_value_by_strategy(
+    account, ticker_price_history, current_date
+):
     """
     Calculates the current value of existing holdings by strategy.
 
@@ -317,32 +330,31 @@ def strategy_and_ticker_cash_allocation(
     asset_limit,
     strategy_limit,
     trade_liquidity_limit_cash,
+    logger,
 ):
     """
     Allocates cash to strategies and tickers based on prediction results and constraints.
 
     Parameters:
-    - prediction_results_df (pd.DataFrame): DataFrame containing prediction results, including strategy names, tickers, actions, predictions, and accuracies.
+    - prediction_results_df (pd.DataFrame): DataFrame containing prediction results, including strategy names, tickers, actions, predictions, probabilities and accuracies.
     - account (dict): The current account state, including holdings, cash, and total portfolio value.
-    # - holdings_value_by_strategy (dict): Dictionary with the current value of holdings by strategy.
     - prediction_threshold (float): The minimum score required for a strategy to qualify.
     - asset_limit (float): The maximum proportion of the portfolio that can be allocated to a single asset.
     - strategy_limit (float): The maximum proportion of the portfolio that can be allocated to a single strategy.
+    - trade_liquidity_limit_cash (float): how much spare cash to keep.
 
     Returns:
     - pd.DataFrame: DataFrame containing the allocated cash for each strategy and ticker.
     """
     if prediction_results_df.empty:
-        logger.info(
-            "strategy_and_ticker_cash_allocation: prediction_results_df is empty."
-        )
+        logger.info("prediction_results_df is empty.")
         return pd.DataFrame()
 
     # Ensure required columns exist
     required_cols = ["probability", "prediction", "action"]
     if not all(col in prediction_results_df.columns for col in required_cols):
         logger.error(
-            f"strategy_and_ticker_cash_allocation: Missing required columns in prediction_results_df. Found: {prediction_results_df.columns}"
+            f"Missing required columns in prediction_results_df. Found: {prediction_results_df.columns}"
         )
         return pd.DataFrame()
 
@@ -353,34 +365,34 @@ def strategy_and_ticker_cash_allocation(
     ].copy()
 
     if confirmed_buys_df.empty:
-        logger.info(
-            "strategy_and_ticker_cash_allocation: No confirmed buy signals (prediction == 1)."
-        )
+        logger.info("No confirmed buy signals (prediction == 1).")
         return pd.DataFrame()
 
     # Use probability as the primary score for ranking
     confirmed_buys_df["score"] = confirmed_buys_df["probability"]
 
     # Sort by the new probability-based score
-    confirmed_buys_df = confirmed_buys_df.sort_values(by=["score"], ascending=False)
+    confirmed_buys_df = confirmed_buys_df.sort_values(
+        by=["score"], ascending=False
+    )
     # logger.info(
-    #     f"strategy_and_ticker_cash_allocation: Sorted confirmed buys by probability score:
+    #     f"Sorted confirmed buys by probability score:
     # \n{confirmed_buys_df[['strategy_name', 'ticker', 'probability', 'score']]}"
     # )
 
     # Filter DataFrame where score (probability) > prediction_threshold
     qualifying_strategies_df = confirmed_buys_df[
-        confirmed_buys_df["score"] > prediction_threshold
+        confirmed_buys_df["score"] >= prediction_threshold
     ].copy()  # Use .copy() to avoid SettingWithCopyWarning
 
     if qualifying_strategies_df.empty:
         logger.info(
-            f"strategy_and_ticker_cash_allocation: No strategies qualify after probability threshold {prediction_threshold}."
+            f"No strategies qualify after probability threshold {prediction_threshold}."
         )
         return pd.DataFrame()
 
     # logger.info(
-    #     f"strategy_and_ticker_cash_allocation: Qualifying strategies after threshold:\n{qualifying_strategies_df[['strategy_name', 'ticker', 'score']]}"
+    #     f"Qualifying strategies after threshold:\n{qualifying_strategies_df[['strategy_name', 'ticker', 'score']]}"
     # )
 
     total_portfolio_value = account["total_portfolio_value"]
@@ -388,7 +400,7 @@ def strategy_and_ticker_cash_allocation(
     available_cash = account["cash"] - trade_liquidity_limit_cash
 
     max_strategy_investment = total_portfolio_value * strategy_limit
-    # logger.info(f"{max_strategy_investment = }")
+    logger.info(f"{max_strategy_investment = }")
 
     qualifying_strategies_df["max_s_cash"] = max_strategy_investment
 
@@ -407,18 +419,22 @@ def strategy_and_ticker_cash_allocation(
         how="left",
     )
 
-    qualifying_strategies_df["holdings_value"] = qualifying_strategies_df[
-        "holdings_value"
-    ].fillna(0)
+    qualifying_strategies_df["holdings_value"] = (
+        qualifying_strategies_df["holdings_value"]
+        .fillna(0)
+        .infer_objects(copy=False)
+    )
     qualifying_strategies_df["max_s_cash_adj"] = (
         qualifying_strategies_df["max_s_cash"]
         - qualifying_strategies_df["holdings_value"]
     )
 
     # Adjust by number_of_tickers_in_qualifying_strategies
-    qualifying_strategies_df["ticker_count"] = qualifying_strategies_df.groupby(
-        "strategy_name"
-    )["ticker"].transform("count")
+    qualifying_strategies_df["ticker_count"] = (
+        qualifying_strategies_df.groupby("strategy_name")["ticker"].transform(
+            "count"
+        )
+    )
 
     # Max available cash for each strategy divided by the number of tickers in that strategy
     qualifying_strategies_df["max_s_t_cash"] = (
@@ -429,12 +445,14 @@ def strategy_and_ticker_cash_allocation(
     # Calculate probability adjusted investment (using 'score' which is now probability)
     qualifying_strategies_df["prob_adj_investment"] = (
         qualifying_strategies_df["max_s_t_cash"]
-        * qualifying_strategies_df["score"]  # Use score (probability) for weighting
+        * qualifying_strategies_df[
+            "score"
+        ]  # Use score (probability) for weighting
     )
 
     # Calculate investment considering asset limit
     asset_limit_value = asset_limit * total_portfolio_value
-    logger.info(f"strategy_and_ticker_cash_allocation: {asset_limit_value = }")
+    logger.info(f"{asset_limit_value=}")
 
     # Allocate cash based on prob_adj_investment until cash is exhausted
     qualifying_strategies_df["allocated_cash"] = (
@@ -445,7 +463,9 @@ def strategy_and_ticker_cash_allocation(
         # Calculate the remaining cash available for this ticker after considering existing holdings
         existing_holding_value = sum(
             holding["quantity"] * group.iloc[0]["current_price"]
-            for strategy, holding in account["holdings"].get(ticker, {}).items()
+            for strategy, holding in account["holdings"]
+            .get(ticker, {})
+            .items()
         )
         remaining_cash = min(
             max(0, asset_limit_value - existing_holding_value), available_cash
@@ -468,6 +488,9 @@ def strategy_and_ticker_cash_allocation(
         / qualifying_strategies_df["current_price"]
     ).round(2)
 
+    logger.info(
+        f"total allocated cash = {qualifying_strategies_df['allocated_cash'].sum()}"
+    )
     return qualifying_strategies_df[
         [
             "strategy_name",
@@ -509,16 +532,18 @@ def create_buy_heap(buy_df):
     return buy_heap
 
 
-def update_account_portfolio_values(account, ticker_price_history, current_date):
+def update_account_portfolio_values(
+    account, ticker_price_history, current_date
+):
     # Calculate and update total portfolio value
     total_value = account["cash"]
     account["holdings_value_by_strategy"] = {}
     for ticker, account_strategies in account["holdings"].items():
         for strategy, holding in account_strategies.items():
             current_price = float(
-                ticker_price_history[ticker].loc[current_date.strftime("%Y-%m-%d")][
-                    "Close"
-                ]
+                ticker_price_history[ticker].loc[
+                    current_date.strftime("%Y-%m-%d")
+                ]["Close"]
             )
 
             holding["current_price"] = current_price
@@ -648,6 +673,7 @@ def process_orders(
             train_trade_asset_limit,
             train_trade_strategy_limit,
             trade_liquidity_limit_cash,
+            logger,
         )
         logger.info(f"buy_df after allocation {len(buy_df)=}")
         logger.info(f"{buy_df=}")
@@ -692,7 +718,9 @@ def main_test_loop(
         pros: simpler logic.
     """
     for date in test_date_range:
-        logger.info(f"\n\n\n------------- NEW INTERVAL {date.strftime("%Y-%m-%d")}")
+        logger.info(
+            f"\n\n\n------------- NEW INTERVAL {date.strftime("%Y-%m-%d")}"
+        )
         prediction_results_list = []
         sell_daily_list = []
         orders_list = []  # combine buy and sell orders into one list
@@ -844,20 +872,22 @@ def main_test_loop(
                         sample_df = pd.DataFrame(data, index=[0])
 
                         # Get prediction (0 or 1) and probability of class 1 (positive return)
-                        prediction, probability = predict_random_forest_classifier(
-                            rf_dict[strategy_name]["rf_classifier"],
-                            sample_df,
+                        prediction, probability = (
+                            predict_random_forest_classifier(
+                                rf_dict[strategy_name]["rf_classifier"],
+                                sample_df,
+                            )
                         )
 
                         if prediction != 1:
-                            action = (
-                                "hold"  # Override original 'Buy' if RF doesn't confirm
-                            )
+                            action = "hold"  # Override original 'Buy' if RF doesn't confirm
 
                         accuracy = round(
                             rf_dict[strategy_name]["accuracy"], 2
                         )  # Keep accuracy for logging/potential future use
-                        probability = np.round(probability[0], 4)  # Round probability
+                        probability = np.round(
+                            probability[0], 4
+                        )  # Round probability
                         logger.info(f"{probability = }")
 
                         logger.info(
@@ -892,19 +922,31 @@ def main_test_loop(
 
             # strategy summary
             num_sell_orders = len(
-                [order for order in orders_list if order.get("action") == "Sell"]
+                [
+                    order
+                    for order in orders_list
+                    if order.get("action") == "Sell"
+                ]
             )
             num_buy_orders = len(
-                [order for order in orders_list if order.get("action") == "Buy"]
+                [
+                    order
+                    for order in orders_list
+                    if order.get("action") == "Buy"
+                ]
             )
-            logger.info(f"{len(orders_list)=}, {num_sell_orders=}, {num_buy_orders=}")
+            logger.info(
+                f"{len(orders_list)=}, {num_sell_orders=}, {num_buy_orders=}"
+            )
             logger.info(f"{orders_list=}")
 
         # end of each date, merge buy and sell orders, then execute.
         if not date_missing:
             # execute sell orders and update account from sell_daily_list
             # TODO: merge orders for same ticker (but still update holdings by strategy/ticker)
-            logger.info(f"\n\n++ EXECUTE DAILY ORDERS {date.strftime("%Y-%m-%d")}")
+            logger.info(
+                f"\n\n++ EXECUTE DAILY ORDERS {date.strftime("%Y-%m-%d")}"
+            )
             # Calculate and update account total portfolio value
             account = update_account_portfolio_values(
                 account, ticker_price_history, date
@@ -982,7 +1024,9 @@ def main_test_loop(
 
     # Log final results
     # Convert account_values (Series) to DataFrame with Date as index and a column for portfolio value
-    account_values_df = account_values.dropna().to_frame(name="total_portfolio_value")
+    account_values_df = account_values.dropna().to_frame(
+        name="total_portfolio_value"
+    )
     account_values_df.index.name = "Date"
     # logger.info(f"{account_values_df=}")
     insert_account_values_into_db(
@@ -994,7 +1038,9 @@ def main_test_loop(
     # logger.info(f"Trades: {len(account['trades'])}")
     logger.info(f"Holdings: {account['holdings']}")
     logger.info(f"Account Cash: ${account['cash']: ,.2f}")
-    logger.info(f"Total Portfolio Value: ${account['total_portfolio_value']: ,.2f}")
+    logger.info(
+        f"Total Portfolio Value: ${account['total_portfolio_value']: ,.2f}"
+    )
     logger.info(f"Account Values: {account_values}")
     # logger.info(f"Active Count: {active_count}")
     logger.info("-------------------------------------------------")
@@ -1078,13 +1124,15 @@ if __name__ == "__main__":
     # strategies = strategies_top10_acc
     strategies = [strategies_top10_acc[1]]  # ULTOSC
     tickers_list = train_tickers
-    account = initialize_test_account()
+    account = initialize_test_account(train_start_cash)
     accuracy_threshold = 0.75
     prediction_threshold = 0.75
     use_rf_model_predictions = False
     # experiment_name = f"{use_rf_model_predictions = }_{len(train_tickers)}_{test_period_start}_{test_period_end}_{train_stop_loss}_{train_take_profit}_thres{prediction_threshold}"
     experiment_name = f"baseline_{test_period_start}_{test_period_end}"
-    account_values = pd.Series(index=pd.date_range(start=start_date, end=end_date))
+    account_values = pd.Series(
+        index=pd.date_range(start=start_date, end=end_date)
+    )
     rf_dict = {}
 
     # TODO? delete existing experiment tables from trading_account db?
@@ -1094,7 +1142,9 @@ if __name__ == "__main__":
     try:
         with sqlite3.connect(PRICE_DB_PATH) as conn:
             for ticker in train_tickers + regime_tickers:
-                query = f"SELECT * FROM '{ticker}' WHERE Date >= ? AND Date <= ?"
+                query = (
+                    f"SELECT * FROM '{ticker}' WHERE Date >= ? AND Date <= ?"
+                )
                 ticker_price_history[ticker] = pd.read_sql(
                     query,
                     conn,

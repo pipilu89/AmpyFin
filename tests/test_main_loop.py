@@ -19,7 +19,10 @@ import pytest
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from log_config import LOG_CONFIG
-from TradeSim.testing_random_forest import main_test_loop
+from TradeSim.testing_random_forest import (
+    main_test_loop,
+    initialize_test_account,
+)
 
 # Get the current filename without extension
 module_name = os.path.splitext(os.path.basename(__file__))[0]
@@ -51,7 +54,9 @@ def test_data():
     ticker_price_history = {
         "AAPL": pd.DataFrame({"Close": [150]}, index=["2023-01-03"]),
         "^VIX": pd.DataFrame({"Close": [20]}, index=["2023-01-03"]),
-        "^GSPC": pd.DataFrame({"One_day_spy_return": [0.01]}, index=["2023-01-03"]),
+        "^GSPC": pd.DataFrame(
+            {"One_day_spy_return": [0.01]}, index=["2023-01-03"]
+        ),
     }
     # Minimal precomputed_decisions
     precomputed_decisions = {
@@ -70,7 +75,9 @@ def patched_functions(monkeypatch):
         lambda *a, **k: None,
     )
 
-    monkeypatch.setattr("TradeSim.testing_random_forest.strategies", [strategy1])
+    monkeypatch.setattr(
+        "TradeSim.testing_random_forest.strategies", [strategy1]
+    )
 
     monkeypatch.setattr(
         "TradeSim.testing_random_forest.create_buy_heap", lambda *a, **k: []
@@ -86,14 +93,10 @@ def patched_functions(monkeypatch):
 
     # return first parameter rather than account (the same)
     monkeypatch.setattr(
-        "TradeSim.testing_random_forest.execute_sell_orders",
-        lambda a, *args: a,
+        "TradeSim.testing_random_forest.process_orders",
+        lambda *args: args[1],
     )
 
-    monkeypatch.setattr(
-        "TradeSim.testing_random_forest.execute_buy_orders",
-        lambda a, b, c, *args: c,
-    )
     monkeypatch.setattr(
         "TradeSim.testing_random_forest.update_account_portfolio_values",
         lambda a, *args: a,
@@ -118,12 +121,7 @@ def test_main_test_loop_basic(monkeypatch, test_data, patched_functions):
     ) = test_data
 
     # Minimal account
-    account = {
-        "holdings": {},
-        "cash": 10000,
-        "trades": [],
-        "total_portfolio_value": 10000,
-    }
+    account = initialize_test_account(10000)
 
     # Patch global variables and dependencies
     mock_check_stop_loss_take_profit_rtn_order = Mock()
@@ -132,29 +130,21 @@ def test_main_test_loop_basic(monkeypatch, test_data, patched_functions):
         mock_check_stop_loss_take_profit_rtn_order,
     )
 
-    mock_get_holdings_value_by_strategy = Mock()
-    monkeypatch.setattr(
-        "TradeSim.testing_random_forest.get_holdings_value_by_strategy",
-        mock_get_holdings_value_by_strategy,
+    mock_update_account_portfolio_values = Mock(
+        side_effect=lambda *args, **kwargs: args[0]
     )
-
-    mock_strategy_and_ticker_cash_allocation = MagicMock()
     monkeypatch.setattr(
-        "TradeSim.testing_random_forest.strategy_and_ticker_cash_allocation",
-        mock_strategy_and_ticker_cash_allocation,
+        "TradeSim.testing_random_forest.update_account_portfolio_values",
+        mock_update_account_portfolio_values,
     )
 
     # execute orders need to return account
-    mock_execute_sell_orders = MagicMock(side_effect=lambda *args, **kwargs: args[0])
-    monkeypatch.setattr(
-        "TradeSim.testing_random_forest.execute_sell_orders",
-        mock_execute_sell_orders,
+    mock_process_orders = MagicMock(
+        side_effect=lambda *args, **kwargs: args[1]
     )
-
-    mock_execute_buy_orders = MagicMock(side_effect=lambda *args, **kwargs: args[2])
     monkeypatch.setattr(
-        "TradeSim.testing_random_forest.execute_buy_orders",
-        mock_execute_buy_orders,
+        "TradeSim.testing_random_forest.process_orders",
+        mock_process_orders,
     )
 
     result = main_test_loop(
@@ -172,16 +162,15 @@ def test_main_test_loop_basic(monkeypatch, test_data, patched_functions):
         logger,
     )
     assert isinstance(result, dict)
-    # check sl_tp, execute_sell_orders, execute_buy_orders etc are called and with what parameters.
-    mock_get_holdings_value_by_strategy.assert_called()
-    assert mock_get_holdings_value_by_strategy.call_count == 1
-    assert mock_strategy_and_ticker_cash_allocation.call_count == 1
+    # check sl_tp, process_orders etc are called and with what parameters.
     assert mock_check_stop_loss_take_profit_rtn_order.call_count == 0
-    assert mock_execute_sell_orders.call_count == 0
-    assert mock_execute_buy_orders.call_count == 1
+    assert mock_process_orders.call_count == 1
+    assert mock_update_account_portfolio_values.call_count == 2
 
 
-def test_main_test_loop_account_has_holdings(monkeypatch, test_data, patched_functions):
+def test_main_test_loop_account_has_holdings(
+    monkeypatch, test_data, patched_functions
+):
     """If qty of ticker in holding should run sl_tp
     and if action = sell append sell orders"""
     (
@@ -198,18 +187,14 @@ def test_main_test_loop_account_has_holdings(monkeypatch, test_data, patched_fun
         trade_liquidity_limit_cash,
     ) = test_data
 
-    account = {
-        "holdings": {
-            "AAPL": {
-                "strategy1": {
-                    "quantity": 10,
-                    "price": 150,
-                }
+    account = initialize_test_account(10000)
+    account["holdings"] = {
+        "AAPL": {
+            "strategy1": {
+                "quantity": 10,
+                "price": 150,
             }
-        },
-        "cash": 1000,
-        "trades": [],
-        "total_portfolio_value": 10000,
+        }
     }
 
     # Patch global variables and dependencies
@@ -219,29 +204,21 @@ def test_main_test_loop_account_has_holdings(monkeypatch, test_data, patched_fun
         mock_check_stop_loss_take_profit_rtn_order,
     )
 
-    mock_get_holdings_value_by_strategy = Mock()
-    monkeypatch.setattr(
-        "TradeSim.testing_random_forest.get_holdings_value_by_strategy",
-        mock_get_holdings_value_by_strategy,
+    mock_update_account_portfolio_values = Mock(
+        side_effect=lambda *args, **kwargs: args[0]
     )
-
-    mock_strategy_and_ticker_cash_allocation = MagicMock()
     monkeypatch.setattr(
-        "TradeSim.testing_random_forest.strategy_and_ticker_cash_allocation",
-        mock_strategy_and_ticker_cash_allocation,
+        "TradeSim.testing_random_forest.update_account_portfolio_values",
+        mock_update_account_portfolio_values,
     )
 
     # execute orders need to return account
-    mock_execute_sell_orders = MagicMock(side_effect=lambda *args, **kwargs: args[0])
-    monkeypatch.setattr(
-        "TradeSim.testing_random_forest.execute_sell_orders",
-        mock_execute_sell_orders,
+    mock_process_orders = MagicMock(
+        side_effect=lambda *args, **kwargs: args[1]
     )
-
-    mock_execute_buy_orders = MagicMock(side_effect=lambda *args, **kwargs: args[2])
     monkeypatch.setattr(
-        "TradeSim.testing_random_forest.execute_buy_orders",
-        mock_execute_buy_orders,
+        "TradeSim.testing_random_forest.process_orders",
+        mock_process_orders,
     )
 
     result = main_test_loop(
@@ -259,10 +236,7 @@ def test_main_test_loop_account_has_holdings(monkeypatch, test_data, patched_fun
         logger,
     )
     assert isinstance(result, dict)
-    # check sl_tp, execute_sell_orders, execute_buy_orders etc are called and with what parameters.
-    mock_get_holdings_value_by_strategy.assert_called()
-    assert mock_get_holdings_value_by_strategy.call_count == 1
-    assert mock_strategy_and_ticker_cash_allocation.call_count == 1
+    # check sl_tp, process_orders etc are called and with what parameters.
     assert mock_check_stop_loss_take_profit_rtn_order.call_count == 1
-    assert mock_execute_sell_orders.call_count == 0
-    assert mock_execute_buy_orders.call_count == 1
+    assert mock_process_orders.call_count == 1
+    assert mock_update_account_portfolio_values.call_count == 2
