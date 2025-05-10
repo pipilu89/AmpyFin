@@ -49,7 +49,7 @@ def initialize_test_account(start_cash):
     """
     Initializes the test trading account with starting parameters
 
-    account structure:
+    account structure example:
         {
             "holdings": {
                 "AAPL": {
@@ -117,28 +117,85 @@ def check_stop_loss_take_profit_rtn_order(
         assert take_profit is not None
         if current_price < stop_loss:
             sell_order = {
-                "date": current_date.strftime("%Y-%m-%d"),
+                "strategy_name": strategy_name,
                 "ticker": ticker,
+                "action": "Sell",  # Should always be 'Sell' here
                 "quantity": quantity,
                 "current_price": current_price,
-                "action": "Sell",  # Should always be 'Sell' here
-                "note": "Sell - stoploss",  # Should always be 'Sell' here
-                "strategy_name": strategy_name,
+                "note": "Sell - stoploss",
+                "date": current_date.strftime("%Y-%m-%d"),
             }
         elif current_price > take_profit:
             sell_order = {
-                "date": current_date.strftime("%Y-%m-%d"),
+                "strategy_name": strategy_name,
                 "ticker": ticker,
+                "action": "Sell",  # Should always be 'Sell' here
                 "quantity": quantity,
                 "current_price": current_price,
-                "action": "Sell",  # Should always be 'Sell' here
                 "note": "Sell - take_profit",  # Should always be 'Sell' here
-                "strategy_name": strategy_name,
+                "date": current_date.strftime("%Y-%m-%d"),
             }
     return sell_order
 
 
 def execute_buy_orders(
+    account,
+    action,
+    strategy_name,
+    ticker,
+    quantity,
+    current_price,
+    stop_loss_pct,
+    take_profit_pct,
+):
+    """
+    TODO: seperate updating account logic and combine with execute sell order account logic.
+    Combine buy/sell account logic into 1 function for improved maintenance.
+
+    TODO: update docstring.
+
+    Executes buy orders from the buy and suggestion heaps.
+    Creates stop-loss and take-profit prices.
+
+    Parameters:
+    - buy_heap (list): A heap of buy orders to execute.
+    - suggestion_heap (list): A heap of suggested buy orders to execute.
+    - account (dict): The current account state, including holdings, cash, and trades.
+    - current_date (datetime): The current date for executing the buy orders.
+
+    Returns:
+    - dict: The updated account state after executing the buy orders.
+    """
+    if action == "Buy":
+        # update account qty, sl, tp, and cash
+        account["cash"] -= round(quantity * current_price, 2)
+        account["cash"] = round(account["cash"], 2)
+
+        if ticker not in account["holdings"]:
+            account["holdings"][ticker] = {}
+
+        if strategy_name not in account["holdings"][ticker]:
+            account["holdings"][ticker][strategy_name] = {
+                "quantity": 0,
+                "price": 0,
+                "stop_loss": 0,
+                "take_profit": 0,
+            }
+
+        account["holdings"][ticker][strategy_name]["quantity"] += round(
+            quantity, 2
+        )
+        account["holdings"][ticker][strategy_name]["price"] = current_price
+        account["holdings"][ticker][strategy_name]["stop_loss"] = round(
+            current_price * (1 - stop_loss_pct), 2
+        )
+        account["holdings"][ticker][strategy_name]["take_profit"] = round(
+            current_price * (1 + take_profit_pct), 2
+        )
+    return account
+
+
+def execute_buy_orders_old(
     buy_heap,
     suggestion_heap,
     account,
@@ -148,6 +205,11 @@ def execute_buy_orders(
     take_profit_pct,
 ):
     """
+    TODO: seperate updating account logic and combine with execute sell order account logic.
+    Combine buy/sell account logic into 1 function for improved maintenance.
+
+    TODO: update docstring.
+
     Executes buy orders from the buy and suggestion heaps.
     Creates stop-loss and take-profit prices.
 
@@ -216,6 +278,7 @@ def execute_buy_orders(
         #     trade_df, trading_account_db_name, experiment_name
         # )
 
+        # update account qty, sl, tp, and cash
         account["cash"] -= round(quantity * current_price, 2)
         if ticker not in account["holdings"]:
             account["holdings"][ticker] = {}
@@ -340,7 +403,7 @@ def get_holdings_value_by_strategy(
 
 
 def strategy_and_ticker_cash_allocation(
-    prediction_results_df,
+    buy_orders_df,
     account,
     prediction_threshold,
     asset_limit,
@@ -352,7 +415,7 @@ def strategy_and_ticker_cash_allocation(
     Allocates cash to strategies and tickers based on prediction results and constraints.
 
     Parameters:
-    - prediction_results_df (pd.DataFrame): DataFrame containing prediction results, including strategy names, tickers, actions, predictions, probabilities and accuracies.
+    - buy_orders_df (pd.DataFrame): DataFrame containing prediction results, including strategy names, tickers, actions, predictions, probabilities and accuracies.
     - account (dict): The current account state, including holdings, cash, and total portfolio value.
     - prediction_threshold (float): The minimum score required for a strategy to qualify.
     - asset_limit (float): The maximum proportion of the portfolio that can be allocated to a single asset.
@@ -362,23 +425,21 @@ def strategy_and_ticker_cash_allocation(
     Returns:
     - pd.DataFrame: DataFrame containing the allocated cash for each strategy and ticker.
     """
-    if prediction_results_df.empty:
-        logger.info("prediction_results_df is empty.")
+    if buy_orders_df.empty:
+        logger.info("buy_orders_df is empty.")
         return pd.DataFrame()
 
     # Ensure required columns exist
-    required_cols = ["probability", "prediction", "action"]
-    if not all(col in prediction_results_df.columns for col in required_cols):
+    required_cols = ["probability", "prediction", "accuracy", "action"]
+    if not all(col in buy_orders_df.columns for col in required_cols):
         logger.error(
-            f"Missing required columns in prediction_results_df. Found: {prediction_results_df.columns}"
+            f"Missing required columns in buy_orders_df. Found: {buy_orders_df.columns}"
         )
         return pd.DataFrame()
 
     # Filter for actual buy signals confirmed by RF (prediction == 1)
     # Note: The loop appending to prediction_results_list already ensures action=='Buy' and prediction==1
-    confirmed_buys_df = prediction_results_df[
-        prediction_results_df["prediction"] == 1
-    ].copy()
+    confirmed_buys_df = buy_orders_df[buy_orders_df["prediction"] == 1].copy()
 
     if confirmed_buys_df.empty:
         logger.info("No confirmed buy signals (prediction == 1).")
@@ -416,6 +477,8 @@ def strategy_and_ticker_cash_allocation(
     available_cash = account["cash"] - trade_liquidity_limit_cash
 
     max_strategy_investment = total_portfolio_value * strategy_limit
+    max_strategy_investment = round(max_strategy_investment, 2)
+
     logger.info(f"{max_strategy_investment = }")
 
     qualifying_strategies_df["max_s_cash"] = max_strategy_investment
@@ -440,10 +503,16 @@ def strategy_and_ticker_cash_allocation(
         .fillna(0)
         .infer_objects(copy=False)
     )
+
+    # warning: can be negative
     qualifying_strategies_df["max_s_cash_adj"] = (
         qualifying_strategies_df["max_s_cash"]
         - qualifying_strategies_df["holdings_value"]
-    )
+    ).clip(lower=0)
+    # qualifying_strategies_df["max_s_cash_adj"] = (
+    #     qualifying_strategies_df["max_s_cash"]
+    #     - qualifying_strategies_df["holdings_value"]
+    # )
 
     # Adjust by number_of_tickers_in_qualifying_strategies
     qualifying_strategies_df["ticker_count"] = (
@@ -468,6 +537,7 @@ def strategy_and_ticker_cash_allocation(
 
     # Calculate investment considering asset limit
     asset_limit_value = asset_limit * total_portfolio_value
+    asset_limit_value = round(asset_limit_value, 2)
     logger.info(f"{asset_limit_value=}")
 
     # Allocate cash based on prob_adj_investment until cash is exhausted
@@ -507,14 +577,20 @@ def strategy_and_ticker_cash_allocation(
     logger.info(
         f"total allocated cash = {qualifying_strategies_df['allocated_cash'].sum()}"
     )
+
     return qualifying_strategies_df[
         [
             "strategy_name",
             "ticker",
+            "action",
             "current_price",
-            "score",
             "allocated_cash",
             "quantity",
+            "date",
+            "prediction",
+            "probability",
+            "accuracy",
+            "score",
         ]
     ][qualifying_strategies_df["allocated_cash"] > 0]
 
@@ -551,16 +627,43 @@ def create_buy_heap(buy_df):
 def update_account_portfolio_values(
     account, ticker_price_history, current_date
 ):
+    """
+    Updates the account dictionary with the latest portfolio values based on current prices.
+
+    Updates each holding with the latest current_price and recalculates its current_value.
+    Aggregates the value of holdings by strategy in holdings_value_by_strategy.
+    Computes the total portfolio value as the sum of cash and all holdings.
+
+    Args:
+        account (dict): The account data containing 'cash', 'holdings', and other info.
+        ticker_price_history (dict): Mapping of ticker symbols to their historical price DataFrames.
+        current_date (datetime): The date for which to fetch the latest closing prices.
+
+    Returns:
+        dict: The updated account dictionary with:
+            - 'holdings_value_by_strategy': Value of holdings grouped by strategy.
+            - 'total_portfolio_value': Total value of the portfolio (cash + holdings).
+            - Updates to each holding with 'current_price' and 'current_value'.
+
+    Notes:
+        - Assumes each holding contains a 'quantity' field.
+        - Expects price DataFrames to have a 'Close' column and be indexed by date strings.
+    """
+
     # Calculate and update total portfolio value
     total_value = account["cash"]
     account["holdings_value_by_strategy"] = {}
     for ticker, account_strategies in account["holdings"].items():
         for strategy, holding in account_strategies.items():
-            current_price = float(
-                ticker_price_history[ticker].loc[
-                    current_date.strftime("%Y-%m-%d")
-                ]["Close"]
-            )
+            try:
+                current_price = float(
+                    ticker_price_history[ticker].loc[
+                        current_date.strftime("%Y-%m-%d")
+                    ]["Close"]
+                )
+            except (KeyError, ValueError):
+                # Handle missing price data gracefully
+                current_price = holding.get("current_price", 0)
 
             holding["current_price"] = current_price
             # value of each holding in each strategy
@@ -571,6 +674,9 @@ def update_account_portfolio_values(
             if strategy not in account["holdings_value_by_strategy"]:
                 account["holdings_value_by_strategy"][strategy] = 0
             account["holdings_value_by_strategy"][strategy] += current_value
+            account["holdings_value_by_strategy"][strategy] = round(
+                account["holdings_value_by_strategy"][strategy], 2
+            )
 
             # total value of portfolio
             total_value += current_value
@@ -611,7 +717,7 @@ def insert_trade_into_trading_account_db(
 
 
 def process_orders(
-    orders_list,
+    orders_df,
     account,
     date,
     trade_liquidity_limit_cash,
@@ -623,65 +729,50 @@ def process_orders(
     Process the interval (daily) orders list.
     orders list contains sell and buy orders.
     First process sell orders, then assign allocation for buy orders.
-    buy orders should be processed by probability.
+    buy orders should be processed by probability (score).
     """
-    num_sell_orders = len(
-        [order for order in orders_list if order.get("action") == "Sell"]
-    )
-    num_buy_orders = len(
-        [order for order in orders_list if order.get("action") == "Buy"]
-    )
-    logger.info(f"{len(orders_list)=}, {num_sell_orders=}, {num_buy_orders=}")
-    logger.info(f"{orders_list=}")
+    orders_df["executed"] = 0
+    sell_orders_df = orders_df[orders_df["action"] == "Sell"]
+    buy_orders_df = orders_df[orders_df["action"] == "Buy"]
+    num_sell_orders = len(sell_orders_df)
+    num_buy_orders = len(buy_orders_df)
 
-    # convert orders_list into a df
-    orders_df = pd.DataFrame(orders_list)
-
-    logger.info(f"{len(orders_df)=}")
-    logger.info(f"{orders_df.columns=}")
-    # logger.info(f"{orders_df.dtypes=}")
-    logger.info(f"{orders_df=}")
+    logger.info(
+        f"Pre allocation: {len(orders_df)=}, {num_sell_orders=}, {num_buy_orders=}"
+    )
 
     if num_sell_orders > 0:
         logger.info("process sell orders...")
-        processed_sell_orders = []
-        failed_sell_orders = []
-        for order in orders_list:
-            if order.get("action") == "Sell":
-                try:
-                    account = execute_sell_orders(
-                        order["action"],
-                        order["ticker"],
-                        order["strategy_name"],
-                        account,
-                        order["current_price"],
-                        date,
-                        order["note"],
-                        logger,
-                    )
-                    processed_sell_orders.append(order)
-                except Exception as e:
-                    logger.error(f"error executing sell order {e}")
-                    failed_sell_orders.append(order)
+        # processed_sell_orders = []
+        # failed_sell_orders = []
 
-        logger.info(
-            f"after sell execution: {len(orders_list)=}, {len(processed_sell_orders)=}, {len(failed_sell_orders)=}"
-        )
-        if len(failed_sell_orders) > 0:
-            logger.error(f"{failed_sell_orders=}")
-        try:
-            assert num_sell_orders == len(
-                processed_sell_orders
-            ), "assert all sell orders processed"
-            assert len(failed_sell_orders) == 0, "failed sell orders"
-        except AssertionError as e:
-            logging.error(e)  # Log the assertion error
+        for index, row in sell_orders_df.iterrows():
+            try:
+                account = execute_sell_orders(
+                    row["action"],
+                    row["ticker"],
+                    row["strategy_name"],
+                    account,
+                    row["current_price"],
+                    date,
+                    row["note"],
+                    logger,
+                )
+                sell_orders_df.at[index, "executed"] = 1
+            except Exception as e:
+                logger.error(f"error executing sell order {e}")
+
+        # logger.info(f"{sell_orders_df=}")
+        failed_sell_orders_df = sell_orders_df[sell_orders_df["executed"] == 0]
+
+        if len(failed_sell_orders_df) > 0:
+            logger.error(f"Error failed sell orders: {failed_sell_orders_df=}")
 
     # Execute buy orders, create sl and tp prices
+    buy_df = pd.DataFrame()  # Initialize buy_df as an empty DataFrame
     if num_buy_orders > 0:
         logger.info("process buy orders...")
-        buy_orders_df = orders_df[orders_df["action"] == "Buy"]
-
+        # update buy_order with allocated_cash and qty
         buy_df = strategy_and_ticker_cash_allocation(
             buy_orders_df,
             account,
@@ -691,22 +782,37 @@ def process_orders(
             trade_liquidity_limit_cash,
             logger,
         )
-        logger.info(f"buy_df after allocation {len(buy_df)=}")
-        logger.info(f"{buy_df=}")
-
-        buy_heap = create_buy_heap(buy_df)
-        suggestion_heap = []
-        account = execute_buy_orders(
-            buy_heap,
-            suggestion_heap,
-            account,
-            date,
-            trade_liquidity_limit_cash,
-            stop_loss_pct,
-            take_profit_pct,
+        logger.info(
+            f"Post allocation: {len(orders_df)=}, {num_sell_orders=}, {len(buy_df)=}"
         )
+        # logger.info(f"debug\n\n{buy_df}")
+        buy_df["executed"] = 0
+        for index, row in buy_df.iterrows():
+            try:
+                account = execute_buy_orders(
+                    account,
+                    row["action"],
+                    row["strategy_name"],
+                    row["ticker"],
+                    row["quantity"],
+                    row["current_price"],
+                    stop_loss_pct,
+                    take_profit_pct,
+                )
+                buy_df.at[index, "executed"] = 1
+            except Exception as e:
+                logger.error(f"error executing buy order {e}")
 
-    return account
+        # logger.info(f"{buy_df=}")
+        failed_buy_df = buy_df[buy_df["executed"] == 0]
+
+        if len(failed_buy_df) > 0:
+            logger.error(f"Error failed sell orders: {failed_buy_df=}")
+
+    # concatenate buy and sell orders into one dataframe
+    orders_df = pd.concat([sell_orders_df, buy_df], ignore_index=True)
+
+    return account, orders_df
 
 
 def main_test_loop(
@@ -737,8 +843,6 @@ def main_test_loop(
         logger.info(
             f"\n\n\n------------- NEW INTERVAL {date.strftime("%Y-%m-%d")}"
         )
-        prediction_results_list = []
-        sell_daily_list = []
         orders_list = []  # combine buy and sell orders into one list
         date_missing = False
         # logger.info(f"{account=}")
@@ -771,9 +875,9 @@ def main_test_loop(
                 except KeyError:
                     # Log a warning and default action if the key is not found
                     logger.warning(
-                        f"Precomputed decision not found for {ticker} on {date.strftime('%Y-%m-%d')} after shift. Defaulting to 'hold'."
+                        f"Precomputed decision not found for {ticker} on {date.strftime('%Y-%m-%d')} after shift. Defaulting to 'Hold'."
                     )
-                    action = "hold"
+                    action = "Hold"
 
                 try:
                     current_price = ticker_price_history[ticker].loc[
@@ -817,20 +921,20 @@ def main_test_loop(
                     # sell_daily_list.append(
                     orders_list.append(
                         {
-                            "date": date.strftime("%Y-%m-%d"),
+                            "strategy_name": strategy_name,
                             "ticker": ticker,
+                            "action": action,  # Should always be 'Sell' here
                             "quantity": quantity,
                             "current_price": current_price,
-                            "action": action,  # Should always be 'Sell' here
-                            "strategy_name": strategy_name,
                             "note": "",
+                            "date": date.strftime("%Y-%m-%d"),
                         }
                     )
                     continue
 
                 # logger.info(f"{account = }")
 
-                if action == "Buy" and quantity == 0:
+                elif action == "Buy" and quantity == 0:
                     # used if use_rf_model_predictions == False. ie baseline test.
                     prediction = 1
                     accuracy = 1
@@ -896,7 +1000,7 @@ def main_test_loop(
                         )
 
                         if prediction != 1:
-                            action = "hold"  # Override original 'Buy' if RF doesn't confirm
+                            action = "Hold"  # Override original 'Buy' if RF doesn't confirm
 
                         accuracy = round(
                             rf_dict[strategy_name]["accuracy"], 2
@@ -922,39 +1026,35 @@ def main_test_loop(
                                 "accuracy": accuracy,  # Historical accuracy of the model
                                 "probability": probability,  # Probability of this specific prediction being 1
                                 "current_price": current_price,
-                            }
-                        )
-                        prediction_results_list.append(
-                            {
-                                "strategy_name": strategy_name,
-                                "ticker": ticker,
-                                "action": action,  # Should always be 'Buy' here
-                                "prediction": prediction,  # Should always be 1 here
-                                "accuracy": accuracy,  # Historical accuracy of the model
-                                "probability": probability,  # Probability of this specific prediction being 1
-                                "current_price": current_price,
+                                "date": date.strftime("%Y-%m-%d"),
                             }
                         )
 
-            # strategy summary
-            num_sell_orders = len(
-                [
-                    order
-                    for order in orders_list
-                    if order.get("action") == "Sell"
-                ]
-            )
-            num_buy_orders = len(
-                [
-                    order
-                    for order in orders_list
-                    if order.get("action") == "Buy"
-                ]
-            )
-            logger.info(
-                f"{len(orders_list)=}, {num_sell_orders=}, {num_buy_orders=}"
-            )
-            logger.info(f"{orders_list=}")
+                elif action == "Buy" and quantity > 0:
+                    logger.info(
+                        f"Not appending new order for Buy signal because already have holding. {action=} {quantity=} {ticker}"
+                    )
+                elif action == "Sell" and quantity == 0:
+                    pass
+                elif action == "Hold":
+                    pass
+                else:
+                    logger.error(
+                        f"unexpected action, or action/qty combination {action=} {quantity=}"
+                    )
+
+            # strategy summary (only works if 1 strategy)
+            # num_sell_orders = 0
+            # num_buy_orders = 0
+            # for order in orders_list:
+            #     if order.get("action") == "Sell":
+            #         num_sell_orders += 1
+            #     if order.get("action") == "Buy":
+            #         num_buy_orders += 1
+
+            # assert len(orders_list) == (
+            #     num_sell_orders + num_buy_orders
+            # ), "orders list  contains only Buy and Sell"
 
         # end of each date, merge buy and sell orders, then execute.
         if not date_missing:
@@ -968,69 +1068,68 @@ def main_test_loop(
                 account, ticker_price_history, date
             )
 
-            # # Calculate holdings value by strategy. needed to ensure cash allocation constraints are met.
-            # !!! move to after sells
-            # holdings_value_by_strategy = get_holdings_value_by_strategy(
-            #     account, ticker_price_history, date
-            # )
-            # logger.info(
-            #     f"before processing orders: {holdings_value_by_strategy=}"
-            # )
-            logger.info(
+            logger.debug(
                 f"before processing orders: {account["holdings_value_by_strategy"]=}"
             )
 
-            prediction_results_df = pd.DataFrame(prediction_results_list)
-            # prediction_results_df = pd.DataFrame(orders_list)
-            if prediction_results_list:
-                prediction_results_df["Date"] = date.strftime("%Y-%m-%d")
-                prediction_results_df["prediction_id"] = (
-                    prediction_results_df["ticker"]
-                    + "_"
-                    + prediction_results_df["strategy_name"]
-                    + "_"
-                    + prediction_results_df["Date"]
+            # daily orders summary
+            # convert orders_list into a df
+            orders_df = pd.DataFrame(orders_list)
+
+            # Required columns
+            required_cols = [
+                "strategy_name",
+                "ticker",
+                "action",
+                "note",
+                "current_price",
+                "allocated_cash",
+                "quantity",
+                "prediction",
+                "probability",
+                "accuracy",
+                "score",
+                "date",
+                "executed",
+            ]
+
+            # Find missing columns
+            missing_cols = [
+                col for col in required_cols if col not in orders_df.columns
+            ]
+
+            # Add missing columns with default NaN values
+            for col in missing_cols:
+                orders_df[col] = np.nan
+
+            if not orders_df.empty:
+                account, orders_df = process_orders(
+                    orders_df,
+                    account,
+                    date,
+                    train_trade_liquidity_limit,
+                    train_stop_loss,
+                    train_take_profit,
+                    logger,
                 )
-                prediction_results_df.set_index("prediction_id", inplace=True)
+
+                # Calculate and update account total portfolio value
+                account = update_account_portfolio_values(
+                    account, ticker_price_history, date
+                )
+                logger.info(f"orders_df:\n\n{orders_df}")
             else:
-                logger.info(
-                    f"no prediction results (no buy signals?) {len(prediction_results_list)=}"
-                )
+                logger.info("no orders to process")
 
-            # buy_df = strategy_and_ticker_cash_allocation(
-            #     prediction_results_df,
-            #     account,
-            #     holdings_value_by_strategy,
-            #     prediction_threshold,
-            #     train_trade_asset_limit,
-            #     train_trade_strategy_limit,
-            # )
-            # logger.info(f"buy_df after allocation {len(buy_df)=}")
-            # logger.info(f"{buy_df=}")
-
-            account = process_orders(
-                orders_list,
-                account,
-                date,
-                train_trade_liquidity_limit,
-                train_stop_loss,
-                train_take_profit,
-                logger,
-            )
-
-            # Calculate and update account total portfolio value
-            account = update_account_portfolio_values(
-                account, ticker_price_history, date
-            )
-            logger.info(
-                f"after processing orders: {account["holdings_value_by_strategy"]=}"
-            )
-            logger.info(account)
-
+            """
+            Make summary of account.
+            possibly change since last account.
+            """
             # calculate number of holdings by ticker
             # num_of_holdings = len(account["holdings"])
+            logger.info(account)
             logger.info(f"{len(account["holdings"])=}")
-            logger.info(f"{account=}")
+            # logger.info(f"{account=}")
 
             # Update account values for metrics
             total_value = account["total_portfolio_value"]
@@ -1110,7 +1209,11 @@ if __name__ == "__main__":
     # Get the current filename without extension
     module_name = os.path.splitext(os.path.basename(__file__))[0]
     log_filename = f"log/{module_name}.log"
+    # Clear the log file at the start of each run
+    with open(log_filename, "w"):
+        pass
     LOG_CONFIG["handlers"]["file_dynamic"]["filename"] = log_filename
+    LOG_CONFIG["handlers"]["file_dynamic"]["level"] = "DEBUG"
 
     logging.config.dictConfig(LOG_CONFIG)
     logger = logging.getLogger(__name__)
@@ -1138,7 +1241,8 @@ if __name__ == "__main__":
     # Initialize testing variables
     # strategies = [strategies[2]]
     # strategies = strategies_top10_acc
-    strategies = [strategies_top10_acc[1]]  # ULTOSC
+    # strategies = [strategies_top10_acc[1]]  # ULTOSC
+    strategies = [strategies_top10_acc[1], strategies_top10_acc[2]]  # ULTOSC
     tickers_list = train_tickers
     account = initialize_test_account(train_start_cash)
     accuracy_threshold = 0.75

@@ -42,6 +42,7 @@ class TestStrategyAndTickerCashAllocation(unittest.TestCase):
                 "probability": [1, 1, 1, 1],
                 "accuracy": [0.8, 0.9, 0.85, 0.95],
                 "current_price": [150, 250, 150, 250],
+                "date": ["2025-01-14"] * 4,
             }
         )
         self.account = initialize_test_account(10000)
@@ -186,6 +187,7 @@ class TestStrategyAndTickerCashAllocation(unittest.TestCase):
                 "probability": [1, 1, 1, 1],
                 "accuracy": [0.8, 0.9, 0.85, 0.95],
                 "current_price": [150, 250, 150, 250],
+                "date": ["2025-01-14"] * 4,
             }
         )
         self.account = {}
@@ -285,6 +287,7 @@ class TestStrategyAndTickerCashAllocation(unittest.TestCase):
                 "probability": [1] * 4,
                 "accuracy": [0.8, 0.9, 0.85, 0.95],
                 "current_price": [150, 250, 150, 250],
+                "date": ["2025-01-14"] * 4,
             }
         )
 
@@ -342,6 +345,7 @@ class TestStrategyAndTickerCashAllocation(unittest.TestCase):
                 "probability": [1] * 4,
                 "accuracy": [0.8, 0.9, 0.85, 0.95],
                 "current_price": [150, 250, 150, 250],
+                "date": ["2025-01-14"] * 4,
             }
         )
 
@@ -439,6 +443,7 @@ class TestStrategyAndTickerCashAllocation(unittest.TestCase):
                 "probability": [0.8] * 4,
                 "accuracy": [0.8, 0.9, 0.85, 0.95],
                 "current_price": [150, 250, 150, 250],
+                "date": ["2025-01-14"] * 4,
             }
         )
 
@@ -498,6 +503,104 @@ class TestStrategyAndTickerCashAllocation(unittest.TestCase):
         self.assertLessEqual(
             allocation_by_strategy_df.loc["strategy1"], max_strategy_investment
         )
+        self.assertLessEqual(
+            allocation_by_strategy_df.loc["strategy2"], max_strategy_investment
+        )
+
+        # check individual ticker allocations are below/equal asset_limit_value
+        asset_limit_value = (
+            self.account["total_portfolio_value"] * self.asset_limit
+        )
+        allocation_by_ticker_df = result_df.groupby("ticker")[
+            "allocated_cash"
+        ].sum()
+        self.assertLessEqual(
+            allocation_by_ticker_df.loc["AAPL"], asset_limit_value
+        )
+        self.assertLessEqual(
+            allocation_by_ticker_df.loc["MSFT"], asset_limit_value
+        )
+
+    # @unittest.skip("Temporarily disabling this test")
+    def test_allocation_holding_value_higher_than_max_investment(self):
+        self.prediction_results_df = pd.DataFrame(
+            {
+                "strategy_name": [
+                    "strategy1",
+                    "strategy1",
+                    "strategy2",
+                    "strategy2",
+                ],
+                "ticker": ["AAPL", "MSFT", "AAPL", "MSFT"],
+                "action": ["Buy", "Buy", "Buy", "Buy"],
+                "prediction": [1, 1, 1, 1],
+                # "probability": [0.8, 0.9, 0.85, 0.95],
+                "probability": [1] * 4,
+                "accuracy": [0.8, 0.9, 0.85, 0.95],
+                "current_price": [150, 250, 150, 250],
+                "date": ["2025-01-14"] * 4,
+            }
+        )
+
+        self.account = {
+            "holdings": {
+                "AAPL": {
+                    "strategy1": {"quantity": 9, "price": 1000},  # 9000
+                    # "strategy2": {"quantity": 5, "price": 120},
+                },
+                "MSFT": {
+                    # "strategy1": {"quantity": 8, "price": 200},
+                    "strategy2": {"quantity": 2, "price": 1000},  # 2000
+                },
+            },
+            "cash": 5000,
+            "total_portfolio_value": 16000,
+            "holdings_value_by_strategy": {
+                "strategy1": 9000,
+                "strategy2": 2000,
+            },
+            # "holdings_value_by_strategy": {},
+        }
+
+        self.strategy_limit = 0.5
+        self.asset_limit = 0.5
+        self.prediction_threshold = 0.5
+        self.trade_liquidity_limit_cash = 1000
+
+        result_df = strategy_and_ticker_cash_allocation(
+            self.prediction_results_df,
+            self.account,
+            self.prediction_threshold,
+            self.asset_limit,
+            self.strategy_limit,
+            self.trade_liquidity_limit_cash,
+            logger,
+        )
+
+        print(result_df[["strategy_name", "allocated_cash", "ticker"]])
+
+        self.assertFalse(result_df.empty)
+        # self.assertEqual(result_df.at[0, "allocated_cash"], 1800)
+        # self.assertEqual(result_df.at[1, "allocated_cash"], 1800)
+        self.assertEqual(result_df.at[2, "allocated_cash"], 3000)
+        self.assertEqual(result_df.at[3, "allocated_cash"], 1000)
+
+        # check total allocated cash is <= (account cash - liquidity)
+        avaliable_cash = self.account["cash"] - self.trade_liquidity_limit_cash
+        self.assertLessEqual(result_df["allocated_cash"].sum(), avaliable_cash)
+
+        # check individual strategy allocations are not higher than max_strategy_investment
+        max_strategy_investment = (
+            self.account["total_portfolio_value"] * self.strategy_limit
+        )
+        allocation_by_strategy_df = result_df.groupby("strategy_name")[
+            "allocated_cash"
+        ].sum()
+        # print(allocation_by_strategy_df)
+        # print(allocation_by_strategy_df.loc["strategy1"])
+        # self.assertLessEqual(
+        #     allocation_by_strategy_df.loc["strategy1"], max_strategy_investment
+        # )
         self.assertLessEqual(
             allocation_by_strategy_df.loc["strategy2"], max_strategy_investment
         )
