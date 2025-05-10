@@ -522,7 +522,7 @@ class TestStrategyAndTickerCashAllocation(unittest.TestCase):
         )
 
     # @unittest.skip("Temporarily disabling this test")
-    def test_allocation_holding_value_higher_than_max_investment(self):
+    def test_allocation_strat_holding_value_higher_than_max_investment(self):
         self.prediction_results_df = pd.DataFrame(
             {
                 "strategy_name": [

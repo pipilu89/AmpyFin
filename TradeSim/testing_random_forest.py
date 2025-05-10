@@ -504,15 +504,11 @@ def strategy_and_ticker_cash_allocation(
         .infer_objects(copy=False)
     )
 
-    # warning: can be negative
+    # note: clip to avoid negative
     qualifying_strategies_df["max_s_cash_adj"] = (
         qualifying_strategies_df["max_s_cash"]
         - qualifying_strategies_df["holdings_value"]
     ).clip(lower=0)
-    # qualifying_strategies_df["max_s_cash_adj"] = (
-    #     qualifying_strategies_df["max_s_cash"]
-    #     - qualifying_strategies_df["holdings_value"]
-    # )
 
     # Adjust by number_of_tickers_in_qualifying_strategies
     qualifying_strategies_df["ticker_count"] = (
@@ -527,6 +523,7 @@ def strategy_and_ticker_cash_allocation(
         / qualifying_strategies_df["ticker_count"]
     )
 
+    # TODO: if this value is too low we dont want to make order.
     # Calculate probability adjusted investment (using 'score' which is now probability)
     qualifying_strategies_df["prob_adj_investment"] = (
         qualifying_strategies_df["max_s_t_cash"]
@@ -578,6 +575,7 @@ def strategy_and_ticker_cash_allocation(
         f"total allocated cash = {qualifying_strategies_df['allocated_cash'].sum()}"
     )
 
+    minium_cash_allocation = 100  # cash
     return qualifying_strategies_df[
         [
             "strategy_name",
@@ -592,9 +590,10 @@ def strategy_and_ticker_cash_allocation(
             "accuracy",
             "score",
         ]
-    ][qualifying_strategies_df["allocated_cash"] > 0]
+    ][qualifying_strategies_df["allocated_cash"] > minium_cash_allocation]
 
 
+# not needed?
 def create_buy_heap(buy_df):
     """
     Creates a heap of buy orders from the given DataFrame.
@@ -714,6 +713,23 @@ def insert_trade_into_trading_account_db(
             )
     except Exception as e:
         logger.error(f"Error saving trades to database: {trades_df=} {e}")
+
+
+def summarize_account_tickers_by_value(account):
+    """
+    Returns a dict mapping each ticker to its total current value in the account,
+    using the 'current_price' stored in the account dict.
+    Prints a summary to stdout.
+    """
+    ticker_values = {}
+    holdings = account.get("holdings", {})
+    for ticker, strategies in holdings.items():
+        total_value = 0
+        for strategy_name, pos in strategies.items():
+            value = pos.get("current_value", 0)
+            total_value += value
+        ticker_values[ticker] = round(total_value, 2)
+    return ticker_values
 
 
 def process_orders(
@@ -1031,13 +1047,14 @@ def main_test_loop(
                         )
 
                 elif action == "Buy" and quantity > 0:
-                    logger.info(
-                        f"Not appending new order for Buy signal because already have holding. {action=} {quantity=} {ticker}"
-                    )
+                    # logger.info(
+                    #     f"Not appending new order for Buy signal because already have holding. {action=} {quantity=} {ticker}"
+                    # )
+                    continue
                 elif action == "Sell" and quantity == 0:
-                    pass
+                    continue
                 elif action == "Hold":
-                    pass
+                    continue
                 else:
                     logger.error(
                         f"unexpected action, or action/qty combination {action=} {quantity=}"
@@ -1103,6 +1120,12 @@ def main_test_loop(
                 orders_df[col] = np.nan
 
             if not orders_df.empty:
+                # summarize orders: use orders_df to show number of buy and sell orders by strategy
+                orders_summary = orders_df.groupby(
+                    ["strategy_name", "action"]
+                ).size()
+                logger.info(f"Orders summary:\n{orders_summary}")
+
                 account, orders_df = process_orders(
                     orders_df,
                     account,
@@ -1121,21 +1144,23 @@ def main_test_loop(
             else:
                 logger.info("no orders to process")
 
-            """
-            Make summary of account.
-            possibly change since last account.
-            """
-            # calculate number of holdings by ticker
-            # num_of_holdings = len(account["holdings"])
-            logger.info(account)
-            logger.info(f"{len(account["holdings"])=}")
-            # logger.info(f"{account=}")
-
             # Update account values for metrics
             total_value = account["total_portfolio_value"]
             account_values[date] = total_value
             # logger.info(f"{total_value = }")
             logger.info(f"total_portfolio_value: {round(total_value, 2)}")
+            """
+            Make summary of account.
+            possibly change since last account.
+            """
+            # num_of_holdings = len(account["holdings"])
+            # logger.info(account)
+            logger.info(f"cash: {account['cash']}")
+            logger.info(f"holdings_value_by_strategy:")
+            logger.info(account["holdings_value_by_strategy"])
+            ticker_values = summarize_account_tickers_by_value(account)
+            logger.info(f"num tickers: {len(account["holdings"])}")
+            logger.info(ticker_values)
 
     # Log final results
     # Convert account_values (Series) to DataFrame with Date as index and a column for portfolio value
@@ -1205,6 +1230,319 @@ def insert_account_values_into_db(
         logger.error(f"Error saving account_values to database: {e}")
 
 
+# try holdings_df
+# ai
+def update_holdings_from_orders(holdings_df, orders_df):
+    # Process executed buys
+    executed_buys = orders_df[
+        (orders_df["action"] == "Buy") & (orders_df["executed"] == 1)
+    ]
+    if executed_buys.empty:
+        return holdings_df
+
+    executed_buys["total_cost"] = (
+        executed_buys["quantity"] * executed_buys["current_price"]
+    )
+    new_holdings = (
+        executed_buys.groupby(["ticker", "strategy_name"])
+        .agg(
+            quantity=("quantity", "sum"),
+            total_cost=("total_cost", "sum"),
+            last_price=("current_price", "last"),
+        )
+        .reset_index()
+    )
+    new_holdings["avg_price"] = (
+        new_holdings["total_cost"] / new_holdings["quantity"]
+    )
+
+    # Merge with existing holdings
+    if holdings_df is not None and not holdings_df.empty:
+        holdings_df = pd.concat([holdings_df, new_holdings])
+        holdings_df = (
+            holdings_df.groupby(["ticker", "strategy_name"])
+            .agg(
+                quantity=("quantity", "sum"),
+                total_cost=("total_cost", "sum"),
+                last_price=("last_price", "last"),
+            )
+            .reset_index()
+        )
+        holdings_df["avg_price"] = (
+            holdings_df["total_cost"] / holdings_df["quantity"]
+        )
+    else:
+        holdings_df = new_holdings
+
+    return holdings_df
+
+
+# ai
+def update_holdings_from_orders_with_sells(holdings_df, orders_df):
+    # Process executed buys
+    executed_buys = orders_df[
+        (orders_df["action"] == "Buy") & (orders_df["executed"] == 1)
+    ]
+    if not executed_buys.empty:
+        executed_buys["total_cost"] = (
+            executed_buys["quantity"] * executed_buys["current_price"]
+        )
+        new_holdings = (
+            executed_buys.groupby(["ticker", "strategy_name"])
+            .agg(
+                quantity=("quantity", "sum"),
+                total_cost=("total_cost", "sum"),
+                last_price=("current_price", "last"),
+            )
+            .reset_index()
+        )
+        new_holdings["avg_price"] = (
+            new_holdings["total_cost"] / new_holdings["quantity"]
+        )
+
+        # Merge with existing holdings
+        if holdings_df is not None and not holdings_df.empty:
+            holdings_df = pd.concat([holdings_df, new_holdings])
+            holdings_df = (
+                holdings_df.groupby(["ticker", "strategy_name"])
+                .agg(
+                    quantity=("quantity", "sum"),
+                    total_cost=("total_cost", "sum"),
+                    last_price=("last_price", "last"),
+                )
+                .reset_index()
+            )
+            holdings_df["avg_price"] = (
+                holdings_df["total_cost"] / holdings_df["quantity"]
+            )
+        else:
+            holdings_df = new_holdings
+
+    # Process executed sells
+    executed_sells = orders_df[
+        (orders_df["action"] == "Sell") & (orders_df["executed"] == 1)
+    ]
+    if not executed_sells.empty:
+        sell_agg = (
+            executed_sells.groupby(["ticker", "strategy_name"])
+            .agg(quantity=("quantity", "sum"))
+            .reset_index()
+        )
+
+        # Update holdings by reducing the quantity sold
+        if holdings_df is not None and not holdings_df.empty:
+            holdings_df = holdings_df.merge(
+                sell_agg, on=["ticker", "strategy_name"], how="left"
+            )
+            holdings_df["quantity"] = holdings_df["quantity"] - holdings_df[
+                "quantity_y"
+            ].fillna(0)
+            holdings_df.drop(columns=["quantity_y"], inplace=True)
+
+            # Remove positions with zero or negative quantity
+            holdings_df = holdings_df[holdings_df["quantity"] > 0]
+
+            # Recalculate total cost & avg price
+            holdings_df["total_cost"] = (
+                holdings_df["avg_price"] * holdings_df["quantity"]
+            )
+        else:
+            holdings_df = holdings_df  # No impact if there are no holdings
+
+    return holdings_df
+
+
+# ai
+def update_holdings_from_orders_with_sells_v2(holdings_df, orders_df):
+    # Process executed buys efficiently
+    executed_buys = orders_df.loc[
+        (orders_df["action"] == "Buy") & (orders_df["executed"] == 1)
+    ]
+    if not executed_buys.empty:
+        executed_buys["total_cost"] = (
+            executed_buys["quantity"] * executed_buys["current_price"]
+        )
+
+        # Use vectorized grouping with NumPy operations
+        new_holdings = executed_buys.groupby(
+            ["ticker", "strategy_name"], as_index=False
+        ).agg(
+            quantity=("quantity", "sum"),
+            total_cost=("total_cost", "sum"),
+            last_price=("current_price", "last"),
+        )
+        new_holdings["avg_price"] = (
+            new_holdings["total_cost"] / new_holdings["quantity"]
+        )
+
+        # Merge with existing holdings
+        if holdings_df is not None and not holdings_df.empty:
+            holdings_df = pd.concat(
+                [holdings_df, new_holdings], ignore_index=True
+            )
+            holdings_df = holdings_df.groupby(
+                ["ticker", "strategy_name"], as_index=False
+            ).agg(
+                quantity=("quantity", "sum"),
+                total_cost=("total_cost", "sum"),
+                last_price=("last_price", "last"),
+            )
+            holdings_df["avg_price"] = (
+                holdings_df["total_cost"] / holdings_df["quantity"]
+            )
+        else:
+            holdings_df = new_holdings
+
+    # Process executed sells efficiently
+    executed_sells = orders_df.loc[
+        (orders_df["action"] == "Sell") & (orders_df["executed"] == 1)
+    ]
+    if not executed_sells.empty:
+        sell_agg = executed_sells.groupby(
+            ["ticker", "strategy_name"], as_index=False
+        ).agg(quantity=("quantity", "sum"))
+
+        # Efficient merging using NumPy operations
+        if holdings_df is not None and not holdings_df.empty:
+            holdings_df = holdings_df.merge(
+                sell_agg, on=["ticker", "strategy_name"], how="left"
+            ).fillna({"quantity_y": 0})
+            holdings_df["quantity"] = np.maximum(
+                0, holdings_df["quantity"] - holdings_df["quantity_y"]
+            )
+            holdings_df.drop(columns=["quantity_y"], inplace=True)
+
+            # Remove positions with zero quantity
+            holdings_df = holdings_df.loc[holdings_df["quantity"] > 0]
+
+            # Recalculate total cost & avg price efficiently
+            holdings_df["total_cost"] = (
+                holdings_df["avg_price"] * holdings_df["quantity"]
+            )
+
+    return holdings_df
+
+
+# ai
+def update_holdings_df_from_orders(holdings_df, orders_df):
+    """
+    Vectorized update of holdings DataFrame based on executed orders in orders_df.
+    Args:
+        holdings_df (pd.DataFrame): Current holdings, with columns ['ticker', 'strategy_name', 'quantity', 'avg_price', ...].
+        orders_df (pd.DataFrame): Orders with columns ['ticker', 'strategy_name', 'action', 'quantity', 'current_price', 'executed', ...].
+    Returns:
+        pd.DataFrame: Updated holdings DataFrame.
+    """
+    # Only process executed orders
+    executed = orders_df[orders_df["executed"] == 1].copy()
+    if executed.empty:
+        return holdings_df
+
+    # Ensure required columns
+    for col in ["ticker", "strategy_name", "quantity", "current_price"]:
+        if col not in executed.columns:
+            raise ValueError(f"orders_df missing required column: {col}")
+
+    # Split buys and sells
+    buys = executed[executed["action"] == "Buy"].copy()
+    sells = executed[executed["action"] == "Sell"].copy()
+
+    # --- Process Sells ---
+    if not holdings_df.empty and not sells.empty:
+        # Merge to match sells to holdings
+        merged = pd.merge(
+            holdings_df,
+            sells[["ticker", "strategy_name", "quantity"]],
+            on=["ticker", "strategy_name"],
+            how="left",
+            suffixes=("", "_sell"),
+        )
+        merged["quantity_sell"] = merged["quantity_sell"].fillna(0)
+        merged["quantity"] = merged["quantity"] - merged["quantity_sell"]
+        # Remove holdings with zero or negative quantity
+        holdings_df = merged[merged["quantity"] > 0][holdings_df.columns]
+
+    # --- Process Buys ---
+    if not buys.empty:
+        # Group by ticker/strategy for total quantity and weighted avg price
+        buys["total_cost"] = buys["quantity"] * buys["current_price"]
+        grouped = (
+            buys.groupby(["ticker", "strategy_name"])
+            .agg(
+                quantity=("quantity", "sum"),
+                total_cost=("total_cost", "sum"),
+                stop_loss=("stop_loss", "last"),
+                take_profit=("take_profit", "last"),
+            )
+            .reset_index()
+        )
+        grouped["avg_price"] = grouped["total_cost"] / grouped["quantity"]
+
+        # Merge buys with existing holdings
+        if holdings_df.empty:
+            new_holdings = grouped[
+                [
+                    "ticker",
+                    "strategy_name",
+                    "quantity",
+                    "avg_price",
+                    "stop_loss",
+                    "take_profit",
+                ]
+            ]
+        else:
+            merged = pd.merge(
+                holdings_df,
+                grouped,
+                on=["ticker", "strategy_name"],
+                how="outer",
+                suffixes=("_old", "_buy"),
+            )
+            merged["quantity_old"] = merged["quantity_old"].fillna(0)
+            merged["avg_price_old"] = merged["avg_price_old"].fillna(0)
+            merged["quantity_buy"] = merged["quantity_buy"].fillna(0)
+            merged["avg_price_buy"] = merged["avg_price_buy"].fillna(0)
+            merged["stop_loss_buy"] = merged["stop_loss_buy"].combine_first(
+                merged["stop_loss_old"]
+            )
+            merged["take_profit_buy"] = merged[
+                "take_profit_buy"
+            ].combine_first(merged["take_profit_old"])
+
+            # Weighted average price for buys
+            merged["quantity"] = (
+                merged["quantity_old"] + merged["quantity_buy"]
+            )
+            merged["avg_price"] = (
+                (
+                    merged["quantity_old"] * merged["avg_price_old"]
+                    + merged["quantity_buy"] * merged["avg_price_buy"]
+                )
+                / merged["quantity"]
+            ).where(merged["quantity"] > 0, 0)
+
+            new_holdings = merged.loc[
+                merged["quantity"] > 0,
+                [
+                    "ticker",
+                    "strategy_name",
+                    "quantity",
+                    "avg_price",
+                    "stop_loss_buy",
+                    "take_profit_buy",
+                ],
+            ].rename(
+                columns={
+                    "stop_loss_buy": "stop_loss",
+                    "take_profit_buy": "take_profit",
+                }
+            )
+
+        holdings_df = new_holdings.reset_index(drop=True)
+
+    return holdings_df
+
+
 if __name__ == "__main__":
     # Get the current filename without extension
     module_name = os.path.splitext(os.path.basename(__file__))[0]
@@ -1240,9 +1578,9 @@ if __name__ == "__main__":
 
     # Initialize testing variables
     # strategies = [strategies[2]]
-    # strategies = strategies_top10_acc
+    strategies = strategies_top10_acc
     # strategies = [strategies_top10_acc[1]]  # ULTOSC
-    strategies = [strategies_top10_acc[1], strategies_top10_acc[2]]  # ULTOSC
+    # strategies = [strategies_top10_acc[1], strategies_top10_acc[2]]  # ULTOSC
     tickers_list = train_tickers
     account = initialize_test_account(train_start_cash)
     accuracy_threshold = 0.75

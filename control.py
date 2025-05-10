@@ -747,14 +747,14 @@ you are allowed to hold in comparison to portfolio value for the training client
 The lower this number, the more diversification you will have in your portfolio. The higher the number,
 the less diversification you will have but it will be buying more selective assets.
 """
-train_trade_asset_limit = 0.1
-train_trade_strategy_limit = 0.2
+train_trade_asset_limit = 0.2
+train_trade_strategy_limit = 0.1
 
 """
 train_rank_liquidity_limit is the amount of money you are telling the bot to reserve during ranking.
 All bots start with a default of 50000 as liquidity with limit as specified here. This is for the training client.
 """
-train_rank_liquidity_limit = 15000
+train_rank_liquidity_limit = 1000
 
 """
 train_rank_asset_limit to portfolio is how much asset
