@@ -1539,15 +1539,15 @@ if __name__ == "__main__":
 
     # Initialize testing variables
     # strategies = [strategies[2]]
-    # strategies = strategies_top10_acc
-    strategies = [strategies_top10_acc[1]]  # ULTOSC
+    strategies = strategies_top10_acc
+    # strategies = [strategies_top10_acc[1]]  # ULTOSC
     # strategies = [strategies_top10_acc[1], strategies_top10_acc[2]]  # ULTOSC
     tickers_list = train_tickers
     account = initialize_test_account(train_start_cash)
     # prediction_threshold = 0.75 #use global config
     use_rf_model_predictions = False
     # experiment_name = f"{use_rf_model_predictions = }_{len(train_tickers)}_{test_period_start}_{test_period_end}_{train_stop_loss}_{train_take_profit}_thres{prediction_threshold}"
-    experiment_name = f"baseline_{test_period_start}_{test_period_end}"
+    experiment_name = f"baseline_fees_{test_period_start}_{test_period_end}"
     account_values = pd.Series(
         index=pd.date_range(start=start_date, end=end_date)
     )
