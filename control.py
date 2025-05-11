@@ -739,7 +739,15 @@ train_start_cash = 50000.00
 train_trade_liquidity_limit is the amount of money you are telling the bot to reserve during trading.
 All bots start with a default of 50000 as liquidity with limit as specified here. This is for the training client.
 """
-train_trade_liquidity_limit = 15000.00
+train_trade_liquidity_limit = 1000
+
+"""
+minimum_cash_allocation used by strategy_and_ticker_cash_allocation() in the main loop.
+Buy orders qualify if they are allocated more than this amount.
+Buy orders allocated less than this amount are not executed.
+Reasoning: reduce lots of small orders that will loose due to fees.
+"""
+minimum_cash_allocation = 100
 
 """
 train_trade_asset_limit to portfolio is how much asset
@@ -750,11 +758,6 @@ the less diversification you will have but it will be buying more selective asse
 train_trade_asset_limit = 0.2
 train_trade_strategy_limit = 0.1
 
-"""
-train_rank_liquidity_limit is the amount of money you are telling the bot to reserve during ranking.
-All bots start with a default of 50000 as liquidity with limit as specified here. This is for the training client.
-"""
-train_rank_liquidity_limit = 1000
 
 """
 train_rank_asset_limit to portfolio is how much asset
