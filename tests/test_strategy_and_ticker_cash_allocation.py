@@ -18,6 +18,8 @@ from TradeSim.testing_random_forest import (
 # Get the current filename without extension
 module_name = os.path.splitext(os.path.basename(__file__))[0]
 log_filename = f"log/{module_name}.log"
+with open(log_filename, "w"):
+    pass
 LOG_CONFIG["handlers"]["file_dynamic"]["filename"] = log_filename
 
 logging.config.dictConfig(LOG_CONFIG)
@@ -62,7 +64,7 @@ class TestStrategyAndTickerCashAllocation(unittest.TestCase):
             # "strategy1": 3000,
             # "strategy2": 2000,
         }
-
+        self.minimum_cash_allocation = 10
         self.prediction_threshold = 0.5
         self.asset_limit = 0.25
         self.strategy_limit = 0.5
@@ -80,6 +82,7 @@ class TestStrategyAndTickerCashAllocation(unittest.TestCase):
             self.asset_limit,
             self.strategy_limit,
             self.trade_liquidity_limit_cash,
+            self.minimum_cash_allocation,
             logger,
         )
 
@@ -105,6 +108,7 @@ class TestStrategyAndTickerCashAllocation(unittest.TestCase):
             self.asset_limit,
             self.strategy_limit,
             self.trade_liquidity_limit_cash,
+            self.minimum_cash_allocation,
             logger,
         )
 
@@ -123,6 +127,7 @@ class TestStrategyAndTickerCashAllocation(unittest.TestCase):
             self.asset_limit,
             self.strategy_limit,
             self.trade_liquidity_limit_cash,
+            self.minimum_cash_allocation,
             logger,
         )
 
@@ -143,6 +148,7 @@ class TestStrategyAndTickerCashAllocation(unittest.TestCase):
             self.asset_limit,
             self.strategy_limit,
             self.trade_liquidity_limit_cash,
+            self.minimum_cash_allocation,
             logger,
         )
 
@@ -162,6 +168,7 @@ class TestStrategyAndTickerCashAllocation(unittest.TestCase):
             self.asset_limit,
             self.strategy_limit,
             self.trade_liquidity_limit_cash,
+            self.minimum_cash_allocation,
             logger,
         )
 
@@ -222,6 +229,7 @@ class TestStrategyAndTickerCashAllocation(unittest.TestCase):
             self.asset_limit,
             self.strategy_limit,
             self.trade_liquidity_limit_cash,
+            self.minimum_cash_allocation,
             logger,
         )
 
@@ -310,6 +318,7 @@ class TestStrategyAndTickerCashAllocation(unittest.TestCase):
             self.asset_limit,
             self.strategy_limit,
             self.trade_liquidity_limit_cash,
+            self.minimum_cash_allocation,
             logger,
         )
 
@@ -378,6 +387,7 @@ class TestStrategyAndTickerCashAllocation(unittest.TestCase):
             self.asset_limit,
             self.strategy_limit,
             self.trade_liquidity_limit_cash,
+            self.minimum_cash_allocation,
             logger,
         )
 
@@ -476,6 +486,7 @@ class TestStrategyAndTickerCashAllocation(unittest.TestCase):
             self.asset_limit,
             self.strategy_limit,
             self.trade_liquidity_limit_cash,
+            self.minimum_cash_allocation,
             logger,
         )
 
@@ -574,6 +585,7 @@ class TestStrategyAndTickerCashAllocation(unittest.TestCase):
             self.asset_limit,
             self.strategy_limit,
             self.trade_liquidity_limit_cash,
+            self.minimum_cash_allocation,
             logger,
         )
 

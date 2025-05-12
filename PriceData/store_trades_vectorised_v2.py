@@ -9,11 +9,8 @@ import time
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from helper_files.client_helper import setup_logging, strategies_test, strategies
-from TradeSim.utils import (
-    prepare_regime_data,
-    simulate_trading_day,
-)
+from helper_files.client_helper import strategies_test, strategies
+
 from PriceData.store_price_data import (
     sql_to_df_with_date_range,
 )
@@ -64,16 +61,21 @@ def df_to_sql_merge_tables_on_date_and_ticker_if_exist(
     }
 
     def table_exists(con: sqlite3.Connection, table_name: str) -> bool:
-        query = (
-            f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'"
-        )
+        query = f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'"
         return not pd.read_sql(query, con).empty
 
     def create_table(
-        df: pd.DataFrame, table_name: str, con: sqlite3.Connection, dtype_mapping: dict
+        df: pd.DataFrame,
+        table_name: str,
+        con: sqlite3.Connection,
+        dtype_mapping: dict,
     ) -> None:
         df.to_sql(
-            table_name, con, if_exists="replace", index=False, dtype=dtype_mapping
+            table_name,
+            con,
+            if_exists="replace",
+            index=False,
+            dtype=dtype_mapping,
         )
         con.execute(
             f"CREATE UNIQUE INDEX IF NOT EXISTS idx_{table_name}_ticker_buy_date ON {table_name} (ticker, buy_date)"
@@ -91,7 +93,10 @@ def df_to_sql_merge_tables_on_date_and_ticker_if_exist(
             suffixes=("_left", "_right"),
         )
         for column in df_new.columns:
-            if column in df_existing.columns and column not in ["ticker", "buy_date"]:
+            if column in df_existing.columns and column not in [
+                "ticker",
+                "buy_date",
+            ]:
                 df_merged[column] = df_merged[f"{column}_right"].combine_first(
                     df_merged[f"{column}_left"]
                 )
@@ -115,7 +120,9 @@ def df_to_sql_merge_tables_on_date_and_ticker_if_exist(
                 index=False,
                 dtype=dtype_mapping,
             )
-            logger.info(f"Data for {strategy_name} merged and saved to database.")
+            logger.info(
+                f"Data for {strategy_name} merged and saved to database."
+            )
     except Exception as e:
         logger.error(f"Error while merging data for {strategy_name}: {e}")
 
@@ -152,10 +159,14 @@ def create_position_column_vectorized(df):
 
     # Define conditions for setting position to 1
     # Condition 1: Action changes from Hold or Sell to Buy
-    buy_signal = (df["prev_action"].isin(["Hold", "Sell"])) & (df["Action"] == "Buy")
+    buy_signal = (df["prev_action"].isin(["Hold", "Sell"])) & (
+        df["Action"] == "Buy"
+    )
 
     # Condition 2: Action changes from Buy to Sell or from Hold to Sell
-    sell_signal = (df["prev_action"].isin(["Buy", "Hold"])) & (df["Action"] == "Sell")
+    sell_signal = (df["prev_action"].isin(["Buy", "Hold"])) & (
+        df["Action"] == "Sell"
+    )
 
     # Create a mask to track position state
     position_mask = np.zeros(len(df), dtype=int)
@@ -231,7 +242,9 @@ def create_cash_holdings_column(df):
     # Calculate cash changes
     cash_changes = pd.Series(0.0, index=df.index)
     cash_changes.loc[buy_signals] = -df.loc[buy_signals, "Close"].astype(float)
-    cash_changes.loc[sell_signals] = df.loc[sell_signals, "Close"].astype(float)
+    cash_changes.loc[sell_signals] = df.loc[sell_signals, "Close"].astype(
+        float
+    )
 
     # Apply cash changes cumulatively
     for i in range(1, len(df)):
@@ -250,7 +263,9 @@ def create_cash_holdings_column(df):
         elif sell_signals.iloc[i]:
             df.loc[df.index[i], "in_position"] = 0
         else:
-            df.loc[df.index[i], "in_position"] = df.loc[df.index[i - 1], "in_position"]
+            df.loc[df.index[i], "in_position"] = df.loc[
+                df.index[i - 1], "in_position"
+            ]
 
     # Calculate holdings based on position and Close price
     # When in position, holdings = current Close price
@@ -311,11 +326,15 @@ def create_buy_and_sell_date_column(df):
         elif sell_signals.iloc[i]:
             df.loc[df.index[i], "sell_date"] = df.index[i]
             # df.loc[df.index[i], "sell_price"] = df.loc[df.index[i], "Close"]
-            df.loc[df.index[i], "buy_date"] = df.loc[df.index[i - 1], "buy_date"]
+            df.loc[df.index[i], "buy_date"] = df.loc[
+                df.index[i - 1], "buy_date"
+            ]
             # df.loc[df.index[i], "buy_price"] = df.loc[df.index[i - 1], "buy_price"]
         elif i > 0 and df["position"].iloc[i] == 1:
             # Propagate the buy_date when in position
-            df.loc[df.index[i], "buy_date"] = df.loc[df.index[i - 1], "buy_date"]
+            df.loc[df.index[i], "buy_date"] = df.loc[
+                df.index[i - 1], "buy_date"
+            ]
             # df.loc[df.index[i], "buy_price"] = df.loc[df.index[i - 1], "buy_price"]
 
     # Drop the temporary column
@@ -370,12 +389,12 @@ def lookup_price_data(trades_df, price_conn):
             ).drop_duplicates()
 
             # Format dates for SQL query
-            date_strings = "', '".join(needed_dates["date"].dt.strftime("%Y-%m-%d"))
+            date_strings = "', '".join(
+                needed_dates["date"].dt.strftime("%Y-%m-%d")
+            )
 
             # Query only the necessary dates for this ticker
-            query = (
-                f"SELECT Date, Close FROM '{ticker}' WHERE Date IN ('{date_strings}')"
-            )
+            query = f"SELECT Date, Close FROM '{ticker}' WHERE Date IN ('{date_strings}')"
             ticker_prices = pd.read_sql_query(query, price_conn)
 
             # Convert Date to datetime for merging
@@ -426,7 +445,7 @@ def prepare_sp500_one_day_return(conn):
     Returns:
         pandas.DataFrame: The updated S&P 500 dataframe with the '1_day_pct_return' column
     """
-    import pandas as pd
+    # import pandas as pd
 
     # Read S&P 500 data from the database
     query = "SELECT * FROM '^GSPC'"
@@ -438,7 +457,9 @@ def prepare_sp500_one_day_return(conn):
 
     # sp500_df.drop(columns=["1_day_spy_return"], inplace=True)
     # Calculate one-day percentage return using vectorized operations
-    sp500_df["One_day_spy_return"] = sp500_df["Close"].pct_change().round(4) * 100
+    sp500_df["One_day_spy_return"] = (
+        sp500_df["Close"].pct_change().round(4) * 100
+    )
 
     # Replace NaN values with 0 for the first row
     sp500_df["One_day_spy_return"] = sp500_df["One_day_spy_return"].fillna(0)
@@ -488,7 +509,9 @@ def lookup_regime_data(trades_df, price_conn):
     FROM "^VIX" 
     WHERE Date IN ({','.join(['?']*len(unique_dates))})
     """
-    vix_data = pd.read_sql_query(vix_query, price_conn, params=tuple(unique_dates))
+    vix_data = pd.read_sql_query(
+        vix_query, price_conn, params=tuple(unique_dates)
+    )
 
     # Query S&P500 data for all unique dates at once
     spy_query = f"""
@@ -496,7 +519,9 @@ def lookup_regime_data(trades_df, price_conn):
     FROM "^GSPC" 
     WHERE Date IN ({','.join(['?']*len(unique_dates))})
     """
-    spy_data = pd.read_sql_query(spy_query, price_conn, params=tuple(unique_dates))
+    spy_data = pd.read_sql_query(
+        spy_query, price_conn, params=tuple(unique_dates)
+    )
 
     # Check if we got data back
     if vix_data.empty:
@@ -515,7 +540,10 @@ def lookup_regime_data(trades_df, price_conn):
     if not vix_data.empty:
         vix_data["date_key"] = vix_data["Date"].dt.strftime("%Y-%m-%d")
         result_df = pd.merge(
-            result_df, vix_data[["date_key", "Close"]], on="date_key", how="left"
+            result_df,
+            vix_data[["date_key", "Close"]],
+            on="date_key",
+            how="left",
         )
         result_df.rename(columns={"Close": "^VIX"}, inplace=True)
     else:
@@ -552,7 +580,7 @@ def lookup_regime_data(trades_df, price_conn):
 
 if __name__ == "__main__":
     start_time = time.time()  # Record the start time
-    logger = setup_logging("logs", "trades_list.log", level=logging.WARNING)
+    # logger = setup_logging("logs", "trades_list.log", level=logging.WARNING)
     """
     create trades list from strategy decisions
     """
@@ -568,7 +596,9 @@ if __name__ == "__main__":
         price_data_dir, "strategy_decisions_final.db"
     )
     con_sd = sqlite3.connect(strategy_decisions_db_name)
-    trades_list_db_name = os.path.join(price_data_dir, "trades_list_vectorised.db")
+    trades_list_db_name = os.path.join(
+        price_data_dir, "trades_list_vectorised.db"
+    )
     con_tl = sqlite3.connect(trades_list_db_name)
     con_pd = sqlite3.connect(PRICE_DB_PATH)
 
@@ -580,8 +610,8 @@ if __name__ == "__main__":
     start_date_minus_one_business_day = np.busday_offset(
         start_date_np, -1, roll="backward"
     )
-    start_date_minus_one_business_day_str = start_date_minus_one_business_day.astype(
-        str
+    start_date_minus_one_business_day_str = (
+        start_date_minus_one_business_day.astype(str)
     )
 
     logger.info(f"Training period: {start_date} to {end_date}")
@@ -607,7 +637,9 @@ if __name__ == "__main__":
             f"\n=== COMPUTING TRADES FOR: {strategy_name} ({idx + 1}/{len(strategies)}) ==="
         )
 
-        df = sql_to_df_with_date_range(strategy_name, start_date, end_date, con_sd)
+        df = sql_to_df_with_date_range(
+            strategy_name, start_date, end_date, con_sd
+        )
 
         # Melt df_existing to stack ticker columns to rows
         df = df.reset_index().melt(
@@ -646,7 +678,9 @@ if __name__ == "__main__":
 
             trades_df = lookup_regime_data(trades_df, con_pd)
 
-            trades_df["ratio"] = trades_df["sell_price"] / trades_df["buy_price"]
+            trades_df["ratio"] = (
+                trades_df["sell_price"] / trades_df["buy_price"]
+            )
 
             # df_trades["return"] = df_trades["ratio"] - 1
             # df_trades["cum_return"] = df_trades["return"].cumsum()

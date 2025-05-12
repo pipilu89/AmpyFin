@@ -32,13 +32,15 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import PRICE_DB_PATH
 from control import regime_tickers, train_tickers
-from helper_files.client_helper import setup_logging
+
+# from helper_files.client_helper import setup_logging
 
 # logger = setup_logging("logs", "store_price_data.log", level=logging.INFO)
 
 # database connection
 # database_name = "price_data.db"
 last_dl_date_table_name = "last_dl_date"
+print("PRICE_DB_PATH:", PRICE_DB_PATH)
 con = sqlite3.connect(PRICE_DB_PATH)
 
 
@@ -70,7 +72,9 @@ def sql_to_df(table_name):
     return df
 
 
-def sql_to_df_with_date_range_no_index(table_name, begin_date, end_date, con=con):
+def sql_to_df_with_date_range_no_index(
+    table_name, begin_date, end_date, con=con
+):
     with con:
         # with sqlite3.connect(database_name) as con:
         df = pd.read_sql_query(
@@ -263,7 +267,9 @@ def table_schema(table_name):
     with con:
         # with sqlite3.connect(database_name) as con:
         cur = con.cursor()
-        cur.execute("""SELECT sql FROM sqlite_schema WHERE name = ?;""", (table_name,))
+        cur.execute(
+            """SELECT sql FROM sqlite_schema WHERE name = ?;""", (table_name,)
+        )
         table_schema = cur.fetchall()
         logger.info(f"{table_schema=}")
 
@@ -498,9 +504,9 @@ def download_and_store_old(df_tickers, options, pie_name):
             for ticker in ticker_list:
                 # drop_table(ticker)
                 create_table_schema(ticker)
-                df_single_ticker = df[["Open", "High", "Low", "Close", "Volume"]].loc[
-                    df["Ticker"] == ticker
-                ]
+                df_single_ticker = df[
+                    ["Open", "High", "Low", "Close", "Volume"]
+                ].loc[df["Ticker"] == ticker]
                 df_single_ticker = df_single_ticker.dropna()
                 # logger.info(f"{df_single_ticker = }")
                 sql_values = convert_df_to_sql_values(df_single_ticker)
@@ -541,7 +547,9 @@ def download_and_store_old(df_tickers, options, pie_name):
 
     if "benchmark" in options:
         yf_period = "max"
-        df_benchmark = pd.DataFrame({"yahoo_ticker": options["benchmark"]}, index=[0])
+        df_benchmark = pd.DataFrame(
+            {"yahoo_ticker": options["benchmark"]}, index=[0]
+        )
         download_data_from_yf(df_benchmark, yf_period, options["benchmark"])
 
 
@@ -583,9 +591,9 @@ def download_and_store(df_tickers, options, pie_name):
             for ticker in ticker_list:
                 # drop_table(ticker)
                 create_table_schema(ticker)
-                df_single_ticker = df[["Open", "High", "Low", "Close", "Volume"]].loc[
-                    df["Ticker"] == ticker
-                ]
+                df_single_ticker = df[
+                    ["Open", "High", "Low", "Close", "Volume"]
+                ].loc[df["Ticker"] == ticker]
                 df_single_ticker = df_single_ticker.dropna()
                 # logger.info(f"{df_single_ticker = }")
                 sql_values = convert_df_to_sql_values(df_single_ticker)
@@ -626,7 +634,9 @@ def download_and_store(df_tickers, options, pie_name):
 
     if "benchmark" in options:
         yf_period = "max"
-        df_benchmark = pd.DataFrame({"yahoo_ticker": options["benchmark"]}, index=[0])
+        df_benchmark = pd.DataFrame(
+            {"yahoo_ticker": options["benchmark"]}, index=[0]
+        )
         download_data_from_yf(df_benchmark, yf_period, options["benchmark"])
 
 
@@ -678,11 +688,13 @@ def download_and_store_simple(ticker_list, price_data_db_name):
         )
 
         for ticker in ticker_list:
-            df_single_ticker = df[["Open", "High", "Low", "Close", "Volume"]].loc[
-                df["Ticker"] == ticker
-            ]
+            df_single_ticker = df[
+                ["Open", "High", "Low", "Close", "Volume"]
+            ].loc[df["Ticker"] == ticker]
             df_single_ticker = df_single_ticker.dropna()
-            df_single_ticker.index = df_single_ticker.index.strftime("%Y-%m-%d")
+            df_single_ticker.index = df_single_ticker.index.strftime(
+                "%Y-%m-%d"
+            )
             logger.info(f"{df_single_ticker}")
 
             # store ticker in price_data.db
@@ -744,7 +756,9 @@ def check_missing_dates(table_name, periods_int, exchange="NYSE"):
 
         class Hoildays_England_and_Wales(AbstractHolidayCalendar):
             rules = [
-                Holiday("New Years Day", month=1, day=1, observance=next_monday),
+                Holiday(
+                    "New Years Day", month=1, day=1, observance=next_monday
+                ),
                 GoodFriday,
                 EasterMonday,
                 Holiday(
@@ -765,7 +779,9 @@ def check_missing_dates(table_name, periods_int, exchange="NYSE"):
                     day=31,
                     offset=DateOffset(weekday=MO(-1)),
                 ),
-                Holiday("Christmas Day", month=12, day=25, observance=next_monday),
+                Holiday(
+                    "Christmas Day", month=12, day=25, observance=next_monday
+                ),
                 Holiday(
                     "Boxing Day",
                     month=12,
@@ -786,7 +802,9 @@ def check_missing_dates(table_name, periods_int, exchange="NYSE"):
     # logger.debug(f"{table_name = }, {exchange = }")
     # logger.debug(f"{table_name = }, {date_range = }")
     number_of_missing_dates = len(date_range.difference(df.index))
-    missing_date_list = date_range.difference(df.index).strftime("%Y-%m-%d").tolist()
+    missing_date_list = (
+        date_range.difference(df.index).strftime("%Y-%m-%d").tolist()
+    )
     # logger.info(date_range.difference(df.index).strftime("%Y-%m-%d").tolist())
     # if number_of_missing_dates > 0:
     #   print(f'{table_name} {df.shape=} {number_of_missing_dates=}, {missing_date_list = }')
@@ -794,7 +812,9 @@ def check_missing_dates(table_name, periods_int, exchange="NYSE"):
     return number_of_missing_dates, missing_date_list, earliest_date
 
 
-def check_missing_dates_start_end(table_name, start_date, end_date, exchange="us"):
+def check_missing_dates_start_end(
+    table_name, start_date, end_date, exchange="us"
+):
     # dates which are not in the sequence are returned
     # custom business day range: https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#custom-business-days
     df = sql_to_df(table_name)
@@ -804,7 +824,9 @@ def check_missing_dates_start_end(table_name, start_date, end_date, exchange="us
     # logger.info(f'{today=}')
     # date_range = pd.date_range(end=today, periods=periods_int, freq='B')
 
-    us_bd = CustomBusinessDay(calendar=USFederalHolidayCalendar())  # Define us_bd once
+    us_bd = CustomBusinessDay(
+        calendar=USFederalHolidayCalendar()
+    )  # Define us_bd once
 
     if exchange == "us":
         freq = us_bd
@@ -812,7 +834,9 @@ def check_missing_dates_start_end(table_name, start_date, end_date, exchange="us
 
         class Hoildays_England_and_Wales(AbstractHolidayCalendar):
             rules = [
-                Holiday("New Years Day", month=1, day=1, observance=next_monday),
+                Holiday(
+                    "New Years Day", month=1, day=1, observance=next_monday
+                ),
                 GoodFriday,
                 EasterMonday,  # Added for consistency
                 Holiday(
@@ -833,7 +857,9 @@ def check_missing_dates_start_end(table_name, start_date, end_date, exchange="us
                     day=31,
                     offset=DateOffset(weekday=MO(-1)),
                 ),
-                Holiday("Christmas Day", month=12, day=25, observance=next_monday),
+                Holiday(
+                    "Christmas Day", month=12, day=25, observance=next_monday
+                ),
                 Holiday(
                     "Boxing Day",
                     month=12,
@@ -943,14 +969,16 @@ def check_data_if_missing_dl(df_tickers, period):
 
 
 if __name__ == "__main__":
-    logger = setup_logging("logs", "store_price_data.log", level=logging.INFO)
+    # logger = setup_logging("logs", "store_price_data.log", level=logging.INFO)
 
     # ticker_list = ["CL=F", "GC=F", "HG=F", "^IRX", "^FVX", "^TNX", "EURUSD=X", "^SKEW"]
     ticker_list = train_tickers + regime_tickers
     # ticker_list = ["APP", "AAPL"]
     # PRICE_DB_PATH = ""
 
-    ticker_download_threshold = 90  # %, retry if downloaded tickers pct less than this.
+    ticker_download_threshold = (
+        90  # %, retry if downloaded tickers pct less than this.
+    )
     max_retries = 3
     initial_delay = 30  # seconds
     backoff_factor = 10
@@ -959,8 +987,8 @@ if __name__ == "__main__":
     tickers_with_no_data = []
 
     for attempt in range(max_retries):
-        percentage_of_tickers_saved, tickers_with_no_data = download_and_store_simple(
-            ticker_list, PRICE_DB_PATH
+        percentage_of_tickers_saved, tickers_with_no_data = (
+            download_and_store_simple(ticker_list, PRICE_DB_PATH)
         )
 
         if percentage_of_tickers_saved >= ticker_download_threshold:
@@ -974,7 +1002,9 @@ if __name__ == "__main__":
             )
             if attempt < max_retries - 1:
                 delay = initial_delay * (backoff_factor**attempt)
-                logger.info(f"Waiting for {delay:.2f} seconds before next retry.")
+                logger.info(
+                    f"Waiting for {delay:.2f} seconds before next retry."
+                )
                 time.sleep(delay)
             else:
                 logger.error(

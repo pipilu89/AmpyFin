@@ -178,7 +178,9 @@ def predict_random_forest_classifier(rf_classifier, sample_df):
     required_features = rf_classifier.feature_names_in_
     if not all(feature in sample_df.columns for feature in required_features):
         missing = set(required_features) - set(sample_df.columns)
-        raise ValueError(f"Input DataFrame is missing required features: {missing}")
+        raise ValueError(
+            f"Input DataFrame is missing required features: {missing}"
+        )
 
     # Get predictions for all samples directly
     predictions = rf_classifier.predict(
@@ -215,7 +217,7 @@ def predict_random_forest_classifier(rf_classifier, sample_df):
             f"Unexpected shape for probabilities array: {probabilities.shape}"
         )
 
-    return predictions, prob_class_1  # Return arrays
+    return predictions, prob_class_1, probabilities  # Return arrays
 
 
 def train_and_store_classifiers(trades_data_df, logger):
@@ -245,13 +247,15 @@ def train_and_store_classifiers(trades_data_df, logger):
 
     for strategy_name in strategies_with_enough_data:
         try:
-            strategy_data = trades_data_df[trades_data_df["strategy"] == strategy_name]
+            strategy_data = trades_data_df[
+                trades_data_df["strategy"] == strategy_name
+            ]
             logger.info(
                 f"Training classifier for strategy {strategy_name}. {len(strategy_data) = }"
             )
             # logger.info(f"{strategy_data.head()}")
-            rf_classifier, accuracy, precision, recall = train_random_forest_classifier(
-                strategy_data
+            rf_classifier, accuracy, precision, recall = (
+                train_random_forest_classifier(strategy_data)
             )
             rf_classifiers[strategy_name] = {
                 "rf_classifier": rf_classifier,
@@ -263,7 +267,9 @@ def train_and_store_classifiers(trades_data_df, logger):
                 f"Classifier for strategy {strategy_name} trained successfully."
             )
         except Exception as e:
-            logger.error(f"Error training classifier for strategy {strategy_name}: {e}")
+            logger.error(
+                f"Error training classifier for strategy {strategy_name}: {e}"
+            )
 
     return rf_classifiers, strategies_with_enough_data
 

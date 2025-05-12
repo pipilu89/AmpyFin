@@ -5,7 +5,7 @@ import os
 import re
 import sqlite3
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -14,6 +14,7 @@ from pandas.tseries.offsets import CustomBusinessDay
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 # from config import PRICE_DB_PATH
+# from PriceData.store_trades_vectorised_v2 import prepare_sp500_one_day_return
 from control import (
     benchmark_asset,
     minimum_cash_allocation,
@@ -44,6 +45,7 @@ from PriceData.store_rf_models import (
 )
 from random_forest import (
     predict_random_forest_classifier,
+    train_random_forest_classifier_features,
 )
 
 
@@ -807,6 +809,7 @@ def main_test_loop(
     ticker_price_history,
     precomputed_decisions,
     use_rf_model_predictions,
+    train_rf_classifier,
     account_values,
     trading_account_db_name,
     rf_dict,
@@ -847,6 +850,26 @@ def main_test_loop(
                 )
                 date_missing = True
                 continue
+
+            # retrain model with newer data
+            if train_rf_classifier:
+                # Load trades data (training data)
+                # Get one day before
+                previous_day = date - timedelta(days=1)
+                historic_trades_df = get_trades_training_data_from_db(
+                    strategy_name,
+                    trades_list_db_name,
+                    logger,
+                    None,
+                    previous_day.strftime("%Y-%m-%d"),
+                )
+                logger.info(f"{len(historic_trades_df)=}")
+                logger.info(f"{historic_trades_df=}")
+
+                # required_features = []
+                # train_random_forest_classifier_features(
+                #     historic_trades_df, required_features
+                # )
 
             for ticker in tickers_list:
                 try:
@@ -977,13 +1000,13 @@ def main_test_loop(
                         sample_df = pd.DataFrame(data, index=[0])
 
                         # Get prediction (0 or 1) and probability of class 1 (positive return)
-                        prediction, probability = (
+                        prediction, probability, probabilities = (
                             predict_random_forest_classifier(
                                 rf_dict[strategy_name]["rf_classifier"],
                                 sample_df,
                             )
                         )
-
+                        logger.info(f"{probabilities=}")
                         if prediction != 1:
                             action = "Hold"  # Override original 'Buy' if RF doesn't confirm
 
@@ -1191,7 +1214,97 @@ def insert_account_values_into_db(
         logger.error(f"Error saving account_values to database: {e}")
 
 
-# try holdings_df
+def prepare_sp500_one_day_return(conn):
+    """
+    Efficiently calculates the one-day percentage return for S&P 500 data and updates the database.
+
+    This function:
+    1. Retrieves S&P 500 price data from the '^GSPC' table in the SQLite database
+    2. Calculates the one-day percentage return using pandas vectorized operations
+    3. Saves the updated dataframe back to the database, replacing the original table
+
+    Args:
+        conn: SQLite database connection to 'price_data.db'
+
+    Returns:
+        pandas.DataFrame: The updated S&P 500 dataframe with the '1_day_pct_return' column
+    """
+    # import pandas as pd
+
+    # Read S&P 500 data from the database
+    query = "SELECT * FROM '^GSPC'"
+    sp500_df = pd.read_sql_query(query, conn)
+
+    # Ensure Date column is in datetime format
+    if "Date" in sp500_df.columns:
+        sp500_df["Date"] = pd.to_datetime(sp500_df["Date"])
+
+    # sp500_df.drop(columns=["1_day_spy_return"], inplace=True)
+    # Calculate one-day percentage return using vectorized operations
+    sp500_df["One_day_spy_return"] = (
+        sp500_df["Close"].pct_change().round(4) * 100
+    )
+    sp500_df["One_day_spy_return"] = sp500_df["One_day_spy_return"].round(2)
+
+    # Replace NaN values with 0 for the first row
+    sp500_df["One_day_spy_return"] = sp500_df["One_day_spy_return"].fillna(0)
+
+    # Save the updated dataframe back to the database
+    # First, drop the existing table
+    cursor = conn.cursor()
+    cursor.execute("DROP TABLE IF EXISTS '^GSPC'")
+    conn.commit()
+
+    sp500_df["Date"] = sp500_df["Date"].dt.strftime("%Y-%m-%d")
+    # Then write the updated dataframe to a new table with the same name
+    sp500_df.to_sql(
+        "^GSPC",
+        conn,
+        index=False,
+        if_exists="replace",
+        dtype={"Date": "TEXT PRIMARY KEY NOT NULL"},
+    )
+
+    return sp500_df
+
+
+def get_trades_training_data_from_db(
+    strategy_name, trades_list_db_name, logger, start_date=None, end_date=None
+):
+    trades_df = pd.DataFrame()
+    query = f"SELECT * FROM {strategy_name}"
+    params = []
+    if start_date or end_date:
+        query += " WHERE"
+        if start_date:
+            query += " buy_date >= ?"
+            params.append(start_date)
+        if end_date:
+            if start_date:
+                query += " AND"
+            query += " sell_date <= ?"
+            params.append(end_date)
+    with sqlite3.connect(trades_list_db_name) as trades_conn:
+        try:
+            trades_df = pd.read_sql(query, trades_conn, params=params)
+        except Exception as e:
+            logger.error(
+                f"Error loading trades data for {strategy_name}, skipping: {e}"
+            )
+            return trades_df
+    # trades_df["returnB"] = np.where(trades_df["ratio"] > 1, 1, 0)
+    trades_df["return"] = np.where(trades_df["ratio"] > 1, 1, 0)
+    # trades_df["baseline_pred"] = 1
+    trades_df["buy_date"] = pd.to_datetime(
+        trades_df["buy_date"]
+    ).dt.normalize()
+    trades_df["sell_date"] = pd.to_datetime(
+        trades_df["sell_date"]
+    ).dt.normalize()
+    return trades_df
+
+
+# examples to help in refactoring holdings dict to holdings_df
 # ai
 def update_holdings_from_orders(holdings_df, orders_df):
     # Process executed buys
@@ -1523,6 +1636,10 @@ if __name__ == "__main__":
     )
     trading_account_db_name = os.path.join("PriceData", "trading_account.db")
     PRICE_DB_PATH = os.path.join("PriceData", "price_data.db")
+    trades_list_db_name = os.path.join(
+        "PriceData", "trades_list_vectorised.db"
+    )
+
     # setup dates
     start_date = datetime.strptime(test_period_start, "%Y-%m-%d")
     # test_period_end = "2025-01-06"
@@ -1539,13 +1656,14 @@ if __name__ == "__main__":
 
     # Initialize testing variables
     # strategies = [strategies[2]]
-    strategies = strategies_top10_acc
-    # strategies = [strategies_top10_acc[1]]  # ULTOSC
+    # strategies = strategies_top10_acc
+    strategies = [strategies_top10_acc[1]]  # ULTOSC
     # strategies = [strategies_top10_acc[1], strategies_top10_acc[2]]  # ULTOSC
     tickers_list = train_tickers
     account = initialize_test_account(train_start_cash)
     # prediction_threshold = 0.75 #use global config
-    use_rf_model_predictions = False
+    use_rf_model_predictions = True
+    train_rf_classifier = True
     # experiment_name = f"{use_rf_model_predictions = }_{len(train_tickers)}_{test_period_start}_{test_period_end}_{train_stop_loss}_{train_take_profit}_thres{prediction_threshold}"
     experiment_name = f"baseline_fees_{test_period_start}_{test_period_end}"
     account_values = pd.Series(
@@ -1554,6 +1672,15 @@ if __name__ == "__main__":
     rf_dict = {}
 
     # TODO? delete existing experiment tables from trading_account db?
+
+    # prepare regime features data. Maybe just update ticker_price_history dict in memory?
+    try:
+        with sqlite3.connect(PRICE_DB_PATH) as conn:
+            _ = prepare_sp500_one_day_return(conn)
+    except Exception as e:
+        logger.error(
+            f"Error preparing regime featrure sp500_one_day_return {PRICE_DB_PATH}: {e}"
+        )
 
     # get price history for tickers
     ticker_price_history = {}
@@ -1600,6 +1727,7 @@ if __name__ == "__main__":
         ticker_price_history,
         precomputed_decisions,
         use_rf_model_predictions,
+        train_rf_classifier,
         account_values,
         trading_account_db_name,
         rf_dict,

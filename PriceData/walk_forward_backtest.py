@@ -1,4 +1,5 @@
 import logging
+import logging.config
 import os
 import re
 import sqlite3
@@ -15,14 +16,14 @@ import wandb
 
 # Add parent directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
+from log_config import LOG_CONFIG
 from variables_rf import config_dict
 
 from config import PRICE_DB_PATH, environment
 from control import features_ticker_list, oscillator_features_ticker_list
 from helper_files.client_helper import (
     momentum_indicators,
-    setup_logging,
+    # setup_logging,
     strategies,
     strategies_test,
 )
@@ -52,23 +53,34 @@ def walk_forward_analysis(
         # Define in-sample and out-of-sample windows
         # in_sample_mask = (trades["buy_date"] >= current_date) & (
         in_sample_mask = (trades["buy_date"] >= start_date) & (
-            trades["buy_date"] < current_date + pd.Timedelta(days=in_sample_period)
+            trades["buy_date"]
+            < current_date + pd.Timedelta(days=in_sample_period)
         )
         out_sample_mask = (
-            trades["buy_date"] >= current_date + pd.Timedelta(days=in_sample_period)
+            trades["buy_date"]
+            >= current_date + pd.Timedelta(days=in_sample_period)
         ) & (
             trades["buy_date"]
-            < current_date + pd.Timedelta(days=in_sample_period + out_sample_period)
+            < current_date
+            + pd.Timedelta(days=in_sample_period + out_sample_period)
         )
 
         in_sample_trades = trades.loc[in_sample_mask]
         out_sample_trades = trades.loc[out_sample_mask]
 
         # Log the in-sample and out-of-sample periods
-        in_sample_start_str = in_sample_trades["buy_date"].min().strftime("%Y-%m-%d")
-        in_sample_end_str = in_sample_trades["buy_date"].max().strftime("%Y-%m-%d")
-        out_sample_start_str = out_sample_trades["buy_date"].min().strftime("%Y-%m-%d")
-        out_sample_end_str = out_sample_trades["buy_date"].max().strftime("%Y-%m-%d")
+        in_sample_start_str = (
+            in_sample_trades["buy_date"].min().strftime("%Y-%m-%d")
+        )
+        in_sample_end_str = (
+            in_sample_trades["buy_date"].max().strftime("%Y-%m-%d")
+        )
+        out_sample_start_str = (
+            out_sample_trades["buy_date"].min().strftime("%Y-%m-%d")
+        )
+        out_sample_end_str = (
+            out_sample_trades["buy_date"].max().strftime("%Y-%m-%d")
+        )
 
         if in_sample_trades.empty or out_sample_trades.empty:
             logger.warning(
@@ -101,7 +113,9 @@ def walk_forward_analysis(
         """
         # Prepare features from OUT-OF-SAMPLE data for prediction
         # required_features = ["^VIX", "One_day_spy_return"]
-        if not all(col in out_sample_trades.columns for col in required_features):
+        if not all(
+            col in out_sample_trades.columns for col in required_features
+        ):
             logger.error(
                 f"Missing required feature columns in out-of-sample data for window starting {current_date}. Skipping."
             )
@@ -111,7 +125,7 @@ def walk_forward_analysis(
 
         # Predict on out-of-sample data
         try:
-            prediction, probability = predict_random_forest_classifier(
+            prediction, probability, _ = predict_random_forest_classifier(
                 rf_classifier, out_sample_features
             )
         except Exception as predict_error:
@@ -269,7 +283,9 @@ def save_results_to_db(
 ):
     """Saves a DataFrame to a specified table in the SQLite database."""
     if df.empty:
-        logger.warning(f"DataFrame is empty. Skipping save to table '{table_name}'.")
+        logger.warning(
+            f"DataFrame is empty. Skipping save to table '{table_name}'."
+        )
         return False
     try:
         df.to_sql(
@@ -279,7 +295,9 @@ def save_results_to_db(
             index=index,
             index_label=index_label,
         )
-        logger.info(f"Successfully wrote {len(df)} records to table '{table_name}'.")
+        logger.info(
+            f"Successfully wrote {len(df)} records to table '{table_name}'."
+        )
         return True
     except Exception as db_error:
         logger.error(f"Error writing to table '{table_name}': {db_error}")
@@ -333,7 +351,9 @@ def prepare_feature_return_data(
         df_dict[ticker] = df
 
         # Ensure 'Date' is datetime and normalize it
-        df_dict[ticker]["Date"] = pd.to_datetime(df_dict[ticker]["Date"]).dt.normalize()
+        df_dict[ticker]["Date"] = pd.to_datetime(
+            df_dict[ticker]["Date"]
+        ).dt.normalize()
         df_dict[ticker].set_index("Date", inplace=True)
 
         for period in periods_list:
@@ -364,7 +384,9 @@ def prepare_feature_return_data(
         else:
             df_combined = df_combined.join(df_dict[ticker], how="outer")
 
-        logger.info(f"Prepared data for {ticker}: {len(df_dict[ticker])} records.")
+        logger.info(
+            f"Prepared data for {ticker}: {len(df_dict[ticker])} records."
+        )
 
     # logger.info(df_combined.columns)
     # logger.info(f"Combined data shape: {df_combined.shape}")
@@ -409,7 +431,9 @@ def baseline_accuracy(trades_df: pd.DataFrame) -> float:
 def baseline_loop(strategies: list) -> None:
     # Define database paths
     price_data_dir = "PriceData"
-    trades_list_db_name = os.path.join(price_data_dir, "trades_list_vectorised.db")
+    trades_list_db_name = os.path.join(
+        price_data_dir, "trades_list_vectorised.db"
+    )
     results_db_name = os.path.join(price_data_dir, "backtest_results2.db")
 
     # Use with statements for automatic connection management
@@ -427,7 +451,9 @@ def baseline_loop(strategies: list) -> None:
             # Load trades data
             trades_df = pd.DataFrame()
             try:
-                trades_df = pd.read_sql(f"SELECT * FROM {strategy_name}", trades_conn)
+                trades_df = pd.read_sql(
+                    f"SELECT * FROM {strategy_name}", trades_conn
+                )
             except Exception as e:
                 logger.error(
                     f"Error loading trades data for {strategy_name}, skipping: {e}"
@@ -497,7 +523,9 @@ def remove_duplicate_overall_results(db_path: str):
         )
         return False
     except Exception as e:
-        logger.error(f"An unexpected error occurred while removing duplicates: {e}")
+        logger.error(
+            f"An unexpected error occurred while removing duplicates: {e}"
+        )
         return False
 
 
@@ -507,7 +535,9 @@ def main(strategies):
     """
     # Define database paths
     price_data_dir = "PriceData"
-    trades_list_db_name = os.path.join(price_data_dir, "trades_list_vectorised.db")
+    trades_list_db_name = os.path.join(
+        price_data_dir, "trades_list_vectorised.db"
+    )
     results_db_name = os.path.join(price_data_dir, "backtest_results2.db")
     # required_features = ["^VIX", "One_day_spy_return"]
 
@@ -523,7 +553,9 @@ def main(strategies):
             # Load trades data
             trades_df = pd.DataFrame()
             try:
-                trades_df = pd.read_sql(f"SELECT * FROM {strategy_name}", trades_conn)
+                trades_df = pd.read_sql(
+                    f"SELECT * FROM {strategy_name}", trades_conn
+                )
             except Exception as e:
                 logger.error(
                     f"Error loading trades data for {strategy_name}, skipping: {e}"
@@ -533,7 +565,9 @@ def main(strategies):
             trades_df["baseline_pred"] = 1
 
             # make sure trade_df['buy_date'] is in datetime format and normalize
-            trades_df["buy_date"] = pd.to_datetime(trades_df["buy_date"]).dt.normalize()
+            trades_df["buy_date"] = pd.to_datetime(
+                trades_df["buy_date"]
+            ).dt.normalize()
             trades_df["sell_date"] = pd.to_datetime(
                 trades_df["sell_date"]
             ).dt.normalize()
@@ -642,7 +676,9 @@ def main(strategies):
             if not walk_forward_results.empty:
                 # Prepare DataFrame for saving (set index)
                 if "trade_id" in walk_forward_results.columns:
-                    results_to_save = walk_forward_results.set_index("trade_id")
+                    results_to_save = walk_forward_results.set_index(
+                        "trade_id"
+                    )
                     index_label = "trade_id"
                     use_index = True
                 else:
@@ -663,7 +699,9 @@ def main(strategies):
                 )
 
                 if save_successful:
-                    overall_accuracy = calculate_overall_metrics(walk_forward_results)
+                    overall_accuracy = calculate_overall_metrics(
+                        walk_forward_results
+                    )
                     basline_accuracy_value = baseline_accuracy(trades_df)
 
                     if overall_accuracy is not None:
@@ -715,7 +753,18 @@ def main(strategies):
 
 
 if __name__ == "__main__":
-    logger = setup_logging("logs", "walk_forward.log", level=logging.INFO)
+    # Get the current filename without extension
+    module_name = os.path.splitext(os.path.basename(__file__))[0]
+    log_filename = f"log/{module_name}.log"
+    # Clear the log file at the start of each run
+    with open(log_filename, "w"):
+        pass
+    LOG_CONFIG["handlers"]["file_dynamic"]["filename"] = log_filename
+    LOG_CONFIG["handlers"]["file_dynamic"]["level"] = "INFO"
+
+    logging.config.dictConfig(LOG_CONFIG)
+    logger = logging.getLogger(__name__)
+
     price_data_dir = "PriceData"
     results_db_name = os.path.join(price_data_dir, "backtest_results2.db")
     # remove_duplicate_overall_results(results_db_name)

@@ -41,6 +41,7 @@ def test_data():
     logger = logging.getLogger(__name__)
     tickers_list = ["AAPL"]
     use_rf_model_predictions = False
+    train_rf_classifier = False
     rf_dict = {}
     experiment_name = "test"
     # One test date
@@ -60,12 +61,14 @@ def test_data():
     }
     # Minimal precomputed_decisions
     precomputed_decisions = {
-        "strategy1": pd.DataFrame({"AAPL": ["Buy"]}, index=["2023-01-03"])
+        "strategy1": pd.DataFrame(
+            {"AAPL": ["Buy", "Buy"]}, index=["2023-01-02", "2023-01-03"]
+        ),
     }
 
     trade_liquidity_limit_cash = 1000
 
-    yield logger, tickers_list, use_rf_model_predictions, rf_dict, experiment_name, test_date_range, account_values, trading_account_db_name, ticker_price_history, precomputed_decisions, trade_liquidity_limit_cash
+    yield logger, tickers_list, use_rf_model_predictions, train_rf_classifier, rf_dict, experiment_name, test_date_range, account_values, trading_account_db_name, ticker_price_history, precomputed_decisions, trade_liquidity_limit_cash
 
 
 @pytest.fixture(scope="function")
@@ -78,10 +81,14 @@ def patched_functions(monkeypatch):
     monkeypatch.setattr(
         "TradeSim.testing_random_forest.strategies", [strategy1]
     )
-
     monkeypatch.setattr(
-        "TradeSim.testing_random_forest.create_buy_heap", lambda *a, **k: []
+        "TradeSim.testing_random_forest.insert_trade_into_trading_account_db",
+        lambda *a, **k: None,
     )
+
+    # monkeypatch.setattr(
+    #     "TradeSim.testing_random_forest.create_buy_heap", lambda *a, **k: []
+    # )
 
     monkeypatch.setattr(
         "TradeSim.testing_random_forest.insert_account_values_into_db",
@@ -94,7 +101,7 @@ def patched_functions(monkeypatch):
     # return first parameter rather than account (the same)
     monkeypatch.setattr(
         "TradeSim.testing_random_forest.process_orders",
-        lambda *args: args[1],
+        lambda *args: (args[1], args[0]),
     )
 
     monkeypatch.setattr(
@@ -105,11 +112,13 @@ def patched_functions(monkeypatch):
     return monkeypatch
 
 
+# @pytest.mark.skip()
 def test_main_test_loop_basic(monkeypatch, test_data, patched_functions):
     (
         logger,
         tickers_list,
         use_rf_model_predictions,
+        train_rf_classifier,
         rf_dict,
         experiment_name,
         test_date_range,
@@ -138,9 +147,9 @@ def test_main_test_loop_basic(monkeypatch, test_data, patched_functions):
         mock_update_account_portfolio_values,
     )
 
-    # execute orders need to return account
+    # execute orders need to return account and order_df
     mock_process_orders = MagicMock(
-        side_effect=lambda *args, **kwargs: args[1]
+        side_effect=lambda *args, **kwargs: (args[1], args[0])
     )
     monkeypatch.setattr(
         "TradeSim.testing_random_forest.process_orders",
@@ -154,6 +163,7 @@ def test_main_test_loop_basic(monkeypatch, test_data, patched_functions):
         ticker_price_history,
         precomputed_decisions,
         use_rf_model_predictions,
+        train_rf_classifier,
         account_values,
         trading_account_db_name,
         rf_dict,
@@ -168,6 +178,7 @@ def test_main_test_loop_basic(monkeypatch, test_data, patched_functions):
     assert mock_update_account_portfolio_values.call_count == 2
 
 
+# @pytest.mark.skip()
 def test_main_test_loop_account_has_holdings(
     monkeypatch, test_data, patched_functions
 ):
@@ -177,6 +188,7 @@ def test_main_test_loop_account_has_holdings(
         logger,
         tickers_list,
         use_rf_model_predictions,
+        train_rf_classifier,
         rf_dict,
         experiment_name,
         test_date_range,
@@ -214,7 +226,7 @@ def test_main_test_loop_account_has_holdings(
 
     # execute orders need to return account
     mock_process_orders = MagicMock(
-        side_effect=lambda *args, **kwargs: args[1]
+        side_effect=lambda *args, **kwargs: (args[1], args[0])
     )
     monkeypatch.setattr(
         "TradeSim.testing_random_forest.process_orders",
@@ -228,6 +240,7 @@ def test_main_test_loop_account_has_holdings(
         ticker_price_history,
         precomputed_decisions,
         use_rf_model_predictions,
+        train_rf_classifier,
         account_values,
         trading_account_db_name,
         rf_dict,
