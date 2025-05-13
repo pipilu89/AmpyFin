@@ -2,6 +2,7 @@ import heapq
 import logging
 import logging.config
 import os
+from pyexpat import features
 import re
 import sqlite3
 import sys
@@ -15,6 +16,10 @@ from pandas.tseries.offsets import CustomBusinessDay
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 # from config import PRICE_DB_PATH
 # from PriceData.store_trades_vectorised_v2 import prepare_sp500_one_day_return
+from PriceData.walk_forward_backtest import (
+    get_oscillator_features,
+    prepare_feature_return_data,
+)
 from control import (
     benchmark_asset,
     minimum_cash_allocation,
@@ -682,7 +687,7 @@ def insert_trade_into_trading_account_db(
                 dtype={"order_id": "TEXT PRIMARY KEY"},
             )
     except Exception as e:
-        logger.error(f"Error saving trades to database: {trades_df=} {e}")
+        logger.error(f"Error saving trades to database: {e}")
 
 
 def summarize_account_tickers_by_value(account):
@@ -816,6 +821,7 @@ def main_test_loop(
     experiment_name,
     train_trade_liquidity_limit,
     logger,
+    features_df=None,
 ):
     """
     Design desicions:
@@ -853,6 +859,11 @@ def main_test_loop(
 
             # retrain model with newer data
             if train_rf_classifier:
+                if features_df is None:
+                    logger.error(
+                        "features_df must be provided when train_rf_classifier is True."
+                    )
+                    continue
                 # Load trades data (training data)
                 # Get one day before
                 previous_day = date - timedelta(days=1)
@@ -863,13 +874,55 @@ def main_test_loop(
                     None,
                     previous_day.strftime("%Y-%m-%d"),
                 )
-                logger.info(f"{len(historic_trades_df)=}")
-                logger.info(f"{historic_trades_df=}")
 
-                # required_features = []
-                # train_random_forest_classifier_features(
-                #     historic_trades_df, required_features
-                # )
+                # join features_df to trades_df on buy_date
+
+                # filter features_df by previous date
+                historic_features_df = features_df[
+                    features_df.index <= previous_day.strftime("%Y-%m-%d")
+                ]
+
+                # HACK drop ^VIX from trades_df to avoid duplicate column names
+                historic_trades_df.drop(
+                    columns=["^VIX"], inplace=True, errors="ignore"
+                )
+
+                historic_trades_df = historic_trades_df.join(
+                    historic_features_df[required_features],
+                    on="buy_date",
+                    how="left",
+                )
+
+                missing_features = [
+                    f
+                    for f in required_features
+                    if f not in historic_trades_df.columns
+                ]
+                if missing_features:
+                    logger.error(
+                        f"Missing required features after join for {strategy_name}: {missing_features}. Skipping."
+                    )
+                    continue
+                logger.info(f"{len(historic_trades_df)=}")
+                # logger.info(f"{historic_trades_df=}")
+                assert (
+                    historic_trades_df["sell_date"].max() < date
+                ), "historic_trades_df date error"
+                try:
+                    rf_classifier, accuracy, precision, recall = (
+                        train_random_forest_classifier_features(
+                            historic_trades_df, required_features
+                        )
+                    )
+
+                    rf_dict[strategy_name] = {}
+                    rf_dict[strategy_name]["rf_classifier"] = rf_classifier
+                    rf_dict[strategy_name]["accuracy"] = accuracy
+                    rf_dict[strategy_name]["precision"] = precision
+                    rf_dict[strategy_name]["recall"] = recall
+                    logger.info("successfully trained new rf model")
+                except Exception as error:
+                    logger.error(f"error training rf model {error}")
 
             for ticker in tickers_list:
                 try:
@@ -979,50 +1032,44 @@ def main_test_loop(
                         assert isinstance(
                             rf_dict[strategy_name], dict
                         ), "loaded_model is not a dictionary, model loading failed."
-                        # logger.info(f"{rf_dict}")
 
-                        # prepare regime data for prediction
-                        daily_vix_df = ticker_price_history["^VIX"].loc[
-                            date.strftime("%Y-%m-%d")
-                        ]["Close"]
-                        assert daily_vix_df is not None, "daily_vix_df is None"
-                        One_day_spy_return = ticker_price_history["^GSPC"].loc[
-                            date.strftime("%Y-%m-%d")
-                        ]["One_day_spy_return"]
-                        assert (
-                            One_day_spy_return is not None
-                        ), "One_day_spy_return is None"
+                        # get current regime data from features_df and make prediction.
+                        if features_df is not None and not features_df.empty:
 
-                        data = {
-                            "^VIX": [daily_vix_df],
-                            "One_day_spy_return": [One_day_spy_return],
-                        }
-                        sample_df = pd.DataFrame(data, index=[0])
+                            # sample_df = pd.DataFrame(data, index=[0])
+                            # sample_df = features_df.loc[
+                            #     [date.strftime("%Y-%m-%d")]
+                            # ]
 
-                        # Get prediction (0 or 1) and probability of class 1 (positive return)
-                        prediction, probability, probabilities = (
-                            predict_random_forest_classifier(
-                                rf_dict[strategy_name]["rf_classifier"],
-                                sample_df,
+                            # Get prediction (0 or 1) and probability of class 1 (positive return)
+                            prediction, probability, probabilities = (
+                                predict_random_forest_classifier(
+                                    rf_dict[strategy_name]["rf_classifier"],
+                                    features_df.loc[
+                                        [date.strftime("%Y-%m-%d")]
+                                    ],
+                                )
                             )
-                        )
-                        logger.info(f"{probabilities=}")
-                        if prediction != 1:
-                            action = "Hold"  # Override original 'Buy' if RF doesn't confirm
+                            # logger.info(f"{probabilities=}")
 
-                        accuracy = round(
-                            rf_dict[strategy_name]["accuracy"], 2
-                        )  # Keep accuracy for logging/potential future use
-                        probability = np.round(
-                            probability[0], 4
-                        )  # Round probability
-                        logger.info(f"{probability = }")
+                            prediction = prediction[0]
 
-                        logger.info(
-                            f"Prediction {date.strftime('%Y-%m-%d')} {strategy_name} {ticker}: {prediction} (Prob: {probability:.4f}), Acc: {accuracy}, VIX: {daily_vix_df:.2f}, SPY: {One_day_spy_return:.2f}, Action: {action}"
-                        )
+                            if prediction != 1:
+                                action = "Hold"  # Override original 'Buy' if RF doesn't confirm
 
-                    # Only add to results if the original action was Buy and RF prediction is 1
+                            accuracy = round(
+                                rf_dict[strategy_name]["accuracy"], 2
+                            )  # Keep accuracy for logging/potential future use
+                            probability = np.round(
+                                probability[0], 4
+                            )  # Round probability
+                            # logger.info(f"{probability = }")
+
+                            logger.info(
+                                f"Prediction {date.strftime('%Y-%m-%d')} {strategy_name} {ticker}: {prediction} Prob: {probability:.4f}, Acc: {accuracy}, Action: {action}"
+                            )
+
+                    # create order if action still buy after rf prediction.
                     if action == "Buy":
 
                         orders_list.append(
@@ -1098,6 +1145,11 @@ def main_test_loop(
                 orders_df[col] = np.nan
 
             if not orders_df.empty:
+                # features
+                if features_df is not None and not features_df.empty:
+                    logger.info(
+                        f"current features: {features_df.loc[[date.strftime("%Y-%m-%d")]]}"
+                    )
                 # summarize orders: use orders_df to show number of buy and sell orders by strategy
                 orders_summary = orders_df.groupby(
                     ["strategy_name", "action"]
@@ -1656,8 +1708,8 @@ if __name__ == "__main__":
 
     # Initialize testing variables
     # strategies = [strategies[2]]
-    # strategies = strategies_top10_acc
-    strategies = [strategies_top10_acc[1]]  # ULTOSC
+    strategies = strategies_top10_acc
+    # strategies = [strategies_top10_acc[1]]  # ULTOSC
     # strategies = [strategies_top10_acc[1], strategies_top10_acc[2]]  # ULTOSC
     tickers_list = train_tickers
     account = initialize_test_account(train_start_cash)
@@ -1673,7 +1725,18 @@ if __name__ == "__main__":
 
     # TODO? delete existing experiment tables from trading_account db?
 
+    # Regime Data
     # prepare regime features data. Maybe just update ticker_price_history dict in memory?
+    periods_list = [1, 5, 10, 20, 30]
+    features_ticker_list = ["^GSPC"]
+    oscillator_features_ticker_list = ["^VIX"]
+    required_features = []
+    for ticker in features_ticker_list:
+        for period in periods_list:
+            required_features.append(f"{ticker}_return({period})")
+    for ticker in oscillator_features_ticker_list:
+        required_features.append(ticker)
+
     try:
         with sqlite3.connect(PRICE_DB_PATH) as conn:
             _ = prepare_sp500_one_day_return(conn)
@@ -1681,6 +1744,19 @@ if __name__ == "__main__":
         logger.error(
             f"Error preparing regime featrure sp500_one_day_return {PRICE_DB_PATH}: {e}"
         )
+
+    features_df = pd.DataFrame()
+    features_df = prepare_feature_return_data(
+        features_ticker_list, periods_list, PRICE_DB_PATH, logger
+    )
+
+    for ticker in oscillator_features_ticker_list:
+        oscillator_features_df = get_oscillator_features(ticker, PRICE_DB_PATH)
+        # Join to trades_df on buy_date
+        features_df = features_df.join(
+            oscillator_features_df, on="Date", how="left"
+        )
+    logger.info(f"{features_df=}")
 
     # get price history for tickers
     ticker_price_history = {}
@@ -1734,6 +1810,7 @@ if __name__ == "__main__":
         experiment_name,
         train_trade_liquidity_limit,
         logger,
+        features_df,
     )
 
     # experiment global settings summary
@@ -1747,7 +1824,7 @@ if __name__ == "__main__":
     logger.info(f"{train_start_cash=} {train_trade_liquidity_limit=}")
     logger.info(f"{train_stop_loss=} {train_take_profit=}")
     logger.info(f"{train_trade_asset_limit=} {minimum_cash_allocation=}")
-    logger.info(f"{len(train_tickers)=}{train_tickers=}")
+    logger.info(f"{len(train_tickers)=} {train_tickers=}")
     logger.info(f"{use_rf_model_predictions=} {prediction_threshold=}")
     logger.info(f"{rf_dict=}")
     logger.info(f"{regime_tickers=}")

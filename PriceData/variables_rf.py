@@ -45,7 +45,7 @@ from control import (
     # train_profit_profit_time_d2,
     # train_profit_profit_time_else,
     train_rank_asset_limit,
-    train_rank_liquidity_limit,
+    # train_rank_liquidity_limit,
     train_start_cash,
     train_stop_loss,
     # train_suggestion_heap_limit,
@@ -87,7 +87,7 @@ config_dict = {
     "train_start_cash": train_start_cash,
     "train_trade_liquidity_limit": train_trade_liquidity_limit,
     "train_trade_asset_limit": train_trade_asset_limit,
-    "train_rank_liquidity_limit": train_rank_liquidity_limit,
+    # "train_rank_liquidity_limit": train_rank_liquidity_limit,
     "train_rank_asset_limit": train_rank_asset_limit,
     # "train_profit": {
     #     "price_change_ratio_d1": train_profit_price_change_ratio_d1,

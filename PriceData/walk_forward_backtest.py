@@ -17,7 +17,7 @@ import wandb
 # Add parent directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from log_config import LOG_CONFIG
-from variables_rf import config_dict
+from PriceData.variables_rf import config_dict
 
 from config import PRICE_DB_PATH, environment
 from control import features_ticker_list, oscillator_features_ticker_list
@@ -333,16 +333,32 @@ def prepare_sp_return_data():
 
 
 def prepare_feature_return_data(
-    ticker_list: list[str], periods_list: list[int]
+    features_ticker_list: list[str],
+    periods_list: list[int],
+    PRICE_DB_PATH,
+    logger,
 ) -> pd.DataFrame:
     """
-    prepare features for rf training
+    Loads historical price data for multiple tickers from a SQLite database, computes percentage returns
+    over specified periods, cleans the data, and combines the results into a single DataFrame.
 
+    Args:
+        features_ticker_list (list[str]): List of ticker symbols to process.
+        periods_list (list[int]): List of periods (in days) over which to calculate returns.
+        PRICE_DB_PATH (str): Path to the SQLite database containing price tables for each ticker.
+
+    Returns:
+        pd.DataFrame: Combined DataFrame with calculated return features for all tickers, indexed by date.
+
+    Notes:
+        - Drops rows with missing or infinite values after return calculation.
+        - Removes original price columns ('Open', 'High', 'Low', 'Close', 'Volume') from the output.
+        - Logs warnings when infinite values are replaced with NaN.
     """
     df_dict = {}
     df_combined = pd.DataFrame()
 
-    for ticker in ticker_list:
+    for ticker in features_ticker_list:
         with sqlite3.connect(PRICE_DB_PATH) as conn:
             query = f"""
                 SELECT * FROM '{ticker}'
@@ -379,7 +395,7 @@ def prepare_feature_return_data(
 
         # combine all dataframes into one
 
-        if ticker == ticker_list[0]:
+        if ticker == features_ticker_list[0]:
             df_combined = df_dict[ticker]
         else:
             df_combined = df_combined.join(df_dict[ticker], how="outer")
@@ -398,7 +414,7 @@ def prepare_feature_return_data(
     return df_combined
 
 
-def get_oscillator_features(ticker: str) -> pd.DataFrame:
+def get_oscillator_features(ticker: str, PRICE_DB_PATH) -> pd.DataFrame:
     with sqlite3.connect(PRICE_DB_PATH) as conn:
         query = f"""
             SELECT * FROM '{ticker}'
@@ -623,11 +639,13 @@ def main(strategies):
 
             # features_df = prepare_sp_return_data()
             features_df = prepare_feature_return_data(
-                features_ticker_list, periods_list
+                features_ticker_list, periods_list, PRICE_DB_PATH, logger
             )
 
             for ticker in oscillator_features_ticker_list:
-                oscillator_features_df = get_oscillator_features(ticker)
+                oscillator_features_df = get_oscillator_features(
+                    ticker, PRICE_DB_PATH
+                )
                 # Join to trades_df on buy_date
                 features_df = features_df.join(
                     oscillator_features_df, on="Date", how="left"
@@ -642,10 +660,6 @@ def main(strategies):
                 on="buy_date",
                 how="left",
             )
-
-            # print(trades_df.columns)
-            # print(trades_df)
-            # return
 
             missing_features = [
                 f for f in required_features if f not in trades_df.columns
