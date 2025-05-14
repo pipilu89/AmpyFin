@@ -1114,6 +1114,8 @@ def main_test_loop(
                 f"before processing orders: {account["holdings_value_by_strategy"]=}"
             )
 
+            # TODO: save predictions to db (including prediction = 1)
+
             # daily orders summary
             # convert orders_list into a df
             orders_df = pd.DataFrame(orders_list)
@@ -1686,7 +1688,9 @@ if __name__ == "__main__":
     strategy_decisions_final_db_name = os.path.join(
         "PriceData", "strategy_decisions_final.db"
     )
-    trading_account_db_name = os.path.join("PriceData", "trading_account.db")
+    trading_account_db_name = os.path.join(
+        "PriceData", "trading_account_dev.db"
+    )
     PRICE_DB_PATH = os.path.join("PriceData", "price_data.db")
     trades_list_db_name = os.path.join(
         "PriceData", "trades_list_vectorised.db"
