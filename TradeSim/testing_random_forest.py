@@ -647,7 +647,7 @@ def update_account_portfolio_values(
 
 
 def insert_trade_into_trading_account_db(
-    trades_df, trading_account_db_name, experiment_name
+    trades_df, trading_account_db_name, experiment_name, table_suffix
 ):
     """
     Inserts trades into the trading account database.
@@ -656,13 +656,14 @@ def insert_trade_into_trading_account_db(
     - trades_df (pd.DataFrame): DataFrame containing trade data.
     - trading_account_db_name (str): path to the trading account database.
     - experiment_name (str): Name of the experiment for which the trades are being inserted.
+    - table_suffix (str): first part of the table name
 
     Returns:
     - None
     """
     # Ensure the DataFrame is not empty
     if trades_df.empty:
-        logger.warning("No trades to insert into the database.")
+        logger.warning("No data to insert into the database.")
         return
 
     # order_id check if column name exists
@@ -680,7 +681,7 @@ def insert_trade_into_trading_account_db(
     try:
         with sqlite3.connect(trading_account_db_name) as conn:
             trades_df.to_sql(
-                f"trades_{experiment_name}",
+                f"{table_suffix}_{experiment_name}",
                 conn,
                 if_exists="append",
                 index=True,
@@ -833,11 +834,19 @@ def main_test_loop(
         - combine execute buy and sell into one execute orders function?
         pros: simpler logic.
     """
+    if train_rf_classifier:
+        if features_df is None:
+            logger.error(
+                "features_df must be provided when train_rf_classifier is True."
+            )
+            return
+
     for date in test_date_range:
         logger.info(
             f"\n\n\n------------- NEW INTERVAL {date.strftime("%Y-%m-%d")}"
         )
         orders_list = []  # combine buy and sell orders into one list
+        predictions_list = []
         date_missing = False
         # logger.info(f"{account=}")
         for idx, strategy in enumerate(strategies):
@@ -857,73 +866,11 @@ def main_test_loop(
                 date_missing = True
                 continue
 
-            # retrain model with newer data
-            if train_rf_classifier:
-                if features_df is None:
-                    logger.error(
-                        "features_df must be provided when train_rf_classifier is True."
-                    )
-                    continue
-                # Load trades data (training data)
-                # Get one day before
-                previous_day = date - timedelta(days=1)
-                historic_trades_df = get_trades_training_data_from_db(
-                    strategy_name,
-                    trades_list_db_name,
-                    logger,
-                    None,
-                    previous_day.strftime("%Y-%m-%d"),
-                )
-
-                # join features_df to trades_df on buy_date
-
-                # filter features_df by previous date
-                historic_features_df = features_df[
-                    features_df.index <= previous_day.strftime("%Y-%m-%d")
-                ]
-
-                # HACK drop ^VIX from trades_df to avoid duplicate column names
-                historic_trades_df.drop(
-                    columns=["^VIX"], inplace=True, errors="ignore"
-                )
-
-                historic_trades_df = historic_trades_df.join(
-                    historic_features_df[required_features],
-                    on="buy_date",
-                    how="left",
-                )
-
-                missing_features = [
-                    f
-                    for f in required_features
-                    if f not in historic_trades_df.columns
-                ]
-                if missing_features:
-                    logger.error(
-                        f"Missing required features after join for {strategy_name}: {missing_features}. Skipping."
-                    )
-                    continue
-                logger.info(f"{len(historic_trades_df)=}")
-                # logger.info(f"{historic_trades_df=}")
-                assert (
-                    historic_trades_df["sell_date"].max() < date
-                ), "historic_trades_df date error"
-                try:
-                    rf_classifier, accuracy, precision, recall = (
-                        train_random_forest_classifier_features(
-                            historic_trades_df, required_features
-                        )
-                    )
-
-                    rf_dict[strategy_name] = {}
-                    rf_dict[strategy_name]["rf_classifier"] = rf_classifier
-                    rf_dict[strategy_name]["accuracy"] = accuracy
-                    rf_dict[strategy_name]["precision"] = precision
-                    rf_dict[strategy_name]["recall"] = recall
-                    logger.info("successfully trained new rf model")
-                except Exception as error:
-                    logger.error(f"error training rf model {error}")
-
+            historic_trades_df = pd.DataFrame()
+            prepared_training_data = False
+            prediction = None
+            accuracy = None
+            probability = None
             for ticker in tickers_list:
                 try:
                     # Attempt to get the shifted decision
@@ -996,51 +943,107 @@ def main_test_loop(
                 # logger.info(f"{account = }")
 
                 elif action == "Buy" and quantity == 0:
-                    # used if use_rf_model_predictions == False. ie baseline test.
-                    prediction = 1
-                    accuracy = 1
-                    probability = 1
 
                     # only load rf_model if buy signal
                     if use_rf_model_predictions:
-                        # Check if model is ALREADY LOADED in memory (in rf_dict)
-                        if strategy_name in rf_dict:
-                            logger.info(
-                                f"Model for {strategy_name} already loaded in memory."
+                        # check if training data has already been prepared
+                        if (
+                            not prepared_training_data
+                            and train_rf_classifier
+                            and features_df is not None
+                        ):
+                            logger.info("preparing training data...")
+                            # Load trades data (training data)
+                            # Get historical trades from up to one day before
+                            previous_day = date - timedelta(days=1)
+                            historic_trades_df = (
+                                get_trades_training_data_from_db(
+                                    strategy_name,
+                                    trades_list_db_name,
+                                    logger,
+                                    None,
+                                    previous_day.strftime("%Y-%m-%d"),
+                                )
                             )
-                            if rf_dict[strategy_name] is None:
+
+                            # join features_df to trades_df on buy_date
+
+                            # filter features_df by previous date
+                            historic_features_df = features_df[
+                                features_df.index
+                                <= previous_day.strftime("%Y-%m-%d")
+                            ]
+
+                            # HACK drop ^VIX from trades_df to avoid duplicate column names
+                            historic_trades_df.drop(
+                                columns=["^VIX"], inplace=True, errors="ignore"
+                            )
+
+                            historic_trades_df = historic_trades_df.join(
+                                historic_features_df[required_features],
+                                on="buy_date",
+                                how="left",
+                            )
+
+                            # check for missing features
+                            missing_features = [
+                                f
+                                for f in required_features
+                                if f not in historic_trades_df.columns
+                            ]
+                            if missing_features:
                                 logger.error(
-                                    f"Model for {strategy_name} is None, skipping..."
+                                    f"Missing required features after join for {strategy_name}: {missing_features}. Skipping."
                                 )
-                                continue
-                        else:
-                            if check_model_exists(strategy_name):
-                                rf_dict[strategy_name] = load_rf_model(
-                                    strategy_name, logger
-                                )
-                                if rf_dict[strategy_name] is None:
-                                    logger.error(
-                                        f"Model for {strategy_name} could not be loaded, skipping..."
+                                return
+                            logger.info(f"{len(historic_trades_df)=}")
+                            # logger.info(f"{historic_trades_df=}")
+                            assert (
+                                historic_trades_df["sell_date"].max() < date
+                            ), "historic_trades_df date error"
+
+                            prepared_training_data = True
+
+                        #  has the training data changed?
+                        prev_training_data_len = rf_dict.get(
+                            strategy_name, {}
+                        ).get("len(historic_trades_df)", 0)
+
+                        # retrain model if data has changed
+                        if len(historic_trades_df) != prev_training_data_len:
+                            logger.info(
+                                f"training model... {len(historic_trades_df)=} {prev_training_data_len=}"
+                            )
+
+                            try:
+                                rf_classifier, accuracy, precision, recall = (
+                                    train_random_forest_classifier_features(
+                                        historic_trades_df, required_features
                                     )
-                                    continue
-                            else:
-                                logger.error(
-                                    f"Model for {strategy_name} does not exist, skipping..."
                                 )
-                                continue
 
-                        assert isinstance(
-                            rf_dict[strategy_name], dict
-                        ), "loaded_model is not a dictionary, model loading failed."
+                                rf_dict[strategy_name] = {}
+                                rf_dict[strategy_name][
+                                    "rf_classifier"
+                                ] = rf_classifier
+                                rf_dict[strategy_name]["accuracy"] = accuracy
+                                rf_dict[strategy_name]["precision"] = precision
+                                rf_dict[strategy_name]["recall"] = recall
+                                rf_dict[strategy_name][
+                                    "len(historic_trades_df)"
+                                ] = len(historic_trades_df)
 
-                        # get current regime data from features_df and make prediction.
-                        if features_df is not None and not features_df.empty:
+                                logger.info(
+                                    f"successfully trained new rf model"
+                                )
+                            except Exception as error:
+                                logger.error(
+                                    f"error training rf model {error}"
+                                )
 
-                            # sample_df = pd.DataFrame(data, index=[0])
-                            # sample_df = features_df.loc[
-                            #     [date.strftime("%Y-%m-%d")]
-                            # ]
-
+                        # make prediction using features_df
+                        if prediction is None and features_df is not None:
+                            logger.info("getting predictions...")
                             # Get prediction (0 or 1) and probability of class 1 (positive return)
                             prediction, probability, probabilities = (
                                 predict_random_forest_classifier(
@@ -1050,27 +1053,40 @@ def main_test_loop(
                                     ],
                                 )
                             )
-                            # logger.info(f"{probabilities=}")
-
                             prediction = prediction[0]
-
-                            if prediction != 1:
-                                action = "Hold"  # Override original 'Buy' if RF doesn't confirm
 
                             accuracy = round(
                                 rf_dict[strategy_name]["accuracy"], 2
                             )  # Keep accuracy for logging/potential future use
-                            probability = np.round(
-                                probability[0], 4
-                            )  # Round probability
-                            # logger.info(f"{probability = }")
+                            probability = np.round(probability[0], 4)
 
-                            logger.info(
-                                f"Prediction {date.strftime('%Y-%m-%d')} {strategy_name} {ticker}: {prediction} Prob: {probability:.4f}, Acc: {accuracy}, Action: {action}"
-                            )
+                        if prediction == 0:
+                            action = "Hold"  # Override original 'Buy' if RF doesn't confirm
+
+                        predictions_list.append(
+                            {
+                                "strategy_name": strategy_name,
+                                "ticker": ticker,
+                                "action": action,
+                                "prediction": prediction,
+                                "accuracy": accuracy,  # Historical accuracy of the model
+                                "probability": probability,  # Probability of this specific prediction being 1
+                                "current_price": current_price,
+                                "date": date.strftime("%Y-%m-%d"),
+                            }
+                        )
+
+                        logger.info(
+                            f"Prediction {date.strftime('%Y-%m-%d')} {strategy_name} {ticker}: {prediction} Prob: {probability:.4f}, Acc: {accuracy}, Action: {action}"
+                        )
 
                     # create order if action still buy after rf prediction.
                     if action == "Buy":
+                        if not use_rf_model_predictions:
+                            # used if use_rf_model_predictions == False. ie baseline test.
+                            prediction = 1
+                            accuracy = 1
+                            probability = 1
 
                         orders_list.append(
                             {
@@ -1114,13 +1130,22 @@ def main_test_loop(
                 f"before processing orders: {account["holdings_value_by_strategy"]=}"
             )
 
-            # TODO: save predictions to db (including prediction = 1)
-
             # daily orders summary
+
+            # TODO: save predictions to db (including prediction = 1)
+            if use_rf_model_predictions:
+                predictions_df = pd.DataFrame(predictions_list)
+                insert_trade_into_trading_account_db(
+                    predictions_df,
+                    trading_account_db_name,
+                    experiment_name,
+                    "predict",
+                )
+
             # convert orders_list into a df
             orders_df = pd.DataFrame(orders_list)
 
-            # Required columns
+            # Required columns for orders
             required_cols = [
                 "strategy_name",
                 "ticker",
@@ -1176,7 +1201,10 @@ def main_test_loop(
                 logger.info(f"orders_df:\n\n{orders_df}")
 
                 insert_trade_into_trading_account_db(
-                    orders_df, trading_account_db_name, experiment_name
+                    orders_df,
+                    trading_account_db_name,
+                    experiment_name,
+                    "trades",
                 )
             else:
                 logger.info("no orders to process")
@@ -1721,7 +1749,7 @@ if __name__ == "__main__":
     use_rf_model_predictions = True
     train_rf_classifier = True
     # experiment_name = f"{use_rf_model_predictions = }_{len(train_tickers)}_{test_period_start}_{test_period_end}_{train_stop_loss}_{train_take_profit}_thres{prediction_threshold}"
-    experiment_name = f"baseline_fees_{test_period_start}_{test_period_end}"
+    experiment_name = f"rf_fees_{test_period_start}_{test_period_end}"
     account_values = pd.Series(
         index=pd.date_range(start=start_date, end=end_date)
     )
@@ -1741,13 +1769,13 @@ if __name__ == "__main__":
     for ticker in oscillator_features_ticker_list:
         required_features.append(ticker)
 
-    try:
-        with sqlite3.connect(PRICE_DB_PATH) as conn:
-            _ = prepare_sp500_one_day_return(conn)
-    except Exception as e:
-        logger.error(
-            f"Error preparing regime featrure sp500_one_day_return {PRICE_DB_PATH}: {e}"
-        )
+    # try:
+    #     with sqlite3.connect(PRICE_DB_PATH) as conn:
+    #         _ = prepare_sp500_one_day_return(conn)
+    # except Exception as e:
+    #     logger.error(
+    #         f"Error preparing regime featrure sp500_one_day_return {PRICE_DB_PATH}: {e}"
+    #     )
 
     features_df = pd.DataFrame()
     features_df = prepare_feature_return_data(
@@ -1773,7 +1801,7 @@ if __name__ == "__main__":
                 ticker_price_history[ticker] = pd.read_sql(
                     query,
                     conn,
-                    params=(start_date, end_date),
+                    params=(test_period_start, test_period_end),
                     index_col=["Date"],
                 )
     except Exception as e:
