@@ -841,12 +841,16 @@ def main_test_loop(
             )
             return
 
+    # Dictionary to store trained RF models per strategy
+    # rf_dict = {}
+
     for date in test_date_range:
         logger.info(
             f"\n\n\n------------- NEW INTERVAL {date.strftime("%Y-%m-%d")}"
         )
         orders_list = []  # combine buy and sell orders into one list
         predictions_list = []
+        training_data_checked = {}
         date_missing = False
         # logger.info(f"{account=}")
         for idx, strategy in enumerate(strategies):
@@ -867,7 +871,7 @@ def main_test_loop(
                 continue
 
             historic_trades_df = pd.DataFrame()
-            prepared_training_data = False
+            # prepared_training_data = False
             prediction = None
             accuracy = None
             probability = None
@@ -946,83 +950,100 @@ def main_test_loop(
 
                     # only load rf_model if buy signal
                     if use_rf_model_predictions:
+                        """
+                        for each date in date_list
+                        loop through strategy_list:
+                        loop through ticker_list:
+                        if ticker action == "Buy"
+                        Once per date, for each strategy, check historical training data length, if not checked already.
+                        if historical training data length has changed, use it to retrain the rf model.
+                        Make predictions and store in rf_dict[strategy_name].
+                        if next ticker requires prediction, ie action == "Buy", then use the prediction already stored in rf_dict[strategy_name].
+
+                        """
+                        # Check historical training data length, if not checked
+                        # if strategy_name not in training_data_checked:
+                        #     training_data = get_training_data(strategy_name)
+                        #     training_data_checked[strategy_name] = len(training_data)
+
                         # check if training data has already been prepared
-                        if (
-                            not prepared_training_data
-                            and train_rf_classifier
-                            and features_df is not None
-                        ):
-                            logger.info("preparing training data...")
-                            # Load trades data (training data)
-                            # Get historical trades from up to one day before
-                            previous_day = date - timedelta(days=1)
-                            historic_trades_df = (
-                                get_trades_training_data_from_db(
-                                    strategy_name,
-                                    trades_list_db_name,
-                                    logger,
-                                    None,
-                                    previous_day.strftime("%Y-%m-%d"),
-                                )
+                        # historic_trades_df = None
+                        # if (
+                        #     not prepared_training_data
+                        #     and train_rf_classifier
+                        #     and features_df is not None
+                        # ):
+
+                        if strategy_name not in training_data_checked:
+                            logger.info("Get training data for strategy...")
+                            historic_trades_df = get_training_data(
+                                strategy_name,
+                                features_df,
+                                trades_list_db_name,
+                                date,
+                                logger,
+                                start_date=None,
                             )
-
-                            # join features_df to trades_df on buy_date
-
-                            # filter features_df by previous date
-                            historic_features_df = features_df[
-                                features_df.index
-                                <= previous_day.strftime("%Y-%m-%d")
-                            ]
-
-                            # HACK drop ^VIX from trades_df to avoid duplicate column names
-                            historic_trades_df.drop(
-                                columns=["^VIX"], inplace=True, errors="ignore"
-                            )
-
-                            historic_trades_df = historic_trades_df.join(
-                                historic_features_df[required_features],
-                                on="buy_date",
-                                how="left",
-                            )
-
-                            # check for missing features
-                            missing_features = [
-                                f
-                                for f in required_features
-                                if f not in historic_trades_df.columns
-                            ]
-                            if missing_features:
-                                logger.error(
-                                    f"Missing required features after join for {strategy_name}: {missing_features}. Skipping."
-                                )
-                                return
-                            logger.info(f"{len(historic_trades_df)=}")
-                            # logger.info(f"{historic_trades_df=}")
-                            assert (
-                                historic_trades_df["sell_date"].max() < date
-                            ), "historic_trades_df date error"
-
-                            prepared_training_data = True
-
-                        #  has the training data changed?
-                        prev_training_data_len = rf_dict.get(
-                            strategy_name, {}
-                        ).get("len(historic_trades_df)", 0)
-
-                        # retrain model if data has changed
-                        if len(historic_trades_df) != prev_training_data_len:
-                            logger.info(
-                                f"training model... {len(historic_trades_df)=} {prev_training_data_len=}"
-                            )
-
-                            try:
-                                rf_classifier, accuracy, precision, recall = (
-                                    train_random_forest_classifier_features(
-                                        historic_trades_df, required_features
+                            if historic_trades_df is not None:
+                                if strategy_name not in rf_dict:
+                                    logger.info(
+                                        f"Very first get training data for strategy, initialising rf_dict"
                                     )
+                                    rf_dict[strategy_name] = {}
+                                    rf_dict[strategy_name][
+                                        "prev_len(historic_trades_df)"
+                                    ] = 0
+                                    rf_dict[strategy_name][
+                                        "len(historic_trades_df)"
+                                    ] = 0
+
+                                # rf_dict[strategy_name][
+                                #     "prev_len(historic_trades_df)"
+                                # ] = rf_dict[strategy_name][
+                                #     "len(historic_trades_df)"
+                                # ]
+                                rf_dict[strategy_name][
+                                    "len(historic_trades_df)"
+                                ] = len(historic_trades_df)
+                                # logger.info(f"{rf_dict=}")
+
+                                training_data_checked[strategy_name] = len(
+                                    historic_trades_df
+                                )
+                                logger.info(
+                                    f"training data len: {rf_dict[strategy_name][
+                                        "prev_len(historic_trades_df)"
+                                    ]} -> {rf_dict[strategy_name][
+                                        "len(historic_trades_df)"
+                                    ]}"
                                 )
 
-                                rf_dict[strategy_name] = {}
+                        # If historical training data length has changed, retrain RF model
+                        # logger.info(f"{rf_dict=}")
+                        if (
+                            training_data_checked[strategy_name]
+                            != rf_dict[strategy_name][
+                                "prev_len(historic_trades_df)"
+                            ]
+                            and historic_trades_df is not None
+                        ):
+                            logger.info(
+                                f"training data has changed, retrain model. {rf_dict[strategy_name][
+                                        "prev_len(historic_trades_df)"
+                                    ]} -> {training_data_checked[strategy_name]}"
+                            )
+                            try:
+                                (
+                                    rf_classifier,
+                                    accuracy,
+                                    precision,
+                                    recall,
+                                ) = train_random_forest_classifier_features(
+                                    historic_trades_df,
+                                    required_features,
+                                )
+
+                                # rf_dict[strategy_name] = {}
                                 rf_dict[strategy_name][
                                     "rf_classifier"
                                 ] = rf_classifier
@@ -1030,7 +1051,7 @@ def main_test_loop(
                                 rf_dict[strategy_name]["precision"] = precision
                                 rf_dict[strategy_name]["recall"] = recall
                                 rf_dict[strategy_name][
-                                    "len(historic_trades_df)"
+                                    "prev_len(historic_trades_df)"
                                 ] = len(historic_trades_df)
 
                                 logger.info(
@@ -1069,8 +1090,8 @@ def main_test_loop(
                                 "ticker": ticker,
                                 "action": action,
                                 "prediction": prediction,
-                                "accuracy": accuracy,  # Historical accuracy of the model
-                                "probability": probability,  # Probability of this specific prediction being 1
+                                "accuracy": accuracy,
+                                "probability": probability,
                                 "current_price": current_price,
                                 "date": date.strftime("%Y-%m-%d"),
                             }
@@ -1263,6 +1284,63 @@ def main_test_loop(
     except Exception as e:
         logger.error(f"Error generating tear sheet: {e}")
     return account
+
+
+def get_training_data(
+    strategy_name,
+    features_df,
+    trades_list_db_name,
+    date,
+    logger,
+    start_date=None,
+):
+    # logger.info("preparing training data...")
+    # Load trades data (training data)
+    # Get historical trades from up to one day before
+    previous_day = date - timedelta(days=1)
+    historic_trades_df = get_trades_training_data_from_db(
+        strategy_name,
+        trades_list_db_name,
+        logger,
+        None,
+        previous_day.strftime("%Y-%m-%d"),
+    )
+
+    # join features_df to trades_df on buy_date
+
+    # filter features_df by previous date
+    historic_features_df = features_df[
+        features_df.index <= previous_day.strftime("%Y-%m-%d")
+    ]
+
+    # HACK drop ^VIX from trades_df to avoid duplicate column names
+    historic_trades_df.drop(
+        columns=["^VIX"],
+        inplace=True,
+        errors="ignore",
+    )
+
+    historic_trades_df = historic_trades_df.join(
+        historic_features_df[required_features],
+        on="buy_date",
+        how="left",
+    )
+
+    # check for missing features
+    missing_features = [
+        f for f in required_features if f not in historic_trades_df.columns
+    ]
+    if missing_features:
+        logger.error(
+            f"Missing required features after join for {strategy_name}: {missing_features}. Skipping."
+        )
+        return
+    # logger.info(f"{len(historic_trades_df)=}")
+    # logger.info(f"{historic_trades_df=}")
+    assert (
+        historic_trades_df["sell_date"].max() < date
+    ), "historic_trades_df date error"
+    return historic_trades_df
 
 
 def insert_account_values_into_db(
