@@ -1807,7 +1807,7 @@ if __name__ == "__main__":
     use_rf_model_predictions = True
     train_rf_classifier = True
     # experiment_name = f"{use_rf_model_predictions = }_{len(train_tickers)}_{test_period_start}_{test_period_end}_{train_stop_loss}_{train_take_profit}_thres{prediction_threshold}"
-    experiment_name = f"rf_fees_05prob_{test_period_start}_{test_period_end}"
+    experiment_name = f"rf_fees_07prob_{test_period_start}_{test_period_end}"
     account_values = pd.Series(
         index=pd.date_range(start=start_date, end=end_date)
     )
