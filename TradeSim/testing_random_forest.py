@@ -20,6 +20,7 @@ from PriceData.walk_forward_backtest import (
     get_oscillator_features,
     prepare_feature_return_data,
 )
+from config import environment
 from control import (
     benchmark_asset,
     minimum_cash_allocation,
@@ -841,9 +842,6 @@ def main_test_loop(
             )
             return
 
-    # Dictionary to store trained RF models per strategy
-    # rf_dict = {}
-
     for date in test_date_range:
         logger.info(
             f"\n\n\n------------- NEW INTERVAL {date.strftime("%Y-%m-%d")}"
@@ -962,18 +960,6 @@ def main_test_loop(
 
                         """
                         # Check historical training data length, if not checked
-                        # if strategy_name not in training_data_checked:
-                        #     training_data = get_training_data(strategy_name)
-                        #     training_data_checked[strategy_name] = len(training_data)
-
-                        # check if training data has already been prepared
-                        # historic_trades_df = None
-                        # if (
-                        #     not prepared_training_data
-                        #     and train_rf_classifier
-                        #     and features_df is not None
-                        # ):
-
                         if strategy_name not in training_data_checked:
                             logger.info("Get training data for strategy...")
                             historic_trades_df = get_training_data(
@@ -997,11 +983,6 @@ def main_test_loop(
                                         "len(historic_trades_df)"
                                     ] = 0
 
-                                # rf_dict[strategy_name][
-                                #     "prev_len(historic_trades_df)"
-                                # ] = rf_dict[strategy_name][
-                                #     "len(historic_trades_df)"
-                                # ]
                                 rf_dict[strategy_name][
                                     "len(historic_trades_df)"
                                 ] = len(historic_trades_df)
@@ -1019,7 +1000,6 @@ def main_test_loop(
                                 )
 
                         # If historical training data length has changed, retrain RF model
-                        # logger.info(f"{rf_dict=}")
                         if (
                             training_data_checked[strategy_name]
                             != rf_dict[strategy_name][
@@ -1795,7 +1775,7 @@ if __name__ == "__main__":
         "PriceData", "strategy_decisions_final.db"
     )
     trading_account_db_name = os.path.join(
-        "PriceData", "trading_account_dev.db"
+        "PriceData", f"trading_account_{environment}.db"
     )
     PRICE_DB_PATH = os.path.join("PriceData", "price_data.db")
     trades_list_db_name = os.path.join(
@@ -1827,7 +1807,7 @@ if __name__ == "__main__":
     use_rf_model_predictions = True
     train_rf_classifier = True
     # experiment_name = f"{use_rf_model_predictions = }_{len(train_tickers)}_{test_period_start}_{test_period_end}_{train_stop_loss}_{train_take_profit}_thres{prediction_threshold}"
-    experiment_name = f"rf_fees_{test_period_start}_{test_period_end}"
+    experiment_name = f"rf_fees_05prob_{test_period_start}_{test_period_end}"
     account_values = pd.Series(
         index=pd.date_range(start=start_date, end=end_date)
     )
