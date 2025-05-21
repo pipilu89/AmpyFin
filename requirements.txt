@@ -26,3 +26,5 @@ tqdm
 TA-Lib
 # notebook
 # numba
+# IBKR
+ib_insync

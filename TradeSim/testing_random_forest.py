@@ -25,6 +25,7 @@ from control import (
     benchmark_asset,
     minimum_cash_allocation,
     prediction_threshold,
+    score_threshold,
     regime_tickers,
     test_period_end,
     test_period_start,
@@ -556,6 +557,49 @@ def strategy_and_ticker_cash_allocation(
     ][qualifying_strategies_df["allocated_cash"] > minimum_cash_allocation]
 
 
+def ticker_cash_allocation(
+    buy_orders_df,
+    account,
+    score_threshold,
+    # train_trade_asset_limit,
+    # train_trade_strategy_limit,
+    # trade_liquidity_limit_cash,
+    # minimum_cash_allocation,
+    logger,
+):
+    if buy_orders_df.empty:
+        logger.info("buy_orders_df is empty.")
+        return pd.DataFrame()
+
+    buy_df = buy_orders_df.copy()
+    buy_df["score"] = buy_df["prediction"] * buy_df["probability"]
+
+    # Aggregate by ticker: sum scores for each ticker
+    agg_df = (
+        buy_df.groupby("ticker", as_index=False)
+        .agg(total_score=("score", "sum"))
+        .sort_values(by="total_score", ascending=False)
+    )
+    logger.info(f"{agg_df=}")
+    # Filter tickers by score_threshold
+    agg_df = agg_df[agg_df["total_score"] > score_threshold].copy()
+    if agg_df.empty:
+        logger.info("No tickers exceed the score_threshold.")
+        return agg_df
+
+    # Allocate 10% of portfolio value to each qualifying ticker
+    portfolio_value = account.get("total_portfolio_value", 0)
+    allocation_cash = 0.10 * portfolio_value
+    agg_df["allocation_cash"] = allocation_cash
+    agg_df["allocation_pct"] = 0.10
+
+    agg_df["action"] = "Buy"
+
+    logger.info(f"Tickers allocated 10% of portfolio value:\n{agg_df}")
+
+    return agg_df
+
+
 # not needed?
 def create_buy_heap(buy_df):
     """
@@ -660,7 +704,7 @@ def insert_trade_into_trading_account_db(
     - table_suffix (str): first part of the table name
 
     Returns:
-    - None
+    - Boolean: success of insert True/False.
     """
     # Ensure the DataFrame is not empty
     if trades_df.empty:
@@ -688,8 +732,10 @@ def insert_trade_into_trading_account_db(
                 index=True,
                 dtype={"order_id": "TEXT PRIMARY KEY"},
             )
+        return True
     except Exception as e:
         logger.error(f"Error saving trades to database: {e}")
+        return False
 
 
 def summarize_account_tickers_by_value(account):
@@ -766,16 +812,26 @@ def process_orders(
     if num_buy_orders > 0:
         logger.info("process buy orders...")
         # update buy_order with allocated_cash and qty
-        buy_df = strategy_and_ticker_cash_allocation(
+        buy_df = ticker_cash_allocation(
             buy_orders_df,
             account,
-            prediction_threshold,
-            train_trade_asset_limit,
-            train_trade_strategy_limit,
-            trade_liquidity_limit_cash,
-            minimum_cash_allocation,
+            score_threshold,
+            # train_trade_asset_limit,
+            # train_trade_strategy_limit,
+            # trade_liquidity_limit_cash,
+            # minimum_cash_allocation,
             logger,
         )
+        # buy_df = strategy_and_ticker_cash_allocation(
+        #     buy_orders_df,
+        #     account,
+        #     prediction_threshold,
+        #     train_trade_asset_limit,
+        #     train_trade_strategy_limit,
+        #     trade_liquidity_limit_cash,
+        #     minimum_cash_allocation,
+        #     logger,
+        # )
         logger.info(
             f"Post allocation: {len(orders_df)=}, {num_sell_orders=}, {len(buy_df)=}"
         )

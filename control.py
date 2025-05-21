@@ -81,17 +81,18 @@ oscillator_features_ticker_list = [
 regime_tickers = features_ticker_list + oscillator_features_ticker_list
 prediction_modifier = 1
 prediction_threshold = 0.7
+score_threshold = 2
 
 # short test period
 # train_period_start = "2024-12-21"
 # train_period_end = "2024-12-31"
-# test_period_start = "2025-02-05"
-# test_period_end = "2025-02-20"
+test_period_start = "2025-02-05"
+test_period_end = "2025-02-20"
 
 train_period_start = "1991-01-01"
 train_period_end = "2024-12-31"
-test_period_start = "2000-01-01"
-test_period_end = "2025-04-08"
+# test_period_start = "2000-01-01"
+# test_period_end = "2025-04-08"
 
 train_tickers_5 = ["AAPL", "MSFT", "META", "AMD", "ELV"]
 train_tickers1 = ["GOOGL"]
