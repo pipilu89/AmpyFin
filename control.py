@@ -81,7 +81,8 @@ oscillator_features_ticker_list = [
 regime_tickers = features_ticker_list + oscillator_features_ticker_list
 prediction_modifier = 1
 prediction_threshold = 0.7
-score_threshold = 0.6
+score_threshold = 6
+miniumim_training_data_length = 1000
 
 # short test period
 # train_period_start = "2024-12-21"

@@ -36,6 +36,7 @@ from control import (
     train_trade_asset_limit,
     train_trade_liquidity_limit,
     train_trade_strategy_limit,
+    miniumim_training_data_length,
 )
 from helper_files.client_helper import (
     strategies,
@@ -311,8 +312,6 @@ def execute_sell_orders(
     note,
     logger,
 ):
-    logger.info("debug sell error. account:")
-    logger.info(account)
     if action.lower() == "sell" and ticker in account["holdings"]:
         quantity = account["holdings"][ticker].get("quantity", 0)
         if quantity <= 0:
@@ -1389,6 +1388,16 @@ def main_test_loop(
                                 logger,
                                 start_date=None,
                             )
+                            # if historic_trades_df is np.empty:
+                            if (
+                                historic_trades_df is not None
+                                and len(historic_trades_df)
+                                < miniumim_training_data_length
+                            ):
+                                logger.warning(
+                                    f"historic_trades_df below threshold (not enough training data) {len(historic_trades_df)=}"
+                                )
+                                break
                             if historic_trades_df is not None:
                                 if strategy_name not in rf_dict:
                                     logger.info(
@@ -1702,6 +1711,9 @@ def get_training_data(
         None,
         previous_day.strftime("%Y-%m-%d"),
     )
+
+    if historic_trades_df.empty:
+        return historic_trades_df
 
     # join features_df to trades_df on buy_date
 
@@ -2218,10 +2230,10 @@ if __name__ == "__main__":
     logger.info(f"{test_period_start = } {test_period_end = }")
 
     # Initialize testing variables
-    # strategies = [strategies[2]]
+    strategies = strategies
     # strategies = strategies_top10_acc
     # strategies = [strategies_top10_acc[1]]  # ULTOSC
-    strategies = [strategies_top10_acc[1], strategies_top10_acc[2]]  # ULTOSC
+    # strategies = [strategies_top10_acc[1], strategies_top10_acc[2]]  # ULTOSC
     tickers_list = train_tickers
     account = initialize_test_account(train_start_cash)
     # prediction_threshold = 0.75 #use global config
@@ -2234,7 +2246,26 @@ if __name__ == "__main__":
     )
     rf_dict = {}
 
-    # TODO? delete existing experiment tables from trading_account db?
+    # Check historical trades list. Remove strategies with no trades.
+
+    # get list of tables in trades_list_db_name
+    with sqlite3.connect(trades_list_db_name) as conn:
+        query = "SELECT name FROM sqlite_master WHERE type='table';"
+        tables = pd.read_sql(query, conn)
+        logger.info(
+            f"Tables in {trades_list_db_name}: {tables['name'].tolist()}"
+        )
+
+    # loop through strategies and check if they have exist in tables
+    for strategy in strategies:
+        strategy_name = strategy.__name__
+        if strategy_name not in tables["name"].tolist():
+            logger.warning(
+                f"Strategy {strategy_name} not found in {trades_list_db_name}. Removing from strategy array."
+            )
+            strategies.remove(strategy)
+            continue
+    logger.info(f"new {len(strategies)=}")
 
     # Regime Data
     # prepare regime features data. Maybe just update ticker_price_history dict in memory?
