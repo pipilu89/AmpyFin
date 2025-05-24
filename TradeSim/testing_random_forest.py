@@ -61,6 +61,39 @@ def initialize_test_account(start_cash):
     Initializes the test trading account with starting parameters
 
     account structure example:
+    account = {
+        "holdings": {
+            "AAPL": {
+                "quantity": 10,
+                "price": 100,
+                "current_price": 150.0,
+                "current_value": 1500.0,
+            },
+            "MSFT": {
+                "quantity": 5,
+                "price": 200,
+                "current_price": 250.0,
+                "current_value": 1250.0,
+            },
+        },
+        "cash": 10000,
+        "total_portfolio_value": 12750.0,
+    }
+    """
+
+    return {
+        "holdings": {},
+        "cash": start_cash,
+        "fees": 0,
+        "total_portfolio_value": start_cash,
+    }
+
+
+def initialize_test_account_old(start_cash):
+    """
+    Initializes the test trading account with starting parameters
+
+    account structure example:
         {
             "holdings": {
                 "AAPL": {
@@ -153,6 +186,61 @@ def check_stop_loss_take_profit_rtn_order(
 def execute_buy_orders(
     account,
     action,
+    ticker,
+    quantity,
+    current_price,
+    stop_loss_pct,
+    take_profit_pct,
+):
+    """
+    Executes buy orders from the buy and suggestion heaps.
+    Creates stop-loss and take-profit prices.
+
+    Parameters:
+    - account (dict): The account state.
+    - action (str): The action to perform ("Buy").
+    - ticker (str): The stock ticker.
+    - quantity (float): Number of shares to buy.
+    - current_price (float): Current price per share.
+    - stop_loss_pct (float): Stop loss percentage (e.g., 0.05 for 5%).
+    - take_profit_pct (float): Take profit percentage (e.g., 0.10 for 10%).
+
+    Returns:
+    - dict: The updated account state after executing the buy orders.
+    """
+    if action == "Buy":
+        # update account qty, sl, tp, and cash
+        account["cash"] -= round(quantity * current_price, 2)
+        account["cash"] = round(account["cash"], 2)
+
+        if ticker not in account["holdings"]:
+            account["holdings"][ticker] = {
+                "quantity": 0,
+                "price": 0,
+                "stop_loss": 0,
+                "take_profit": 0,
+            }
+
+        account["holdings"][ticker]["quantity"] += round(quantity, 2)
+        account["holdings"][ticker]["price"] = current_price
+        account["holdings"][ticker]["stop_loss"] = round(
+            current_price * (1 - stop_loss_pct), 2
+        )
+        account["holdings"][ticker]["take_profit"] = round(
+            current_price * (1 + take_profit_pct), 2
+        )
+
+        # broker fees
+        account = update_account_fees_per_order(
+            account, quantity, current_price
+        )
+
+    return account
+
+
+def execute_buy_orders_old(
+    account,
+    action,
     strategy_name,
     ticker,
     quantity,
@@ -214,6 +302,47 @@ def execute_buy_orders(
 
 
 def execute_sell_orders(
+    action,
+    ticker,
+    strategy_name,
+    account,
+    current_price,
+    current_date,
+    note,
+    logger,
+):
+    logger.info("debug sell error. account:")
+    logger.info(account)
+    if action.lower() == "sell" and ticker in account["holdings"]:
+        quantity = account["holdings"][ticker].get("quantity", 0)
+        if quantity <= 0:
+            logger.warning(f"No shares to sell for {ticker}.")
+            return account
+
+        account["cash"] += quantity * current_price
+        account["cash"] = round(account["cash"], 2)
+
+        del account["holdings"][ticker]
+
+        try:
+            account = update_account_fees_per_order(
+                account, quantity, current_price
+            )
+        except Exception as e:
+            logger.error(f"error update_account_fees_per_order {e}")
+
+        logger.info(
+            f"{ticker} - Sold {quantity} shares at ${current_price} for {strategy_name} date: {current_date.strftime('%Y-%m-%d')}"
+        )
+    else:
+        logger.warning(
+            f"Sell action ignored: action={action}, ticker={ticker} not in holdings."
+        )
+
+    return account
+
+
+def execute_sell_orders_old(
     action,
     ticker,
     strategy_name,
@@ -365,6 +494,7 @@ def get_holdings_value_by_strategy(
     return holdings_value_by_strategy
 
 
+# not used
 def strategy_and_ticker_cash_allocation(
     buy_orders_df,
     account,
@@ -557,14 +687,15 @@ def strategy_and_ticker_cash_allocation(
     ][qualifying_strategies_df["allocated_cash"] > minimum_cash_allocation]
 
 
+# new allocation method
 def ticker_cash_allocation(
     buy_orders_df,
     account,
     score_threshold,
-    # train_trade_asset_limit,
+    train_trade_asset_limit,
     # train_trade_strategy_limit,
-    # trade_liquidity_limit_cash,
-    # minimum_cash_allocation,
+    trade_liquidity_limit_cash,
+    minimum_cash_allocation,
     logger,
 ):
     if buy_orders_df.empty:
@@ -577,25 +708,53 @@ def ticker_cash_allocation(
     # Aggregate by ticker: sum scores for each ticker
     agg_df = (
         buy_df.groupby("ticker", as_index=False)
-        .agg(total_score=("score", "sum"))
-        .sort_values(by="total_score", ascending=False)
+        .agg(
+            score=("score", "sum"),
+            current_price=("current_price", "last"),
+            date=("date", "last"),
+            action=("action", "first"),
+        )
+        .sort_values(by="score", ascending=False)
     )
-    logger.info(f"{agg_df=}")
+
     # Filter tickers by score_threshold
-    agg_df = agg_df[agg_df["total_score"] > score_threshold].copy()
+    agg_df["score"] = round(agg_df["score"], 2)
+    agg_df = agg_df[agg_df["score"] > score_threshold].copy()
     if agg_df.empty:
         logger.info("No tickers exceed the score_threshold.")
         return agg_df
 
-    # Allocate 10% of portfolio value to each qualifying ticker
+    # Allocate 10% of portfolio value to each qualifying ticker, but do not exceed available cash
+    num_tickers = len(agg_df)
+    if num_tickers == 0:
+        logger.info("No tickers to allocate cash to.")
+        return agg_df
     portfolio_value = account.get("total_portfolio_value", 0)
-    allocation_cash = 0.10 * portfolio_value
-    agg_df["allocation_cash"] = allocation_cash
-    agg_df["allocation_pct"] = 0.10
+    available_cash = account.get("cash", 0) - trade_liquidity_limit_cash
 
-    agg_df["action"] = "Buy"
+    if available_cash <= 0 or portfolio_value <= 0:
+        logger.info(
+            f"Not enough available cash: {available_cash} or portfolio value is zero: {portfolio_value}"
+        )
+        return pd.DataFrame()
 
-    logger.info(f"Tickers allocated 10% of portfolio value:\n{agg_df}")
+    max_allocation_per_ticker = min(
+        train_trade_asset_limit * portfolio_value, available_cash / num_tickers
+    )
+
+    if max_allocation_per_ticker <= minimum_cash_allocation:
+        logger.info(
+            "Max allocation per ticker is less than minimum_cash_allocation, no buys."
+        )
+        return pd.DataFrame()
+
+    agg_df["allocated_cash"] = round(max_allocation_per_ticker, 2)
+    agg_df["allocation_pct"] = (
+        agg_df["allocated_cash"] / portfolio_value if portfolio_value else 0
+    )
+
+    agg_df["quantity"] = agg_df["allocated_cash"] / agg_df["current_price"]
+    agg_df["quantity"] = round(agg_df["quantity"], 2)
 
     return agg_df
 
@@ -631,6 +790,61 @@ def create_buy_heap(buy_df):
 
 
 def update_account_portfolio_values(
+    account, ticker_price_history, current_date
+):
+    """
+    Updates the account dictionary with the latest portfolio values based on current prices.
+
+    Updates each holding with the latest current_price and recalculates its current_value.
+    Aggregates the value of holdings by ticker in holdings_value_by_ticker.
+    Computes the total portfolio value as the sum of cash and all holdings.
+
+    Args:
+        account (dict): The account data containing 'cash', 'holdings', and other info.
+        ticker_price_history (dict): Mapping of ticker symbols to their historical price DataFrames.
+        current_date (datetime): The date for which to fetch the latest closing prices.
+
+    Returns:
+        dict: The updated account dictionary with:
+            - 'holdings_value_by_ticker': Value of holdings grouped by ticker.
+            - 'total_portfolio_value': Total value of the portfolio (cash + holdings).
+            - Updates to each holding with 'current_price' and 'current_value'.
+
+    Notes:
+        - Assumes each holding contains a 'quantity' field.
+        - Expects price DataFrames to have a 'Close' column and be indexed by date strings.
+    """
+
+    # Calculate and update total portfolio value
+    total_value = account["cash"]
+    account["holdings_value_by_ticker"] = {}
+    for ticker, holding in account["holdings"].items():
+        try:
+            current_price = float(
+                ticker_price_history[ticker].loc[
+                    current_date.strftime("%Y-%m-%d")
+                ]["Close"]
+            )
+        except (KeyError, ValueError):
+            # Handle missing price data gracefully
+            current_price = holding.get("current_price", 0)
+
+        holding["current_price"] = current_price
+        # value of each holding
+        current_value = round(holding["quantity"] * current_price, 2)
+        holding["current_value"] = current_value
+
+        # value of holdings by ticker
+        account["holdings_value_by_ticker"][ticker] = current_value
+
+        # total value of portfolio
+        total_value += current_value
+    account["total_portfolio_value"] = round(total_value, 2)
+
+    return account
+
+
+def update_account_portfolio_values_old(
     account, ticker_price_history, current_date
 ):
     """
@@ -714,13 +928,21 @@ def insert_trade_into_trading_account_db(
     # order_id check if column name exists
     if "order_id" not in trades_df.columns:
         # Add a new column with the order_id value
-        trades_df["order_id"] = (
-            trades_df["ticker"]
-            + "_"
-            + trades_df["strategy_name"]
-            + "_"
-            + trades_df["date"].astype(str)
-        )
+        if "strategy_name" not in trades_df.columns:
+            trades_df["order_id"] = (
+                trades_df["ticker"] + "_" + trades_df["date"].astype(str)
+            )
+
+        # prediction df still has strategy name
+        if "strategy_name" in trades_df.columns:
+            trades_df["order_id"] = (
+                trades_df["ticker"]
+                + "_"
+                + trades_df["strategy_name"]
+                + "_"
+                + trades_df["date"].astype(str)
+            )
+
         trades_df.set_index("order_id", inplace=True)
 
     try:
@@ -738,7 +960,27 @@ def insert_trade_into_trading_account_db(
         return False
 
 
-def summarize_account_tickers_by_value(account):
+def summarize_account_tickers_by_value(account, top_n=10):
+    """
+    Returns a summary of the top N tickers in the account by holding value.
+
+    Args:
+        account (dict): The account data containing 'holdings' keyed by ticker.
+        top_n (int): Number of top tickers to return.
+
+    Returns:
+        list of tuples: Each tuple is (ticker, current_value), sorted by value descending.
+    """
+    ticker_values = []
+    for ticker, holding in account.get("holdings", {}).items():
+        value = holding.get("current_value", 0)
+        ticker_values.append((ticker, value))
+    # Sort by value descending
+    ticker_values.sort(key=lambda x: x[1], reverse=True)
+    return ticker_values[:top_n]
+
+
+def summarize_account_tickers_by_value_old(account):
     """
     Returns a dict mapping each ticker to its total current value in the account,
     using the 'current_price' stored in the account dict.
@@ -816,10 +1058,10 @@ def process_orders(
             buy_orders_df,
             account,
             score_threshold,
-            # train_trade_asset_limit,
+            train_trade_asset_limit,
             # train_trade_strategy_limit,
-            # trade_liquidity_limit_cash,
-            # minimum_cash_allocation,
+            trade_liquidity_limit_cash,
+            minimum_cash_allocation,
             logger,
         )
         # buy_df = strategy_and_ticker_cash_allocation(
@@ -840,6 +1082,128 @@ def process_orders(
         for index, row in buy_df.iterrows():
             try:
                 account = execute_buy_orders(
+                    account,
+                    row["action"],
+                    row["ticker"],
+                    row["quantity"],
+                    row["current_price"],
+                    stop_loss_pct,
+                    take_profit_pct,
+                )
+                buy_df.at[index, "executed"] = 1
+            except Exception as e:
+                logger.error(f"error executing buy order {e}")
+
+        # logger.info(f"{buy_df=}")
+        failed_buy_df = buy_df[buy_df["executed"] == 0]
+
+        if len(failed_buy_df) > 0:
+            logger.error(f"Error failed sell orders: {failed_buy_df=}")
+
+    # concatenate buy and sell orders into one dataframe
+    orders_df = pd.concat([sell_orders_df, buy_df], ignore_index=True)
+
+    cols_to_keep = [
+        "ticker",
+        "action",
+        "current_price",
+        "date",
+        "note",
+        "allocated_cash",
+        "quantity",
+        "score",
+        "executed",
+    ]
+    orders_df = orders_df[cols_to_keep]
+
+    return account, orders_df
+
+
+def process_orders_old(
+    orders_df,
+    account,
+    date,
+    trade_liquidity_limit_cash,
+    stop_loss_pct,
+    take_profit_pct,
+    logger,
+):
+    """
+    Process the interval (daily) orders list.
+    orders list contains sell and buy orders.
+    First process sell orders, then assign allocation for buy orders.
+    buy orders should be processed by probability (score).
+    """
+    orders_df["executed"] = 0
+    sell_orders_df = orders_df[orders_df["action"] == "Sell"]
+    buy_orders_df = orders_df[orders_df["action"] == "Buy"]
+    num_sell_orders = len(sell_orders_df)
+    num_buy_orders = len(buy_orders_df)
+
+    logger.info(
+        f"Pre allocation: {len(orders_df)=}, {num_sell_orders=}, {num_buy_orders=}"
+    )
+
+    if num_sell_orders > 0:
+        logger.info("process sell orders...")
+        # processed_sell_orders = []
+        # failed_sell_orders = []
+
+        for index, row in sell_orders_df.iterrows():
+            try:
+                account = execute_sell_orders(
+                    row["action"],
+                    row["ticker"],
+                    row["strategy_name"],
+                    account,
+                    row["current_price"],
+                    date,
+                    row["note"],
+                    logger,
+                )
+                sell_orders_df.at[index, "executed"] = 1
+            except Exception as e:
+                logger.error(f"error executing sell order {e}")
+
+        # logger.info(f"{sell_orders_df=}")
+        failed_sell_orders_df = sell_orders_df[sell_orders_df["executed"] == 0]
+
+        if len(failed_sell_orders_df) > 0:
+            logger.error(f"Error failed sell orders: {failed_sell_orders_df=}")
+
+    # Execute buy orders, create sl and tp prices
+    buy_df = pd.DataFrame()  # Initialize buy_df as an empty DataFrame
+    if num_buy_orders > 0:
+        logger.info("process buy orders...")
+        # update buy_order with allocated_cash and qty
+        buy_df = ticker_cash_allocation(
+            buy_orders_df,
+            account,
+            score_threshold,
+            train_trade_asset_limit,
+            # train_trade_strategy_limit,
+            trade_liquidity_limit_cash,
+            minimum_cash_allocation,
+            logger,
+        )
+        # buy_df = strategy_and_ticker_cash_allocation(
+        #     buy_orders_df,
+        #     account,
+        #     prediction_threshold,
+        #     train_trade_asset_limit,
+        #     train_trade_strategy_limit,
+        #     trade_liquidity_limit_cash,
+        #     minimum_cash_allocation,
+        #     logger,
+        # )
+        logger.info(
+            f"Post allocation: {len(orders_df)=}, {num_sell_orders=}, {len(buy_df)=}"
+        )
+        # logger.info(f"debug\n\n{buy_df}")
+        buy_df["executed"] = 0
+        for index, row in buy_df.iterrows():
+            try:
+                account = execute_buy_orders_old(
                     account,
                     row["action"],
                     row["strategy_name"],
@@ -961,9 +1325,8 @@ def main_test_loop(
 
                 # get any current holdings. needed for sl/tp and sell qty.
                 quantity = (
-                    account.get("holdings", {})
-                    .get(ticker, {})
-                    .get(strategy_name, {})
+                    account.get("holdings", {}).get(ticker, {})
+                    # .get(strategy_name, {})
                     .get("quantity", 0)
                 )
 
@@ -992,7 +1355,7 @@ def main_test_loop(
                             "action": action,  # Should always be 'Sell' here
                             "quantity": quantity,
                             "current_price": current_price,
-                            "note": "",
+                            "note": "Sell signal: " + strategy_name,
                             "date": date.strftime("%Y-%m-%d"),
                         }
                     )
@@ -1183,10 +1546,6 @@ def main_test_loop(
                 account, ticker_price_history, date
             )
 
-            logger.debug(
-                f"before processing orders: {account["holdings_value_by_strategy"]=}"
-            )
-
             # daily orders summary
 
             # TODO: save predictions to db (including prediction = 1)
@@ -1241,6 +1600,7 @@ def main_test_loop(
                 logger.info(f"Orders summary:\n{orders_summary}")
 
                 # execute orders and update account
+                logger.info(f"pre processing orders_df\n{orders_df}")
                 account, orders_df = process_orders(
                     orders_df,
                     account,
@@ -1250,6 +1610,7 @@ def main_test_loop(
                     train_take_profit,
                     logger,
                 )
+                logger.info(f"post processing orders_df\n{orders_df}")
 
                 # Calculate and update account total portfolio value
                 account = update_account_portfolio_values(
@@ -1279,8 +1640,8 @@ def main_test_loop(
             # logger.info(account)
             logger.info(f"cash: {account['cash']}")
             logger.info(f"fees: {account['fees']}")
-            logger.info(f"holdings_value_by_strategy:")
-            logger.info(account["holdings_value_by_strategy"])
+            # logger.info(f"holdings_value_by_strategy:")
+            # logger.info(account["holdings_value_by_strategy"])
             ticker_values = summarize_account_tickers_by_value(account)
             logger.info(f"num tickers: {len(account["holdings"])}")
             logger.info(ticker_values)
@@ -1833,6 +2194,10 @@ if __name__ == "__main__":
     trading_account_db_name = os.path.join(
         "PriceData", f"trading_account_{environment}.db"
     )
+    if os.path.exists(trading_account_db_name):
+        os.remove(trading_account_db_name)
+        logger.warning(f"deleted {trading_account_db_name}")
+
     PRICE_DB_PATH = os.path.join("PriceData", "price_data.db")
     trades_list_db_name = os.path.join(
         "PriceData", "trades_list_vectorised.db"
@@ -1854,9 +2219,9 @@ if __name__ == "__main__":
 
     # Initialize testing variables
     # strategies = [strategies[2]]
-    strategies = strategies_top10_acc
+    # strategies = strategies_top10_acc
     # strategies = [strategies_top10_acc[1]]  # ULTOSC
-    # strategies = [strategies_top10_acc[1], strategies_top10_acc[2]]  # ULTOSC
+    strategies = [strategies_top10_acc[1], strategies_top10_acc[2]]  # ULTOSC
     tickers_list = train_tickers
     account = initialize_test_account(train_start_cash)
     # prediction_threshold = 0.75 #use global config

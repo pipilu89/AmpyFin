@@ -81,12 +81,12 @@ oscillator_features_ticker_list = [
 regime_tickers = features_ticker_list + oscillator_features_ticker_list
 prediction_modifier = 1
 prediction_threshold = 0.7
-score_threshold = 2
+score_threshold = 0.6
 
 # short test period
 # train_period_start = "2024-12-21"
 # train_period_end = "2024-12-31"
-test_period_start = "2025-02-05"
+test_period_start = "2025-01-05"
 test_period_end = "2025-02-20"
 
 train_period_start = "1991-01-01"
@@ -756,7 +756,7 @@ you are allowed to hold in comparison to portfolio value for the training client
 The lower this number, the more diversification you will have in your portfolio. The higher the number,
 the less diversification you will have but it will be buying more selective assets.
 """
-train_trade_asset_limit = 0.2
+train_trade_asset_limit = 0.1
 train_trade_strategy_limit = 0.1
 
 
