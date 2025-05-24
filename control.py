@@ -62,9 +62,11 @@ oscillator_features_ticker_list = [
     "^SKEW",
 ]
 regime_tickers = features_ticker_list + oscillator_features_ticker_list
-prediction_modifier = 1
-prediction_threshold = 0.7
-score_threshold = 6
+
+# predictions with probability higher than this will be scored
+prediction_threshold = 0.6
+# ticker with score higher than this will be given buy signal (agg of all strategy probabilities higher than prediction_threshold).
+score_threshold = 5
 miniumim_training_data_length = 1000
 
 # short test period

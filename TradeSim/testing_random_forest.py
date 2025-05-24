@@ -201,7 +201,7 @@ def execute_buy_orders(
 def execute_sell_orders(
     action,
     ticker,
-    strategy_name,
+    # strategy_name,
     account,
     current_price,
     current_date,
@@ -226,8 +226,11 @@ def execute_sell_orders(
         except Exception as e:
             logger.error(f"error update_account_fees_per_order {e}")
 
+        # logger.info(
+        #     f"{ticker} - Sold {quantity} shares at ${current_price} for {strategy_name} date: {current_date.strftime('%Y-%m-%d')}"
+        # )
         logger.info(
-            f"{ticker} - Sold {quantity} shares at ${current_price} for {strategy_name} date: {current_date.strftime('%Y-%m-%d')}"
+            f"{ticker} - Sold {quantity} shares at ${current_price} date: {current_date.strftime('%Y-%m-%d')}"
         )
     else:
         logger.warning(
@@ -292,7 +295,7 @@ def ticker_cash_allocation(
     account,
     score_threshold,
     train_trade_asset_limit,
-    # train_trade_strategy_limit,
+    prediction_threshold,
     trade_liquidity_limit_cash,
     minimum_cash_allocation,
     logger,
@@ -302,6 +305,15 @@ def ticker_cash_allocation(
         return pd.DataFrame()
 
     buy_df = buy_orders_df.copy()
+    # Filter for probability > 0.6
+    buy_df = buy_df[buy_df["probability"] > prediction_threshold]
+
+    if buy_df.empty:
+        logger.info(
+            f"No buy orders with probability > {prediction_threshold=}."
+        )
+        return pd.DataFrame()
+
     buy_df["score"] = buy_df["prediction"] * buy_df["probability"]
 
     # Aggregate by ticker: sum scores for each ticker
@@ -465,6 +477,7 @@ def insert_trade_into_trading_account_db(
         return True
     except Exception as e:
         logger.error(f"Error saving trades to database: {e}")
+        logger.error(f"Error saving trades_df:\n{trades_df}")
         return False
 
 
@@ -518,12 +531,21 @@ def process_orders(
         # processed_sell_orders = []
         # failed_sell_orders = []
 
+        # agg sell_orders_df by ticker. possibly multiple sell orders for same ticker.
+        sell_orders_df = sell_orders_df.groupby("ticker", as_index=False).agg(
+            current_price=("current_price", "last"),
+            date=("date", "last"),
+            action=("action", "first"),
+            note=("note", "first"),
+            # strategy_name=("strategy_name", "first"),
+        )
+
         for index, row in sell_orders_df.iterrows():
             try:
                 account = execute_sell_orders(
                     row["action"],
                     row["ticker"],
-                    row["strategy_name"],
+                    # row["strategy_name"],
                     account,
                     row["current_price"],
                     date,
@@ -550,21 +572,12 @@ def process_orders(
             account,
             score_threshold,
             train_trade_asset_limit,
-            # train_trade_strategy_limit,
+            prediction_threshold,
             trade_liquidity_limit_cash,
             minimum_cash_allocation,
             logger,
         )
-        # buy_df = strategy_and_ticker_cash_allocation(
-        #     buy_orders_df,
-        #     account,
-        #     prediction_threshold,
-        #     train_trade_asset_limit,
-        #     train_trade_strategy_limit,
-        #     trade_liquidity_limit_cash,
-        #     minimum_cash_allocation,
-        #     logger,
-        # )
+
         logger.info(
             f"Post allocation: {len(orders_df)=}, {num_sell_orders=}, {len(buy_df)=}"
         )
@@ -770,7 +783,7 @@ def main_test_loop(
                                 logger,
                                 start_date=None,
                             )
-                            # if historic_trades_df is np.empty:
+
                             if (
                                 historic_trades_df is not None
                                 and len(historic_trades_df)
@@ -856,7 +869,7 @@ def main_test_loop(
                         if prediction is None and features_df is not None:
                             logger.info("getting predictions...")
                             # Get prediction (0 or 1) and probability of class 1 (positive return)
-                            prediction, probability, probabilities = (
+                            raw_prediction, raw_probability, probabilities = (
                                 predict_random_forest_classifier(
                                     rf_dict[strategy_name]["rf_classifier"],
                                     features_df.loc[
@@ -864,28 +877,30 @@ def main_test_loop(
                                     ],
                                 )
                             )
-                            prediction = prediction[0]
+                            prediction = raw_prediction[0]
 
                             accuracy = round(
                                 rf_dict[strategy_name]["accuracy"], 2
                             )  # Keep accuracy for logging/potential future use
-                            probability = np.round(probability[0], 4)
+                            probability = np.round(raw_probability[0], 4)
 
                         if prediction == 0:
                             action = "Hold"  # Override original 'Buy' if RF doesn't confirm
 
-                        predictions_list.append(
-                            {
-                                "strategy_name": strategy_name,
-                                "ticker": ticker,
-                                "action": action,
-                                "prediction": prediction,
-                                "accuracy": accuracy,
-                                "probability": probability,
-                                "current_price": current_price,
-                                "date": date.strftime("%Y-%m-%d"),
-                            }
-                        )
+                        # only log +ve predictions
+                        if prediction == 1:
+                            predictions_list.append(
+                                {
+                                    "strategy_name": strategy_name,
+                                    "ticker": ticker,
+                                    "action": action,
+                                    "prediction": prediction,
+                                    "accuracy": accuracy,
+                                    "probability": probability,
+                                    "current_price": current_price,
+                                    "date": date.strftime("%Y-%m-%d"),
+                                }
+                            )
 
                         logger.info(
                             f"Prediction {date.strftime('%Y-%m-%d')} {strategy_name} {ticker}: {prediction} Prob: {probability:.4f}, Acc: {accuracy}, Action: {action}"
@@ -985,9 +1000,19 @@ def main_test_loop(
                         f"current features: {features_df.loc[[date.strftime("%Y-%m-%d")]]}"
                     )
                 # summarize orders: use orders_df to show number of buy and sell orders by strategy
+                # orders_summary = orders_df.groupby(
+                #     ["strategy_name", "action"]
+                # ).size()
+                # logger.info(f"Orders summary:\n{orders_summary}")
+
                 orders_summary = orders_df.groupby(
                     ["strategy_name", "action"]
-                ).size()
+                ).agg(
+                    {
+                        "probability": "mean",
+                        "accuracy": "mean",
+                    }
+                )
                 logger.info(f"Orders summary:\n{orders_summary}")
 
                 # execute orders and update account
@@ -1255,6 +1280,36 @@ def get_trades_training_data_from_db(
     return trades_df
 
 
+def check_strategies_have_historical_trades(
+    strategies, trades_list_db_name, logger
+):
+    # get list of tables in trades_list_db_name
+    with sqlite3.connect(trades_list_db_name) as conn:
+        query = "SELECT name FROM sqlite_master WHERE type='table';"
+        tables = pd.read_sql(query, conn)
+        logger.info(
+            f"Tables in {trades_list_db_name}: {len(tables)=} {tables['name'].tolist()}"
+        )
+
+    # Build a new list instead of removing while iterating
+    valid_strategies = []
+    strategies_not_in_db = []
+    for strategy in strategies:
+        strategy_name = strategy.__name__
+        if strategy_name in tables["name"].tolist():
+            valid_strategies.append(strategy)
+        else:
+            # logger.warning(
+            #     f"Strategy {strategy_name} not found in {trades_list_db_name}. Removing from strategy array."
+            # )
+            strategies_not_in_db.append(strategy_name)
+
+    logger.info(
+        f"{len(strategies)=}, {len(valid_strategies)=}, {len(strategies_not_in_db)=}"
+    )
+    return valid_strategies
+
+
 if __name__ == "__main__":
     # Get the current filename without extension
     module_name = os.path.splitext(os.path.basename(__file__))[0]
@@ -1316,25 +1371,9 @@ if __name__ == "__main__":
     rf_dict = {}
 
     # Check historical trades list. Remove strategies with no trades.
-
-    # get list of tables in trades_list_db_name
-    with sqlite3.connect(trades_list_db_name) as conn:
-        query = "SELECT name FROM sqlite_master WHERE type='table';"
-        tables = pd.read_sql(query, conn)
-        logger.info(
-            f"Tables in {trades_list_db_name}: {tables['name'].tolist()}"
-        )
-
-    # loop through strategies and check if they have exist in tables
-    for strategy in strategies:
-        strategy_name = strategy.__name__
-        if strategy_name not in tables["name"].tolist():
-            logger.warning(
-                f"Strategy {strategy_name} not found in {trades_list_db_name}. Removing from strategy array."
-            )
-            strategies.remove(strategy)
-            continue
-    logger.info(f"new {len(strategies)=}")
+    strategies = check_strategies_have_historical_trades(
+        strategies, trades_list_db_name, logger
+    )
 
     # Regime Data
     # prepare regime features data. Maybe just update ticker_price_history dict in memory?
@@ -1347,14 +1386,6 @@ if __name__ == "__main__":
             required_features.append(f"{ticker}_return({period})")
     for ticker in oscillator_features_ticker_list:
         required_features.append(ticker)
-
-    # try:
-    #     with sqlite3.connect(PRICE_DB_PATH) as conn:
-    #         _ = prepare_sp500_one_day_return(conn)
-    # except Exception as e:
-    #     logger.error(
-    #         f"Error preparing regime featrure sp500_one_day_return {PRICE_DB_PATH}: {e}"
-    #     )
 
     features_df = pd.DataFrame()
     features_df = prepare_feature_return_data(
